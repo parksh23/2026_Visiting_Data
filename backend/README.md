@@ -1,6 +1,5 @@
-### ⚙️ 2. 백엔드 (Backend) `README.md`
+⚙️ 2. 백엔드 (Backend) `README.md`
 
-```markdown
 # 🌊 부산 로컬 도장깨기 (Busan Quest) - Backend
 
 프론트엔드 앱에 데이터를 제공하고, 유저 점수와 랭킹을 관리하는 API 서버입니다.
@@ -18,7 +17,6 @@
 ### 1. 프로젝트 클론 및 가상환경 생성
 터미널을 열고 아래 명령어를 순서대로 실행합니다.
 
-```bash
 # 1. 저장소 클론
 git clone [https://github.com/BusanQuest/busanquest-backend.git](https://github.com/BusanQuest/busanquest-backend.git)
 cd busanquest-backend

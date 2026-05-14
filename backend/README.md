@@ -28,22 +28,23 @@ python -m venv venv
 venv\Scripts\activate
 # Mac/Linux 사용자인 경우:
 source venv/bin/activate
-
+```
 # (가상환경이 켜지면 터미널 줄 맨 앞에 (venv) 라는 글자가 생깁니다!)'''
-
+```
 2. 패키지 설치 및 환경 변수 세팅
 Bash
 # 필수 라이브러리(FastAPI 등) 설치
 pip install -r requirements.txt
+```
 주의: 데이터베이스 비밀번호나 API 키는 깃허브에 올리면 안 됩니다!
 
 최상단 폴더에 .env.example 파일을 복사하여 .env 파일을 하나 만들고, 리더에게 전달받은 DB 접속 정보와 비밀번호를 채워 넣어주세요.
-
+```
 3. 서버 실행
 Bash
 uvicorn app.main:app --reload
 서버가 켜지면 브라우저에서 http://127.0.0.1:8000/docs 에 접속해 보세요. FastAPI가 자동으로 만들어준 멋진 API 테스트 화면(Swagger UI)을 볼 수 있습니다!
-
+```
 📂 폴더 구조 (Folder Structure)
 app/api/ : URL 주소별 라우터 모음 (장소 API, 유저 API 등)
 

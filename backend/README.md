@@ -15,17 +15,17 @@
 ### 1. 프로젝트 클론 및 가상환경 생성
 터미널을 열고 아래 명령어를 순서대로 실행합니다.
 
-# 1. 저장소 클론
+#### 1. 저장소 클론
 git clone [https://github.com/BusanQuest/busanquest-backend.git](https://github.com/BusanQuest/busanquest-backend.git)
 cd busanquest-backend
 
-# 2. 가상환경(venv) 생성 (파이썬 패키지가 꼬이지 않게 독립된 방을 만듭니다)
+#### 2. 가상환경(venv) 생성 (파이썬 패키지가 꼬이지 않게 독립된 방을 만듭니다)
 python -m venv venv
 
-# 3. 가상환경 켜기
-# Windows 사용자인 경우:
+#### 3. 가상환경 켜기
+##### Windows 사용자인 경우:
 venv\Scripts\activate
-# Mac/Linux 사용자인 경우:
+##### Mac/Linux 사용자인 경우:
 source venv/bin/activate
 
-# (가상환경이 켜지면 터미널 줄 맨 앞에 (venv) 라는 글자가 생깁니다!)
+## (가상환경이 켜지면 터미널 줄 맨 앞에 (venv) 라는 글자가 생깁니다!)

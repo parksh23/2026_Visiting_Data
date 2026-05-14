@@ -1,5 +1,3 @@
-⚙️ 2. 백엔드 (Backend) `README.md`
-
 # 🌊 부산 로컬 도장깨기 (Busan Quest) - Backend
 
 프론트엔드 앱에 데이터를 제공하고, 유저 점수와 랭킹을 관리하는 API 서버입니다.

@@ -1,20 +1,22 @@
+// MainActivity.kt
 package com.example.busasnquest
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -23,60 +25,134 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.*
+import androidx.navigation.compose.*
 
-// ── 새 디자인 색상 정의 (Navy & Soft Blue Theme) ──────────────────
-val BgSoftBlue    = Color(0xFFF2F6FA) // 전체 배경 (연한 블루그레이)
-val NavyMain      = Color(0xFF22314E) // 메인 네이비 (상단 카드, 플로팅 버튼)
-val NavyLight     = Color(0xFF3B4D70) // 보조 네이비
-val PointOrange   = Color(0xFFFF9800) // 포인트 오렌지 (별, 포인트 텍스트)
-val CardWhite     = Color(0xFFFFFFFF)
-val TextMain      = Color(0xFF1E1E1E)
-val TextSub       = Color(0xFF888888)
-val DividerGray   = Color(0xFFE5E5E5)
+// ───────────────── COLORS ─────────────────
 
-// 태그 색상
-val TagRedBg      = Color(0xFFFFEAEA)
-val TagRedText    = Color(0xFFE53935)
-val TagGreenBg    = Color(0xFFE8F5E9)
-val TagGreenText  = Color(0xFF43A047)
-val TagBlueBg     = Color(0xFFE8EAF6)
-val TagBlueText   = Color(0xFF3F51B5)
+val BgSoftBlue = Color(0xFFF2F6FA)
+val NavyMain = Color(0xFF22314E)
+val NavyLight = Color(0xFF3B4D70)
+val CardWhite = Color.White
+val TextMain = Color(0xFF1E1E1E)
+val TextSub = Color(0xFF888888)
+val DividerGray = Color(0xFFE5E5E5)
+val PointOrange = Color(0xFFFF9800)
 
-// ── 데이터 모델 ────────────────────────────────────────────────────
-data class MissionItem(
+
+// ───────────────── DATA ─────────────────
+
+data class RegionProgress(
+    val region: String,
+    val completed: Int,
+    val total: Int,
+    val description: String   // 지역 간략 정보
+)
+
+data class OngoingMission(
     val title: String,
-    val location: String,
-    val points: Int,
-    val tag: String,
-    val currentStep: Int = 0,
-    val maxStep: Int = 1,
-    val isCompleted: Boolean = false
+    val region: String,
+    val progress: Float,
+    val reward: Int
 )
 
-// ── 샘플 데이터 ────────────────────────────────────────────────────
-val sampleMissions = listOf(
-    MissionItem("초량 시장에서 로컬 결제하기", "동구 초량동", 120, "로컬결제"),
-    MissionItem("오륙도 해안길 걷기", "남구 용호동", 100, "둘레길"),
-    MissionItem("40년 이상 노포 방문하기", "서구 보수동", 150, "노포 방문")
+data class RankingInfo(
+    val global: Int,
+    val regional: Int,
+    val friend: Int
 )
 
-val regionalMissions = listOf(
-    MissionItem("금정산성 케이블카 탑승하기", "금정구", 120, "", isCompleted = true),
-    MissionItem("태종대 유원지 방문하기", "영도구", 100, "", isCompleted = false),
-    MissionItem("광안리 해변 산책하기", "수영구", 80, "", isCompleted = false)
+// 3선발 친구 랭킹
+data class FriendRank(
+    val name: String,
+    val score: Int,
+    val isMe: Boolean = false
 )
 
-// ── MainActivity ──────────────────────────────────────────────────
+// 프로필 - 미션 내역
+data class MissionRecord(
+    val title: String,
+    val region: String,
+    val date: String,
+    val reward: Int,
+    val done: Boolean
+)
+
+// 프로필 - 찜한 미션
+data class FavoriteMission(
+    val title: String,
+    val region: String,
+    val reward: Int
+)
+
+// 프로필 - 사진 관리
+data class PhotoItem(
+    val title: String,
+    val region: String
+)
+
+
+// ───────────────── SAMPLE DATA ─────────────────
+
+val ongoingMissions = listOf(
+    OngoingMission("광안리 해변 인증샷 찍기", "수영구", 0.7f, 120),
+    OngoingMission("남포동 로컬 맛집 방문", "중구", 0.4f, 100)
+)
+
+val regionProgressList = listOf(
+    RegionProgress("해운대구", 8, 10, "해수욕장과 마린시티 일대 미션이 모여 있는 지역입니다."),
+    RegionProgress("수영구", 5, 10, "광안리와 광안대교 야경 미션을 즐길 수 있는 지역입니다."),
+    RegionProgress("금정구", 3, 10, "범어사와 금정산 등산로 중심의 미션 지역입니다."),
+    RegionProgress("영도구", 9, 10, "흰여울문화마을과 태종대를 포함한 섬 지역입니다."),
+    RegionProgress("동래구", 4, 10, "온천과 동래읍성 등 역사 명소 중심 지역입니다."),
+)
+
+// 3선발 친구 랭킹 (점수 내림차순)
+val friendRanks = listOf(
+    FriendRank("민지", 2840),
+    FriendRank("나 (JWJJ)", 2560, isMe = true),
+    FriendRank("준호", 1980)
+)
+
+val missionRecords = listOf(
+    MissionRecord("해운대 해변 인증샷", "해운대구", "2026.05.20", 120, true),
+    MissionRecord("광안대교 야경 촬영", "수영구", "2026.05.18", 150, true),
+    MissionRecord("범어사 방문 미션", "금정구", "2026.05.15", 100, true),
+    MissionRecord("남포동 로컬 맛집 방문", "중구", "진행중", 100, false),
+    MissionRecord("광안리 해변 인증샷 찍기", "수영구", "진행중", 120, false),
+)
+
+val favoriteMissions = listOf(
+    FavoriteMission("태종대 등대 트레킹", "영도구", 200),
+    FavoriteMission("흰여울문화마을 산책", "영도구", 130),
+    FavoriteMission("동래온천 체험", "동래구", 110),
+)
+
+val photoItems = listOf(
+    PhotoItem("해운대 해변", "해운대구"),
+    PhotoItem("광안대교 야경", "수영구"),
+    PhotoItem("범어사 전경", "금정구"),
+    PhotoItem("흰여울문화마을", "영도구"),
+    PhotoItem("동래읍성", "동래구"),
+    PhotoItem("남포동 거리", "중구"),
+)
+
+
+// ───────────────── ACTIVITY ─────────────────
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             MaterialTheme {
                 BusanQuestApp()
@@ -85,716 +161,1110 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ── 앱 루트 & 커스텀 바텀 네비게이션 ──────────────────────────────
+
+// ───────────────── APP ROOT ─────────────────
+
 @Composable
 fun BusanQuestApp() {
-    var currentScreen by remember { mutableStateOf("홈") }
+
+    val navController = rememberNavController()
 
     Scaffold(
         containerColor = BgSoftBlue,
         bottomBar = {
-            CustomBottomNavigation(currentScreen) { currentScreen = it }
+            BottomNavigationBar(navController)
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            when (currentScreen) {
-                "홈"       -> HomeScreen()
-                "미션"     -> MissionScreen()
-                "지도"     -> MapScreen()
-                "랭킹"     -> RankingPlaceholderScreen()
-                "내 정보"  -> ProfileScreen()
+
+        NavHost(
+            navController = navController,
+            startDestination = "home",
+            modifier = Modifier.padding(padding)
+        ) {
+
+            composable("home") {
+                HomeScreen(navController)
             }
-        }
-    }
-}
 
-@Composable
-fun CustomBottomNavigation(currentScreen: String, onTabSelected: (String) -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(90.dp)
-            .background(Color.Transparent)
-    ) {
-        // 하단 흰색 바
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(65.dp)
-                .align(Alignment.BottomCenter)
-                .background(CardWhite)
-                .border(1.dp, DividerGray.copy(alpha = 0.5f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            BottomNavItem("홈", Icons.Outlined.Home, currentScreen, onTabSelected)
-            BottomNavItem("미션", Icons.Outlined.Flag, currentScreen, onTabSelected)
-            Spacer(modifier = Modifier.width(60.dp)) // 중앙 지도 버튼 공간
-            BottomNavItem("랭킹", Icons.Outlined.EmojiEvents, currentScreen, onTabSelected)
-            BottomNavItem("내 정보", Icons.Outlined.Person, currentScreen, onTabSelected)
-        }
+            composable("mission") {
+                MissionScreen(navController)
+            }
 
-        // 중앙 플로팅 지도 버튼
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = (-5).dp)
-                .clickable { onTabSelected("지도") },
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(65.dp)
-                    .shadow(8.dp, CircleShape)
-                    .background(NavyMain, CircleShape),
-                contentAlignment = Alignment.Center
+            composable(
+                route = "map/{region}",
+                arguments = listOf(
+                    navArgument("region") {
+                        type = NavType.StringType
+                    }
+                )
             ) {
-                Icon(Icons.Outlined.Map, contentDescription = "지도", tint = CardWhite, modifier = Modifier.size(28.dp))
+                val region = it.arguments?.getString("region") ?: ""
+                MapScreen(region)
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text("지도", fontSize = 11.sp, fontWeight = if (currentScreen == "지도") FontWeight.Bold else FontWeight.Normal, color = if (currentScreen == "지도") NavyMain else TextSub)
+
+            composable("ranking") {
+                RankingScreen()
+            }
+
+            composable("profile") {
+                ProfileScreen()
+            }
         }
     }
 }
 
-@Composable
-fun BottomNavItem(title: String, icon: ImageVector, currentScreen: String, onTabSelected: (String) -> Unit) {
-    val isSelected = currentScreen == title
-    val color = if (isSelected) NavyMain else TextSub
-    Column(
-        modifier = Modifier
-            .width(60.dp)
-            .clickable { onTabSelected(title) },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(icon, contentDescription = title, tint = color, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(title, fontSize = 11.sp, color = color, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-    }
-}
 
-// ── 공통 컴포넌트: 상단 헤더 ──────────────────────────────────────
+// ───────────────── BOTTOM NAV ─────────────────
+
 @Composable
-fun TopHeader(title: String, subtitle: String? = null) {
+fun BottomNavigationBar(
+    navController: NavHostController
+) {
+
+    val currentRoute =
+        navController.currentBackStackEntryAsState()
+            .value
+            ?.destination
+            ?.route
+
+    // 탭 이동 시 백스택이 쌓이지 않도록 공통 옵션 적용
+    fun navigateTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.startDestinationId) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .height(72.dp)
+            .clip(
+                RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            )
+            .background(CardWhite)
+            .border(
+                1.dp,
+                DividerGray,
+                RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            ),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        BottomItem("홈", Icons.Outlined.Home, currentRoute == "home") {
+            navigateTab("home")
+        }
+
+        BottomItem("미션", Icons.Outlined.Flag, currentRoute == "mission") {
+            navigateTab("mission")
+        }
+
+        BottomItem(
+            "지도",
+            Icons.Outlined.Map,
+            currentRoute?.startsWith("map") == true
+        ) {
+            navigateTab("map/부산")
+        }
+
+        BottomItem("랭킹", Icons.Outlined.EmojiEvents, currentRoute == "ranking") {
+            navigateTab("ranking")
+        }
+
+        BottomItem("프로필", Icons.Outlined.Person, currentRoute == "profile") {
+            navigateTab("profile")
+        }
+    }
+}
+
+
+@Composable
+fun BottomItem(
+    title: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+
+    val color = if (selected) NavyMain else TextSub
+
+    Column(
+        modifier = Modifier.clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        Icon(icon, contentDescription = title, tint = color)
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            title,
+            fontSize = 11.sp,
+            color = color,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+
+// ───────────────── HOME ─────────────────
+
+@Composable
+fun HomeScreen(
+    navController: NavHostController
+) {
+
+    // 지역 카드 확장 상태 (간략 정보 표시용)
+    var expandedRegion by remember { mutableStateOf<String?>(null) }
+
+    LazyColumn {
+
+        item {
+            Header("부산 땅따먹기")
+            ProgressCard()
+        }
+
+        item {
+            SectionTitle("현재 진행중인 미션")
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        items(ongoingMissions) {
+            OngoingMissionCard(it)
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(28.dp))
+            SectionTitle("지역별 진행 현황")
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        items(regionProgressList) { region ->
+
+            ExpandableRegionCard(
+                region = region,
+                expanded = expandedRegion == region.region,
+                onToggle = {
+                    expandedRegion =
+                        if (expandedRegion == region.region) null
+                        else region.region
+                },
+                onDetail = {
+                    // 상세 -> 지도탭 이동, 해당 구 확대
+                    navController.navigate("map/${region.region}")
+                }
+            )
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+    }
+}
+
+
+// ───────────────── MISSION ─────────────────
+
+@Composable
+fun MissionScreen(
+    navController: NavHostController
+) {
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+
+        Header("미션")
+
+        SecondaryTabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = BgSoftBlue
+        ) {
+
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = { Text("전체") }
+            )
+
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = { Text("지역") }
+            )
+        }
+
+        AnimatedContent(
+            targetState = selectedTab,
+            label = "missionTab"
+        ) { tab ->
+
+            when (tab) {
+
+                // 전체: 전체 진행률 + 각 구/군별 미션 진행률
+                0 -> {
+
+                    LazyColumn {
+
+                        item {
+                            ProgressCard()
+                            Spacer(modifier = Modifier.height(20.dp))
+                            SectionTitle("구·군별 미션 진행률")
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        items(regionProgressList) { region ->
+                            RegionProgressCard(
+                                region = region,
+                                onClick = {
+                                    navController.navigate("map/${region.region}")
+                                }
+                            )
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(120.dp))
+                        }
+                    }
+                }
+
+                // 지역: 구/군별 미션 목록
+                else -> {
+
+                    LazyColumn {
+
+                        items(regionProgressList) { region ->
+                            RegionMissionSection(region)
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(120.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// ───────────────── MAP ─────────────────
+
+@Composable
+fun MapScreen(region: String) {
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+
+        Header("지도")
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFFE8F0FF), Color(0xFFDDE7F5))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+
+                Icon(
+                    Icons.Default.Map,
+                    contentDescription = null,
+                    tint = NavyMain,
+                    modifier = Modifier.size(80.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    if (region == "부산") "부산 전체 지도"
+                    else "$region 지도 확대",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NavyMain
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    if (region == "부산") "구·군을 선택해 상세 정보를 확인하세요"
+                    else "$region 상세 정보 표시",
+                    color = TextSub
+                )
+            }
+        }
+    }
+}
+
+
+// ───────────────── RANKING ─────────────────
+
+@Composable
+fun RankingScreen() {
+
+    val ranking = RankingInfo(
+        global = 124,
+        regional = 8,
+        friend = friendRanks.indexOfFirst { it.isMe } + 1
+    )
+
+    LazyColumn {
+
+        item {
+            Header("랭킹")
+
+            // 최상단: 현재 내 순위 (전체 / 지역 / 친구)
+            RankingCard(ranking)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 3선발 친구 랭킹
+            SectionTitle("친구 랭킹 (선발 3인)")
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        items(friendRanks.size) { index ->
+            FriendRankRow(
+                rank = index + 1,
+                friend = friendRanks[index]
+            )
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(24.dp))
+            SectionTitle("TOP 플레이어")
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        items(10) {
+            RankingRow(
+                rank = it + 1,
+                name = "플레이어 ${it + 1}",
+                score = "${3000 - (it * 120)}P"
+            )
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+    }
+}
+
+
+// ───────────────── PROFILE ─────────────────
+
+@Composable
+fun ProfileScreen() {
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    val tabs = listOf("활동", "미션 내역", "찜한 미션", "사진 관리")
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+
+        Header("프로필")
+
+        SecondaryScrollableTabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = BgSoftBlue,
+            edgePadding = 12.dp
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title) }
+                )
+            }
+        }
+
+        AnimatedContent(
+            targetState = selectedTab,
+            label = "profileTab"
+        ) { tab ->
+
+            when (tab) {
+                0 -> ProfileActivityTab()
+                1 -> MissionRecordTab()
+                2 -> FavoriteMissionTab()
+                else -> PhotoManageTab()
+            }
+        }
+    }
+}
+
+
+@Composable
+fun ProfileActivityTab() {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+
+        // 사용자 요약 카드
+        Box(
+            modifier = Modifier
+                .padding(20.dp)
+                .fillMaxWidth()
+                .shadow(10.dp, RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp))
+                .background(NavyMain)
+                .padding(24.dp)
+        ) {
+            Column {
+                Text("JWJJ", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("부산 탐험가 · Lv.5", color = Color.White.copy(0.7f))
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    StatColumn("보유 포인트", "2,560P")
+                    StatColumn("완료 미션", "3개")
+                    StatColumn("점령 지역", "29곳")
+                }
+            }
+        }
+
+        SectionTitle("최근 활동")
+        Spacer(modifier = Modifier.height(12.dp))
+
+        missionRecords.filter { it.done }.forEach { record ->
+            MissionRecordCard(record)
+        }
+
+        Spacer(modifier = Modifier.height(120.dp))
+    }
+}
+
+
+@Composable
+fun StatColumn(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = PointOrange, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, color = Color.White.copy(0.7f), fontSize = 12.sp)
+    }
+}
+
+
+@Composable
+fun MissionRecordTab() {
+
+    LazyColumn {
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        items(missionRecords) { record ->
+            MissionRecordCard(record)
+        }
+        item {
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+    }
+}
+
+
+@Composable
+fun MissionRecordCard(record: MissionRecord) {
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardWhite)
+            .padding(20.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = NavyMain)
-            if (subtitle != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(subtitle, fontSize = 13.sp, color = TextSub)
-            }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(record.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text("${record.region} · ${record.date}", color = TextSub, fontSize = 13.sp)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // 포인트 칩
-            Row(
-                modifier = Modifier
-                    .background(CardWhite, RoundedCornerShape(20.dp))
-                    .border(1.dp, DividerGray, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Star, contentDescription = "Point", tint = PointOrange, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("2,450P", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMain)
-            }
-            // 알림 아이콘
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(CardWhite, CircleShape)
-                    .border(1.dp, DividerGray, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Notifications, contentDescription = "알림", tint = NavyMain, modifier = Modifier.size(20.dp))
-            }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Icon(
+                if (record.done) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                contentDescription = null,
+                tint = if (record.done) PointOrange else TextSub
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "+${record.reward}P",
+                color = if (record.done) PointOrange else TextSub,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
         }
     }
 }
 
-// ── 공통 컴포넌트: 점령률 다크 카드 ──────────────────────────────
+
 @Composable
-fun ProgressDarkCard(title: String, percent: Int, subtitle: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(NavyMain)
-            .padding(20.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text(title, fontSize = 13.sp, color = CardWhite.copy(alpha = 0.8f))
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("$percent", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = CardWhite)
-                    Text("%", fontSize = 20.sp, fontWeight = FontWeight.Medium, color = CardWhite, modifier = Modifier.padding(bottom = 6.dp))
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(subtitle, fontSize = 12.sp, color = CardWhite.copy(alpha = 0.6f))
-            }
+fun FavoriteMissionTab() {
 
-            // 분할선
-            Box(modifier = Modifier.width(1.dp).height(80.dp).background(CardWhite.copy(alpha = 0.2f)))
-
-            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                Text("다음 보상까지 15%", fontSize = 12.sp, color = CardWhite.copy(alpha = 0.8f))
-                Spacer(modifier = Modifier.height(8.dp))
-                // 세그먼트 프로그레스 바
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val colors = listOf(Color(0xFFF28B82), Color(0xFFFBB660), Color(0xFFFCE182), Color(0xFFA6DDA6), NavyLight, NavyLight)
-                    colors.forEach { color ->
-                        Box(modifier = Modifier.weight(1f).height(8.dp).background(color, RoundedCornerShape(4.dp)))
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("0%", fontSize = 10.sp, color = CardWhite.copy(alpha = 0.6f))
-                    Text("50%", fontSize = 10.sp, color = CardWhite.copy(alpha = 0.6f))
-                    Text("100%", fontSize = 10.sp, color = CardWhite.copy(alpha = 0.6f))
-                }
-            }
-
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(start = 12.dp)) {
-                Box(
-                    modifier = Modifier.size(48.dp).background(NavyLight, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("🎁", fontSize = 24.sp)
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text("다음 보상", fontSize = 11.sp, color = CardWhite.copy(alpha = 0.8f))
-            }
-        }
-    }
-}
-
-// ── 1. 홈 화면 (Home) ──────────────────────────────────────────────
-@Composable
-fun HomeScreen() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp) // 바텀 네비게이션 여백
-    ) {
+    LazyColumn {
         item {
-            TopHeader("부산 땅따먹기", "숨은 로컬을 찾고, 부산을 점령하자!")
-            ProgressDarkCard("나의 점령률", 35, "5/16 구·군 점령")
-        }
-
-        // 지도 (플레이스홀더 영역)
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                // 지도 배경 시뮬레이션
-                Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE8EFE8).copy(alpha = 0.5f)))
-                Text("🗺️\n상세 지도는\n'지도' 탭에서 확인하세요", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = TextSub)
-
-                // 좌측 플로팅 버튼들
-                Column(
-                    modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(modifier = Modifier.background(CardWhite, RoundedCornerShape(20.dp)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.FormatListBulleted, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("지역 목록", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Row(modifier = Modifier.background(CardWhite, RoundedCornerShape(20.dp)).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.PieChart, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("점령 현황", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // 오늘의 미션
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardWhite, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .padding(top = 24.dp, bottom = 24.dp)
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("오늘의 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("더보기", fontSize = 12.sp, color = TextSub)
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(sampleMissions) { mission ->
-                            MissionCard(mission)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── 2. 미션 화면 (Mission) ─────────────────────────────────────────
-@Composable
-fun MissionScreen() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
-    ) {
-        item {
-            TopHeader("미션", "부산을 탐험하고 포인트를 모아보세요!")
-            ProgressDarkCard("나의 진행률", 35, "5/16 미션 완료")
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // 탭 버튼
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TabPill("전체 미션", true)
-                TabPill("지역 미션", false)
-                TabPill("로컬 결제", false)
-                TabPill("방문 미션", false)
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // 추천 미션
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("추천 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("더보기", fontSize = 12.sp, color = TextSub)
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(sampleMissions) { mission ->
-                    MissionCard(mission)
-                }
-            }
-            Spacer(modifier = Modifier.height(32.dp))
-        }
-
-        // 지역 미션 리스트
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("지역 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("더보기", fontSize = 12.sp, color = TextSub)
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        items(regionalMissions) { mission ->
-            RegionalMissionRow(mission)
-        }
-    }
-}
-
-// ── 3. 지도 화면 (Map) ─────────────────────────────────────────────
-@Composable
-fun MapScreen() {
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopHeader("지도", "부산의 매력을 발견하고 미션을 완료해보세요!")
-
-        // 탭 버튼
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TabPill("전체", true, Icons.Outlined.GridView)
-            TabPill("로컬결제", false, Icons.Outlined.CreditCard)
-            TabPill("둘레길", false, Icons.Outlined.DirectionsWalk)
-        }
-
-        // 지도 & 바텀시트
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // 지도 배경
-            Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE8EFE8).copy(alpha = 0.5f))) {
-                Text("🗺️\n전체 지도 영역", modifier = Modifier.align(Alignment.Center), color = TextSub)
-                // 우측 하단 컨트롤러
-                Column(modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 140.dp, end = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(48.dp).background(CardWhite, CircleShape).shadow(2.dp, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = TextMain)
-                    }
-                    Box(modifier = Modifier.size(48.dp).background(CardWhite, CircleShape).shadow(2.dp, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Navigation, contentDescription = null, tint = TextMain)
-                    }
-                }
-            }
-
-            // 하단 진행 현황 시트
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .background(CardWhite)
-                    .padding(top = 12.dp, bottom = 100.dp, start = 24.dp, end = 24.dp) // 바텀 네비게이션 여백
-            ) {
-                Column {
-                    Box(modifier = Modifier.width(40.dp).height(4.dp).background(DividerGray, RoundedCornerShape(2.dp)).align(Alignment.CenterHorizontally))
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("지역별 진행 현황", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("자세히 보기", fontSize = 12.sp, color = TextSub)
-                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StatusCard("완료 지역", "4곳", Icons.Filled.Flag, Modifier.weight(1f))
-                        StatusCard("진행 중인 지역", "5곳", Icons.Filled.CheckCircle, Modifier.weight(1f))
-                        StatusCard("잠금 해제 필요", "7곳", Icons.Filled.Lock, Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── 4. 내 정보 화면 (Profile) ──────────────────────────────────────
-@Composable
-fun ProfileScreen() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 100.dp)
-    ) {
-        item {
-            TopHeader("부산 땅따먹기")
             Spacer(modifier = Modifier.height(8.dp))
         }
+        items(favoriteMissions) { fav ->
 
-        // 프로필 헤더 카드
-        item {
-            Box(
+            Row(
                 modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .background(CardWhite, RoundedCornerShape(20.dp))
-                    .padding(24.dp)
+                    .shadow(4.dp, RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CardWhite)
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // 아바타
-                        Box(
-                            modifier = Modifier
-                                .size(70.dp)
-                                .background(BgSoftBlue, CircleShape)
-                                .border(2.dp, BgSoftBlue, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🦆", fontSize = 40.sp) // 임시 오리 아바타
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("부산러버", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(Icons.Outlined.Edit, contentDescription = "Edit", tint = TextSub, modifier = Modifier.size(14.dp))
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Lv.12 로컬 마스터", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TagBlueText)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = TextSub, modifier = Modifier.size(12.dp))
-                                Text(" 부산광역시 해운대구", fontSize = 12.sp, color = TextSub)
-                            }
-                            Text(" 가입일 2024.05.10", fontSize = 12.sp, color = TextSub)
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub)
-                    }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Divider(color = DividerGray, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 스탯 요약
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        ProfileStat("2,450P", "보유 포인트", Icons.Filled.Star, PointOrange)
-                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(DividerGray))
-                        ProfileStat("96", "점령 지역", Icons.Filled.Flag, TagBlueText)
-                        Box(modifier = Modifier.width(1.dp).height(40.dp).background(DividerGray))
-                        ProfileStat("28", "미션 완료", Icons.Filled.EmojiEvents, PointOrange)
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(fav.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("${fav.region} · +${fav.reward}P", color = TextSub, fontSize = 13.sp)
                 }
+
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = "찜한 미션",
+                    tint = PointOrange
+                )
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
-
-        // 나의 활동 그리드
         item {
-            Text("나의 활동", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-
-            // 2x3 그리드 구현 (Column & Row)
-            Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActivityCard("점령 현황", "내가 점령한 지역 보기", Icons.Outlined.LocationOn, TagBlueBg, TagBlueText, Modifier.weight(1f))
-                    ActivityCard("미션 내역", "완료한 미션 확인", Icons.Outlined.Stars, TagGreenBg, TagGreenText, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActivityCard("랭킹 기록", "나의 랭킹 변화 보기", Icons.Outlined.EmojiEvents, Color(0xFFF3E5F5), Color(0xFF8E24AA), Modifier.weight(1f))
-                    ActivityCard("찜한 장소", "찜해둔 장소 목록", Icons.Outlined.BookmarkBorder, TagRedBg, TagRedText, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActivityCard("리뷰 관리", "내가 작성한 리뷰 보기", Icons.Outlined.Edit, Color(0xFFFFF8E1), PointOrange, Modifier.weight(1f))
-                    ActivityCard("사진 관리", "업로드한 사진 보기", Icons.Outlined.CameraAlt, BgSoftBlue, NavyLight, Modifier.weight(1f))
-                }
-            }
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(120.dp))
         }
+    }
+}
 
-        // 설정 리스트
-        item {
-            Text("설정", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            Column(modifier = Modifier.fillMaxWidth().background(CardWhite)) {
-                SettingRow(Icons.Outlined.Notifications, "알림 설정")
-                SettingRow(Icons.Outlined.Lock, "개인정보 설정")
-                SettingRow(Icons.Outlined.HelpOutline, "도움말")
-                SettingRow(Icons.Outlined.Info, "앱 정보", value = "v1.3.0")
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
 
-        // 로그아웃 버튼
-        item {
+@Composable
+fun PhotoManageTab() {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(top = 8.dp)
+    ) {
+
+        // LazyVerticalGrid를 스크롤 Column 안에 중첩하면 크래시가 나므로
+        // chunked로 직접 2열 그리드 구성
+        photoItems.chunked(2).forEach { rowItems ->
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .background(CardWhite, RoundedCornerShape(16.dp))
-                    .padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Outlined.Logout, contentDescription = null, tint = TagRedText, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("로그아웃", fontSize = 14.sp, color = TagRedText, fontWeight = FontWeight.Bold)
+
+                rowItems.forEach { photo ->
+                    PhotoCell(photo, Modifier.weight(1f))
+                }
+
+                // 홀수 개일 때 마지막 칸 빈 공간 채우기
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
+
+        Spacer(modifier = Modifier.height(120.dp))
     }
 }
 
-// ── 플레이스홀더 화면 ──────────────────────────────────────────────
-@Composable
-fun RankingPlaceholderScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("랭킹 화면 준비중입니다.", color = TextSub)
-    }
-}
-
-// ── UI 조각 컴포넌트들 ─────────────────────────────────────────────
 
 @Composable
-fun MissionCard(mission: MissionItem) {
-    Card(
-        modifier = Modifier.width(200.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BgSoftBlue)
+fun PhotoCell(photo: PhotoItem, modifier: Modifier = Modifier) {
+
+    Column(
+        modifier = modifier
+            .shadow(4.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(CardWhite)
     ) {
-        Column {
-            // 이미지 영역 (플레이스홀더)
-            Box(modifier = Modifier.fillMaxWidth().height(110.dp).background(Color(0xFFD9E2EC))) {
-                // 태그
-                val (tagBg, tagColor) = when(mission.tag) {
-                    "로컬결제" -> TagRedBg to TagRedText
-                    "둘레길" -> TagGreenBg to TagGreenText
-                    else -> TagBlueBg to TagBlueText
-                }
-                Text(
-                    text = mission.tag,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CardWhite,
-                    modifier = Modifier.padding(12.dp).background(tagColor, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-            // 내용 영역
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(mission.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(mission.location, fontSize = 11.sp, color = TextSub)
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+${mission.points}P", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextMain)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                // 프로그레스 바
-                Box(modifier = Modifier.fillMaxWidth().height(24.dp).background(Color.White, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                    Text("${mission.currentStep}/${mission.maxStep}", fontSize = 11.sp, color = TextSub)
-                }
-            }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFFE8F0FF), Color(0xFFDDE7F5))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Photo,
+                contentDescription = null,
+                tint = NavyMain,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(photo.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(photo.region, color = TextSub, fontSize = 12.sp)
         }
     }
 }
 
+
+// ───────────────── COMPONENTS ─────────────────
+
 @Composable
-fun RegionalMissionRow(mission: MissionItem) {
+fun Header(title: String) {
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-            .background(CardWhite, RoundedCornerShape(16.dp))
-            .padding(16.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 원형 이미지 플레이스홀더
-        Box(modifier = Modifier.size(60.dp).background(BgSoftBlue, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Image, contentDescription = null, tint = TextSub)
-            if (mission.isCompleted) {
-                Box(
-                    modifier = Modifier.align(Alignment.BottomEnd).offset(x=4.dp, y=4.dp).size(20.dp).background(CardWhite, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = TagGreenText, modifier = Modifier.size(18.dp))
+
+        Text(
+            title,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = NavyMain
+        )
+
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .background(CardWhite, CircleShape)
+                .border(1.dp, DividerGray, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Outlined.Notifications,
+                contentDescription = "알림",
+                tint = NavyMain
+            )
+        }
+    }
+}
+
+
+@Composable
+fun ProgressCard() {
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .background(NavyMain)
+            .padding(24.dp)
+    ) {
+
+        Column {
+
+            Text("전체 진행률", color = Color.White.copy(0.7f))
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                "35%",
+                fontSize = 42.sp,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LinearProgressIndicator(
+                progress = { 0.35f },
+                modifier = Modifier.fillMaxWidth(),
+                color = PointOrange
+            )
+        }
+    }
+}
+
+
+@Composable
+fun SectionTitle(text: String) {
+
+    Text(
+        text,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        color = TextMain,
+        modifier = Modifier.padding(horizontal = 20.dp)
+    )
+}
+
+
+@Composable
+fun OngoingMissionCard(
+    mission: OngoingMission
+) {
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardWhite)
+            .padding(20.dp)
+    ) {
+
+        Column {
+
+            Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(mission.region, color = TextSub)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LinearProgressIndicator(
+                progress = { mission.progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = PointOrange
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text("${(mission.progress * 100).toInt()}% 진행중 · +${mission.reward}P")
+        }
+    }
+}
+
+
+/**
+ * 홈 탭 - 지역 클릭 시 간략 정보를 펼치고,
+ * '지도에서 자세히 보기'를 누르면 지도탭으로 이동해 해당 구를 확대한다.
+ */
+@Composable
+fun ExpandableRegionCard(
+    region: RegionProgress,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDetail: () -> Unit
+) {
+
+    val progress = region.completed.toFloat() / region.total
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardWhite)
+            .clickable { onToggle() }
+            .animateContentSize()
+            .padding(20.dp)
+    ) {
+
+        Column {
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Text(
+                    region.region,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+
+                // 펼침 상태에 따라 화살표 회전
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.rotate(if (expanded) 90f else 0f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = PointOrange
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text("${region.completed}/${region.total} 완료")
+
+            // 간략 정보 영역
+            AnimatedVisibility(visible = expanded) {
+
+                Column {
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    HorizontalDivider(color = DividerGray)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        region.description,
+                        color = TextSub,
+                        fontSize = 14.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = onDetail,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = NavyMain),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Map,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("지도에서 자세히 보기", color = Color.White)
+                    }
                 }
             }
         }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(mission.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextMain)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(mission.location, fontSize = 12.sp, color = TextSub)
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("+${mission.points}P", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMain)
-            }
-        }
+    }
+}
 
-        if (!mission.isCompleted) {
-            Box(
-                modifier = Modifier.background(BgSoftBlue, RoundedCornerShape(20.dp)).padding(horizontal = 12.dp, vertical = 8.dp)
+
+@Composable
+fun RegionProgressCard(
+    region: RegionProgress,
+    onClick: () -> Unit
+) {
+
+    val progress = region.completed.toFloat() / region.total
+
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardWhite)
+            .clickable { onClick() }
+            .padding(20.dp)
+    ) {
+
+        Column {
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("도전하기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSub)
+
+                Text(region.region, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = PointOrange
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text("${region.completed}/${region.total} 완료")
         }
     }
 }
 
+
 @Composable
-fun TabPill(text: String, isSelected: Boolean, icon: ImageVector? = null) {
+fun RegionMissionSection(
+    region: RegionProgress
+) {
+
+    Column(
+        modifier = Modifier.padding(20.dp)
+    ) {
+
+        Text(region.region, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        repeat(3) {
+            OngoingMissionCard(
+                OngoingMission(
+                    "지역 미션 ${it + 1}",
+                    region.region,
+                    0.3f + (it * 0.2f),
+                    100
+                )
+            )
+        }
+    }
+}
+
+
+@Composable
+fun RankingCard(
+    ranking: RankingInfo
+) {
+
+    Box(
+        modifier = Modifier
+            .padding(20.dp)
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .background(NavyMain)
+            .padding(24.dp)
+    ) {
+
+        Column {
+
+            Text("현재 내 순위", color = Color.White.copy(0.7f))
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            RankingInfoRow("전체 랭킹", "#${ranking.global}")
+            RankingInfoRow("지역 랭킹", "#${ranking.regional}")
+            RankingInfoRow("친구 랭킹 (3인)", "#${ranking.friend}")
+        }
+    }
+}
+
+
+@Composable
+fun RankingInfoRow(
+    title: String,
+    rank: String
+) {
+
     Row(
         modifier = Modifier
-            .background(if (isSelected) NavyMain else CardWhite, RoundedCornerShape(20.dp))
-            .border(1.dp, if (isSelected) Color.Transparent else DividerGray, RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        if (icon != null) {
-            Icon(icon, contentDescription = null, tint = if (isSelected) CardWhite else TextSub, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-        }
-        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isSelected) CardWhite else TextSub)
+
+        Text(title, color = Color.White)
+
+        Text(rank, color = PointOrange, fontWeight = FontWeight.Bold)
     }
 }
 
-@Composable
-fun StatusCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(BgSoftBlue, RoundedCornerShape(12.dp))
-            .padding(12.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = NavyLight, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(title, fontSize = 11.sp, color = TextSub)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain)
-    }
-}
 
+/** 3선발 친구 랭킹 행 (본인은 강조 표시) */
 @Composable
-fun ProfileStat(value: String, label: String, icon: ImageVector, tint: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextMain)
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(label, fontSize = 11.sp, color = TextSub)
-    }
-}
+fun FriendRankRow(
+    rank: Int,
+    friend: FriendRank
+) {
 
-@Composable
-fun ActivityCard(title: String, subtitle: String, icon: ImageVector, iconBg: Color, iconTint: Color, modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier
-            .background(CardWhite, RoundedCornerShape(16.dp))
-            .padding(16.dp),
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (friend.isMe) NavyLight else CardWhite)
+            .padding(18.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(40.dp).background(iconBg, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+
+            Text(
+                "#$rank",
+                fontWeight = FontWeight.Bold,
+                color = if (friend.isMe) Color.White else NavyMain
+            )
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Text(
+                friend.name,
+                color = if (friend.isMe) Color.White else TextMain,
+                fontWeight = if (friend.isMe) FontWeight.Bold else FontWeight.Normal
+            )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMain)
-            Text(subtitle, fontSize = 10.sp, color = TextSub)
-        }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = DividerGray, modifier = Modifier.size(16.dp))
+
+        Text(
+            "${friend.score}P",
+            fontWeight = FontWeight.Bold,
+            color = PointOrange
+        )
     }
 }
 
+
 @Composable
-fun SettingRow(icon: ImageVector, title: String, value: String? = null) {
+fun RankingRow(
+    rank: Int,
+    name: String,
+    score: String
+) {
+
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { }.padding(horizontal = 24.dp, vertical = 16.dp),
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardWhite)
+            .padding(18.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = NavyLight, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(title, fontSize = 14.sp, color = TextMain, modifier = Modifier.weight(1f))
-        if (value != null) {
-            Text(value, fontSize = 12.sp, color = TextSub)
-        } else {
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = DividerGray)
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+
+            Text("#$rank", fontWeight = FontWeight.Bold, color = NavyMain)
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            Text(name)
         }
+
+        Text(score, fontWeight = FontWeight.Bold, color = PointOrange)
     }
 }

@@ -40,6 +40,9 @@ class RankEntry(BaseModel):
     is_me: bool = False
 
 # --- 2. API 엔드포인트 라우터 ---
+@app.get("/")
+def read_root():
+    return {"message": "Busan Quest API Server is running successfully!"}
 
 @app.get("/api/v1/users/me", response_model=UserProfile)
 def get_my_profile():

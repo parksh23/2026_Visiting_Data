@@ -32,6 +32,13 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.*
 import androidx.navigation.compose.*
 
+// 🚨 Retrofit 관련 Import 추가
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.GET
+
+import com.google.gson.annotations.SerializedName
+
 // ───────────────── COLORS ─────────────────
 
 val BgSoftBlue = Color(0xFFF6F4F1)
@@ -66,8 +73,41 @@ val IconGreen = Color(0xFF49A86B)
 
 // ───────────────── 공통 데이터 ─────────────────
 
+// 홈 화면 상단(PointPill) 등에서 임시로 사용할 데이터 (프로필 화면에서는 서버 데이터 사용)
 const val USER_POINT = "2,450P"
-const val USER_NAME = "부산갈매기"
+
+// ───────────────── RETROFIT & SERVER DATA ─────────────────
+
+// 1. 서버에서 받을 프로필 데이터 모양
+data class UserProfile(
+    val name: String,
+    val points: String,
+
+    @SerializedName("completed_missions") // 서버에서 오는 이름
+    val completedMissions: Int,           // 안드로이드에서 쓸 이름
+
+    @SerializedName("saved_missions")
+    val savedMissions: Int
+)
+
+// 2. API 엔드포인트 명세서
+interface BusanQuestApi {
+    @GET("api/v1/users/me")
+    suspend fun getMyProfile(): UserProfile
+}
+
+// 3. Retrofit 클라이언트 세팅 (에뮬레이터 로컬 주소인 10.0.2.2 사용)
+object RetrofitInstance {
+    private const val BASE_URL = "http://10.0.2.2:8000/"
+
+    val api: BusanQuestApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(BusanQuestApi::class.java)
+    }
+}
 
 // ───────────────── DATA ─────────────────
 
@@ -296,10 +336,6 @@ fun BottomItem(
 
 // ───────────────── COMMON COMPONENTS ─────────────────
 
-/**
- * 상단 헤더: 좌측에 제목 + (선택) 강조 단어 + 부제,
- * 우측에 포인트 배지 + 알림 벨.
- */
 @Composable
 fun ScreenHeader(
     title: String,
@@ -318,7 +354,6 @@ fun ScreenHeader(
             verticalAlignment = Alignment.Top
         ) {
 
-            // 제목 (강조 단어가 있으면 색을 다르게)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     title,
@@ -394,9 +429,6 @@ fun SectionTitle(text: String) {
     )
 }
 
-/**
- * 점령률/진행률 카드 (네이비 배경 + 무지개 그라데이션 바).
- */
 @Composable
 fun ProgressCard(
     label: String,
@@ -436,9 +468,6 @@ fun ProgressCard(
     }
 }
 
-/**
- * 무지개 그라데이션 진행 바 + 0% / 50% / 100% 눈금.
- */
 @Composable
 fun GradientProgressBar(progress: Float) {
     val spectrum = listOf(
@@ -549,11 +578,6 @@ fun HomeScreen(navController: NavHostController) {
     }
 }
 
-/**
- * 부산 지도 자리표시자.
- * 실제 지도 이미지를 넣으려면 이 Box 안의 내용을
- * Image(painter = painterResource(R.drawable.busan_map), ...) 로 교체하세요.
- */
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
     Box(
@@ -594,7 +618,6 @@ fun OngoingMissionCard(mission: OngoingMission) {
             .background(CardWhite)
     ) {
 
-        // 미션 이미지 자리표시자 + '지역 미션' 배지
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -759,7 +782,6 @@ fun MissionScreen(navController: NavHostController) {
     }
 }
 
-/** 흰 배경 위의 둥근 세그먼트 토글 (전체 / 지역). */
 @Composable
 fun SegmentedToggle(
     options: List<String>,
@@ -816,7 +838,6 @@ fun FilterChipBox(label: String) {
     }
 }
 
-/** 구·군 한 줄: 이름 + 진행 바 + 퍼센트 + 개수 + 화살표. */
 @Composable
 fun DistrictProgressRow(
     district: DistrictProgress,
@@ -842,7 +863,6 @@ fun DistrictProgressRow(
             modifier = Modifier.width(64.dp)
         )
 
-        // 진행 바 + 퍼센트
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1059,7 +1079,6 @@ fun MyRankCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 전체/지역/친구 랭킹 세그먼트
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1115,7 +1134,6 @@ fun RankingRow(entry: RankEntry) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
 
-            // 순위 (1~3위는 메달 배지)
             Box(
                 modifier = Modifier.width(32.dp),
                 contentAlignment = Alignment.Center
@@ -1146,7 +1164,6 @@ fun RankingRow(entry: RankEntry) {
 
             Spacer(modifier = Modifier.width(14.dp))
 
-            // 프로필 아이콘 자리표시자
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -1181,9 +1198,23 @@ fun RankingRow(entry: RankEntry) {
 }
 
 // ───────────────── PROFILE (내 정보) ─────────────────
+// 🚨 서버 데이터를 받아오는 로직이 추가된 프로필 화면
 
 @Composable
 fun ProfileScreen() {
+
+    // 1. 서버에서 받아온 데이터를 담을 상태 변수 선언
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
+
+    // 2. 화면이 처음 렌더링될 때 서버 통신 시작
+    LaunchedEffect(Unit) {
+        try {
+            val response = RetrofitInstance.api.getMyProfile()
+            userProfile = response // 통신 성공 시 데이터 저장
+        } catch (e: Exception) {
+            println("서버 통신 실패: ${e.message}")
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1196,11 +1227,25 @@ fun ProfileScreen() {
             subtitle = "나의 활동과 정보를 확인하세요!"
         )
 
-        ProfileSummaryCard()
+        // 3. 서버 응답 여부에 따라 UI 분기 처리
+        if (userProfile == null) {
+            // 아직 데이터를 받아오는 중일 때 로딩 바 표시
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = NavyMain)
+            }
+        } else {
+            // 통신이 완료되면 받아온 데이터를 카드로 전달
+            ProfileSummaryCard(user = userProfile!!)
+        }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 메뉴 카드 (미션 내역 / 찜한 미션 / 사진 관리)
+        // 메뉴 카드
         Column(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -1260,8 +1305,9 @@ fun ProfileScreen() {
     }
 }
 
+// 🚨 매개변수로 user: UserProfile을 받도록 수정됨
 @Composable
-fun ProfileSummaryCard() {
+fun ProfileSummaryCard(user: UserProfile) {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -1273,7 +1319,6 @@ fun ProfileSummaryCard() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
 
-            // 아바타 자리표시자
             Box(
                 modifier = Modifier
                     .size(72.dp)
@@ -1295,7 +1340,8 @@ fun ProfileSummaryCard() {
 
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(USER_NAME, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
+                    // 하드코딩 대신 서버에서 온 이름(user.name) 적용
+                    Text(user.name, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         Icons.Outlined.Edit,
@@ -1318,9 +1364,10 @@ fun ProfileSummaryCard() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            ProfileStat("2,450P", "보유 포인트")
-            ProfileStat("86", "완료 미션")
-            ProfileStat("28", "찜한 미션")
+            // 하드코딩 대신 서버에서 온 포인트, 개수 데이터 적용
+            ProfileStat(user.points, "보유 포인트")
+            ProfileStat(user.completedMissions.toString(), "완료 미션")
+            ProfileStat(user.savedMissions.toString(), "찜한 미션")
         }
     }
 }

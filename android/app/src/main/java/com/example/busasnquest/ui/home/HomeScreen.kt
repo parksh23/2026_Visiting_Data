@@ -26,6 +26,8 @@ import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
 import com.example.busasnquest.ui.theme.*
+import androidx.compose.material3.Button
+import com.example.busasnquest.data.repository.UserRepository
 
 @Composable
 fun HomeScreen(navController: NavHostController) {
@@ -209,6 +211,7 @@ fun OngoingMissionCard(mission: OngoingMission) {
 
 @Composable
 fun RecentCapturedCard(region: String, date: String) {
+
     Row(
         modifier = Modifier
             .padding(horizontal = 20.dp)

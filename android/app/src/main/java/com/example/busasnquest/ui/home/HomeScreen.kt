@@ -41,6 +41,11 @@ import androidx.compose.ui.platform.LocalContext
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import android.net.Uri
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.busasnquest.util.createImageUri
 
 @Composable
 fun HomeScreen(
@@ -65,6 +70,32 @@ fun HomeScreen(
             viewModel.onLocationPermissionGranted(context)
         } else {
             viewModel.onLocationPermissionDenied()
+        }
+    }
+
+    // 방금 만든 사진 파일의 주소를 잠깐 기억해둘 곳
+    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 카메라 실행 준비. 사진을 찍으면 success(true/false)가 돌아온다.
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = pendingReceiptUri
+        if (uri != null) {
+            viewModel.onReceiptCaptured(context, uri, success)
+        }
+    }
+
+    // 카메라 권한 팝업 준비
+    val cameraPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createImageUri(context)   // 빈 사진 파일 만들기
+            pendingReceiptUri = uri             // 주소 기억
+            cameraLauncher.launch(uri)          // 그 주소로 카메라 열기
+        } else {
+            viewModel.onCameraPermissionDenied()
         }
     }
 
@@ -141,6 +172,20 @@ fun HomeScreen(
                     } else {
                         locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }
+                },
+                onCaptureReceipt = {
+                    // 카메라 권한 있으면 바로, 없으면 팝업
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.CAMERA
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (granted) {
+                        val uri = createImageUri(context)
+                        pendingReceiptUri = uri
+                        cameraLauncher.launch(uri)
+                    } else {
+                        cameraPermission.launch(Manifest.permission.CAMERA)
+                    }
                 }
             )
 
@@ -208,7 +253,8 @@ fun OngoingMissionCard(
     photoError: String? = null,
     onVerify: () -> Unit,
     onPickPhoto: () -> Unit = {},
-    onUseCurrentLocation: () -> Unit = {}
+    onUseCurrentLocation: () -> Unit = {},
+    onCaptureReceipt: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -293,7 +339,7 @@ fun OngoingMissionCard(
                             when (mission.type) {
                                 MissionType.PHOTO_LOCATION   -> onPickPhoto()
                                 MissionType.CURRENT_LOCATION -> onUseCurrentLocation()
-                                MissionType.RECEIPT          -> onVerify()
+                                MissionType.RECEIPT          -> onCaptureReceipt()
                             }
                         },
                         modifier = Modifier.fillMaxWidth()

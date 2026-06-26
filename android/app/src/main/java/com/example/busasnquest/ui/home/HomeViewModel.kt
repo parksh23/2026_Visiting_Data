@@ -16,6 +16,7 @@ import android.net.Uri
 import com.example.busasnquest.util.PhotoLatLng
 import com.example.busasnquest.util.readPhotoLocation
 import com.example.busasnquest.util.getCurrentLocation
+import com.example.busasnquest.util.readPhotoLocation
 
 // 미션의 완료 단계
 enum class MissionStatus {
@@ -94,6 +95,33 @@ class HomeViewModel : ViewModel() {
     fun onLocationPermissionDenied() {
         _uiState.update {
             it.copy(photoError = "위치 권한이 있어야 이 미션을 완료할 수 있어요.")
+        }
+    }
+
+    // 영수증 사진을 찍었을 때
+    fun onReceiptCaptured(context: Context, uri: Uri, success: Boolean) {
+        if (!success) {
+            // 사용자가 촬영을 취소함
+            return
+        }
+        if (_uiState.value.status != MissionStatus.READY) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(status = MissionStatus.VERIFYING, photoError = null) }
+
+            delay(1000)  // 서버가 영수증을 검증하는 척 (수준 4에서 진짜로)
+
+            // 지금은 "사진을 찍었다"는 것만으로 완료 처리
+            // (영수증이 진짜인지 판정은 서버 몫)
+            _uiState.update { it.copy(status = MissionStatus.COMPLETED) }
+            UserRepository.addPoints(_uiState.value.mission.reward)
+        }
+    }
+
+    // 카메라 권한 거부 시
+    fun onCameraPermissionDenied() {
+        _uiState.update {
+            it.copy(photoError = "카메라 권한이 있어야 영수증을 촬영할 수 있어요.")
         }
     }
 }

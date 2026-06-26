@@ -31,8 +31,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.CircularProgressIndicator
 import com.example.busasnquest.data.remote.UserProfileDto
+
 @Composable
 fun ProfileScreen(
+    onLogout: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -111,7 +113,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFFF3E1E1))
-                .clickable { }
+                .clickable { onLogout() }
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -172,19 +174,6 @@ fun ProfileSummaryCard(profile: UserProfileDto) {
                 Text("부산을 사랑하는 여행자", color = TextSub, fontSize = 13.sp)
                 Text("부산의 매력을 찾아 미션에 도전해요!", color = TextSub, fontSize = 13.sp)
             }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        HorizontalDivider(color = DividerGray)
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            ProfileStat("2,450P", "보유 포인트")
-            ProfileStat("86", "완료 미션")
-            ProfileStat("28", "찜한 미션")
         }
     }
 }

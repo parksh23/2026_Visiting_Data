@@ -1,50 +1,85 @@
 package com.example.busasnquest.ui.ranking
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.busasnquest.data.model.RankEntry
-import com.example.busasnquest.data.model.rankingList
+import com.example.busasnquest.data.remote.RetrofitClient
+import com.example.busasnquest.data.repository.RankingRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// 화면 상태
+sealed interface RankingUiState {
+    object Loading : RankingUiState
+    data class Success(
+        val myRank: String,
+        val topPercent: String,
+        val point: String,
+        val rankings: List<RankEntry>
+    ) : RankingUiState
+    data class Error(val message: String) : RankingUiState
+}
 
-// 화면이 그릴 '상태' 한 덩어리
-data class RankingUiState(
-    val entries: List<RankEntry> = emptyList(),
-    val selectedTab: Int = 0,
-    val isLoading: Boolean = false   // ← 추가
-)
+class RankingViewModel(
+    private val repository: RankingRepository
+) : ViewModel() {
 
-class RankingViewModel : ViewModel() {
-
-    // 내부에서만 수정 가능한 상태
-    private val _uiState = MutableStateFlow(RankingUiState())
-    // 화면에는 읽기 전용으로만 노출
+    private val _uiState = MutableStateFlow<RankingUiState>(RankingUiState.Loading)
     val uiState: StateFlow<RankingUiState> = _uiState.asStateFlow()
 
-    // ViewModel이 만들어질 때 데이터 로드
+    private val _selectedTab = MutableStateFlow(0)
+    val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
+
     init {
-        loadRanking()
+        loadRankings(0)   // 화면 진입 시 자동 로드
     }
 
-    private fun loadRanking() {
-        viewModelScope.launch {          // ← 코루틴 시작 (자동 취소되는 스코프)
-            _uiState.update { it.copy(isLoading = true) }
+    fun onSelectTab(index: Int) {
+        _selectedTab.value = index
+        loadRankings(index)
+    }
 
-            delay(1000)                  // ← 서버 통신을 흉내내는 1초 대기 api.getRanking() 나중엔 이거 추가
+    private fun loadRankings(tab: Int) {
+        viewModelScope.launch {
+            _uiState.value = RankingUiState.Loading
+            try {
+                val type = when (tab) {
+                    1 -> "region"
+                    2 -> "friend"
+                    else -> "all"
+                }
+                val res = repository.fetchRankings(type)
 
-            _uiState.update {
-                it.copy(entries = rankingList, isLoading = false)
+                _uiState.value = RankingUiState.Success(
+                    myRank = res.myRank.rank.toString(),
+                    topPercent = "상위 ${res.myRank.topPercent}%",
+                    point = "${"%,d".format(res.myRank.point)}P",
+                    rankings = res.rankings.map {
+                        RankEntry(
+                            rank = it.rank,
+                            name = it.name,
+                            score = "${"%,d".format(it.score)}P",
+                            isMe = false
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = RankingUiState.Error(e.message ?: "불러오기 실패")
             }
         }
     }
 
-    // 화면에서 탭을 누르면 호출되는 함수 (이벤트는 위로 올라온다)
-    fun selectTab(index: Int) {
-        _uiState.update { it.copy(selectedTab = index) }
+    companion object {
+        val Factory = viewModelFactory {
+            initializer {
+                RankingViewModel(
+                    RankingRepository(RetrofitClient.rankingApi)
+                )
+            }
+        }
     }
 }

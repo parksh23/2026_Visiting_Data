@@ -5,12 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -19,10 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.busasnquest.data.model.RankEntry
-import com.example.busasnquest.data.model.rankingList
 import com.example.busasnquest.ui.components.FilterChipBox
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.*
@@ -33,82 +34,85 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 
+
 @Composable
 fun RankingScreen(
-    viewModel: RankingViewModel = viewModel()
+    viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
 ) {
+    val state by viewModel.uiState.collectAsState()
+    val selectedTab by viewModel.selectedTab.collectAsState()
 
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LazyColumn {
-
-        item {
-            ScreenHeader(
-                title = "랭킹",
-                subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
-            )
-
-            MyRankCard(
-                rankText = "12",
-                topPercent = "상위 8%",
-                point = "2,450P",
-                selectedTab = uiState.selectedTab,
-                onSelectTab = { viewModel.selectTab(it) }
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                FilterChipBox("전체")
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
-        if (uiState.isLoading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = NavyMain)
-                }
-            }
-        } else {
-            items(uiState.entries) { entry ->
-                RankingRow(entry)
+    when (val s = state) {
+        is RankingUiState.Loading -> {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
+                CircularProgressIndicator()
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFEDF1F6))
-                    .clickable { }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("더보기", color = TextSub, fontWeight = FontWeight.Bold)
-                    Icon(
-                        Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = TextSub
+        is RankingUiState.Error -> {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
+                Text(s.message, color = TextSub)
+            }
+        }
+
+        is RankingUiState.Success -> {
+            LazyColumn {
+                item {
+                    ScreenHeader(
+                        title = "랭킹",
+                        subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
                     )
+
+                    MyRankCard(
+                        rankText = s.myRank,
+                        topPercent = s.topPercent,
+                        point = s.point,
+                        selectedTab = selectedTab,
+                        onSelectTab = viewModel::onSelectTab
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        FilterChipBox("전체")
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                items(s.rankings) { entry ->
+                    RankingRow(entry)
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFEDF1F6))
+                            .clickable { }
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("더보기", color = TextSub, fontWeight = FontWeight.Bold)
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = TextSub
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(120.dp))
                 }
             }
-            Spacer(modifier = Modifier.height(120.dp))
         }
     }
 }

@@ -21,14 +21,80 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.OngoingMission
-import com.example.busasnquest.data.model.ongoingMission
+import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
 import com.example.busasnquest.ui.theme.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import android.net.Uri
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.busasnquest.util.createImageUri
 
 @Composable
-fun HomeScreen(navController: NavHostController) {
+fun HomeScreen(
+    navController: NavHostController,
+    viewModel: HomeViewModel = viewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // 어느 미션이 액션을 요청했는지 기억해둘 곳 (사진/카메라 결과가 올 때 필요)
+    var activeIndex by remember { mutableStateOf(0) }
+    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 갤러리(사진 선택기)
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.onPhotoPicked(activeIndex, context, uri)
+        }
+    }
+
+    // 위치 권한 팝업
+    val locationPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.onLocationPermissionGranted(activeIndex, context)
+        } else {
+            viewModel.onLocationPermissionDenied(activeIndex)
+        }
+    }
+
+    // 카메라 실행
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        viewModel.onReceiptCaptured(activeIndex, success)
+    }
+
+    // 카메라 권한 팝업
+    val cameraPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createImageUri(context)
+            pendingReceiptUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            viewModel.onCameraPermissionDenied(activeIndex)
+        }
+    }
 
     LazyColumn {
 
@@ -81,9 +147,47 @@ fun HomeScreen(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            OngoingMissionCard(ongoingMission)
+            // 미션 목록을 하나씩 카드로 그림
+            uiState.missions.forEachIndexed { index, item ->
+                OngoingMissionCard(
+                    mission = item.mission,
+                    status = item.status,
+                    error = item.error,
+                    onPickPhoto = {
+                        activeIndex = index
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onUseCurrentLocation = {
+                        activeIndex = index
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            viewModel.onLocationPermissionGranted(index, context)
+                        } else {
+                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    },
+                    onCaptureReceipt = {
+                        activeIndex = index
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            val uri = createImageUri(context)
+                            pendingReceiptUri = uri
+                            cameraLauncher.launch(uri)
+                        } else {
+                            cameraPermission.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             SectionTitle("최근 점령 지역")
             Spacer(modifier = Modifier.height(12.dp))
@@ -97,8 +201,6 @@ fun HomeScreen(navController: NavHostController) {
 
 /**
  * 부산 지도 자리표시자.
- * 실제 지도 이미지를 넣으려면 이 Box 안의 내용을
- * Image(painter = painterResource(R.drawable.busan_map), ...) 로 교체하세요.
  */
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
@@ -130,8 +232,27 @@ fun MapPlaceholder(onClick: () -> Unit) {
     }
 }
 
+fun missionTypeLabel(type: MissionType): String = when (type) {
+    MissionType.PHOTO_LOCATION   -> "📷 사진 위치 인증"
+    MissionType.CURRENT_LOCATION -> "📍 현재 위치 인증"
+    MissionType.RECEIPT          -> "🧾 결제 영수증 인증"
+}
+
+fun verifyButtonLabel(type: MissionType): String = when (type) {
+    MissionType.PHOTO_LOCATION   -> "📷 사진 올려서 인증하기"
+    MissionType.CURRENT_LOCATION -> "📍 현재 위치로 인증하기"
+    MissionType.RECEIPT          -> "🧾 영수증 올려서 인증하기"
+}
+
 @Composable
-fun OngoingMissionCard(mission: OngoingMission) {
+fun OngoingMissionCard(
+    mission: OngoingMission,
+    status: MissionStatus,
+    error: String? = null,
+    onPickPhoto: () -> Unit = {},
+    onUseCurrentLocation: () -> Unit = {},
+    onCaptureReceipt: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -140,7 +261,6 @@ fun OngoingMissionCard(mission: OngoingMission) {
             .background(CardWhite)
     ) {
 
-        // 미션 이미지 자리표시자 + '지역 미션' 배지
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -176,7 +296,11 @@ fun OngoingMissionCard(mission: OngoingMission) {
 
             Text(mission.region, color = TextSub, fontSize = 13.sp)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(missionTypeLabel(mission.type), color = IconBlue, fontSize = 12.sp)
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -189,26 +313,54 @@ fun OngoingMissionCard(mission: OngoingMission) {
                 Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            LinearProgressIndicator(
-                progress = { mission.current.toFloat() / mission.total },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(CircleShape),
-                color = PointOrange,
-                trackColor = TrackGray
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text("${mission.current}/${mission.total}", color = TextSub, fontSize = 12.sp)
+            when (status) {
+                MissionStatus.READY -> {
+                    Button(
+                        onClick = {
+                            when (mission.type) {
+                                MissionType.PHOTO_LOCATION   -> onPickPhoto()
+                                MissionType.CURRENT_LOCATION -> onUseCurrentLocation()
+                                MissionType.RECEIPT          -> onCaptureReceipt()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(verifyButtonLabel(mission.type))
+                    }
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(error, color = PointRed, fontSize = 12.sp)
+                    }
+                }
+                MissionStatus.VERIFYING -> {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("인증 확인 중...")
+                    }
+                }
+                MissionStatus.COMPLETED -> {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = IconGreen)
+                    ) {
+                        Text("✓ 미션 완료! +${mission.reward}P")
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 fun RecentCapturedCard(region: String, date: String) {
+
     Row(
         modifier = Modifier
             .padding(horizontal = 20.dp)

@@ -26,11 +26,19 @@ import com.example.busasnquest.data.model.rankingList
 import com.example.busasnquest.ui.components.FilterChipBox
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Box
 
 @Composable
-fun RankingScreen() {
+fun RankingScreen(
+    viewModel: RankingViewModel = viewModel()
+) {
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn {
 
@@ -44,8 +52,8 @@ fun RankingScreen() {
                 rankText = "12",
                 topPercent = "상위 8%",
                 point = "2,450P",
-                selectedTab = selectedTab,
-                onSelectTab = { selectedTab = it }
+                selectedTab = uiState.selectedTab,
+                onSelectTab = { viewModel.selectTab(it) }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -62,8 +70,21 @@ fun RankingScreen() {
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        items(rankingList) { entry ->
-            RankingRow(entry)
+        if (uiState.isLoading) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = NavyMain)
+                }
+            }
+        } else {
+            items(uiState.entries) { entry ->
+                RankingRow(entry)
+            }
         }
 
         item {

@@ -21,19 +21,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.OngoingMission
-import com.example.busasnquest.data.model.ongoingMission
+import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
 import com.example.busasnquest.ui.theme.*
 import androidx.compose.material3.Button
-import com.example.busasnquest.data.repository.UserRepository
-import com.example.busasnquest.data.model.MissionType
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.busasnquest.ui.home.MissionStatus
-import androidx.compose.material3.ButtonDefaults
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -55,47 +52,47 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // 갤러리(사진 선택기) 준비. 사진을 고르면 uri가 돌아온다.
+    // 어느 미션이 액션을 요청했는지 기억해둘 곳 (사진/카메라 결과가 올 때 필요)
+    var activeIndex by remember { mutableStateOf(0) }
+    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 갤러리(사진 선택기)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            viewModel.onPhotoPicked(context, uri)
+            viewModel.onPhotoPicked(activeIndex, context, uri)
         }
     }
+
+    // 위치 권한 팝업
     val locationPermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            viewModel.onLocationPermissionGranted(context)
+            viewModel.onLocationPermissionGranted(activeIndex, context)
         } else {
-            viewModel.onLocationPermissionDenied()
+            viewModel.onLocationPermissionDenied(activeIndex)
         }
     }
 
-    // 방금 만든 사진 파일의 주소를 잠깐 기억해둘 곳
-    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
-
-    // 카메라 실행 준비. 사진을 찍으면 success(true/false)가 돌아온다.
+    // 카메라 실행
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        val uri = pendingReceiptUri
-        if (uri != null) {
-            viewModel.onReceiptCaptured(context, uri, success)
-        }
+        viewModel.onReceiptCaptured(activeIndex, success)
     }
 
-    // 카메라 권한 팝업 준비
+    // 카메라 권한 팝업
     val cameraPermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            val uri = createImageUri(context)   // 빈 사진 파일 만들기
-            pendingReceiptUri = uri             // 주소 기억
-            cameraLauncher.launch(uri)          // 그 주소로 카메라 열기
+            val uri = createImageUri(context)
+            pendingReceiptUri = uri
+            cameraLauncher.launch(uri)
         } else {
-            viewModel.onCameraPermissionDenied()
+            viewModel.onCameraPermissionDenied(activeIndex)
         }
     }
 
@@ -150,46 +147,47 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            OngoingMissionCard(
-                mission = uiState.mission,
-                status = uiState.status,
-                photoError = uiState.photoError,
-                onVerify = { viewModel.verifyMission() },
-                onPickPhoto = {
-                    // 갤러리에서 '사진만' 고르도록 열기
-                    photoPicker.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                onUseCurrentLocation = {
-                    // 권한 있으면 바로 위치, 없으면 팝업
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (granted) {
-                        viewModel.onLocationPermissionGranted(context)
-                    } else {
-                        locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            // 미션 목록을 하나씩 카드로 그림
+            uiState.missions.forEachIndexed { index, item ->
+                OngoingMissionCard(
+                    mission = item.mission,
+                    status = item.status,
+                    error = item.error,
+                    onPickPhoto = {
+                        activeIndex = index
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onUseCurrentLocation = {
+                        activeIndex = index
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            viewModel.onLocationPermissionGranted(index, context)
+                        } else {
+                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    },
+                    onCaptureReceipt = {
+                        activeIndex = index
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            val uri = createImageUri(context)
+                            pendingReceiptUri = uri
+                            cameraLauncher.launch(uri)
+                        } else {
+                            cameraPermission.launch(Manifest.permission.CAMERA)
+                        }
                     }
-                },
-                onCaptureReceipt = {
-                    // 카메라 권한 있으면 바로, 없으면 팝업
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA
-                    ) == PackageManager.PERMISSION_GRANTED
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-                    if (granted) {
-                        val uri = createImageUri(context)
-                        pendingReceiptUri = uri
-                        cameraLauncher.launch(uri)
-                    } else {
-                        cameraPermission.launch(Manifest.permission.CAMERA)
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             SectionTitle("최근 점령 지역")
             Spacer(modifier = Modifier.height(12.dp))
@@ -203,8 +201,6 @@ fun HomeScreen(
 
 /**
  * 부산 지도 자리표시자.
- * 실제 지도 이미지를 넣으려면 이 Box 안의 내용을
- * Image(painter = painterResource(R.drawable.busan_map), ...) 로 교체하세요.
  */
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
@@ -235,11 +231,13 @@ fun MapPlaceholder(onClick: () -> Unit) {
         }
     }
 }
+
 fun missionTypeLabel(type: MissionType): String = when (type) {
     MissionType.PHOTO_LOCATION   -> "📷 사진 위치 인증"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치 인증"
     MissionType.RECEIPT          -> "🧾 결제 영수증 인증"
 }
+
 fun verifyButtonLabel(type: MissionType): String = when (type) {
     MissionType.PHOTO_LOCATION   -> "📷 사진 올려서 인증하기"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치로 인증하기"
@@ -250,8 +248,7 @@ fun verifyButtonLabel(type: MissionType): String = when (type) {
 fun OngoingMissionCard(
     mission: OngoingMission,
     status: MissionStatus,
-    photoError: String? = null,
-    onVerify: () -> Unit,
+    error: String? = null,
     onPickPhoto: () -> Unit = {},
     onUseCurrentLocation: () -> Unit = {},
     onCaptureReceipt: () -> Unit = {}
@@ -264,7 +261,6 @@ fun OngoingMissionCard(
             .background(CardWhite)
     ) {
 
-        // 미션 이미지 자리표시자 + '지역 미션' 배지
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -302,8 +298,9 @@ fun OngoingMissionCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ↓ 추가: 이 미션의 완료 방식 표시
             Text(missionTypeLabel(mission.type), color = IconBlue, fontSize = 12.sp)
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -316,20 +313,6 @@ fun OngoingMissionCard(
                 Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            LinearProgressIndicator(
-                progress = { mission.current.toFloat() / mission.total },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(CircleShape),
-                color = PointOrange,
-                trackColor = TrackGray
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text("${mission.current}/${mission.total}", color = TextSub, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(14.dp))
 
             when (status) {
@@ -346,10 +329,9 @@ fun OngoingMissionCard(
                     ) {
                         Text(verifyButtonLabel(mission.type))
                     }
-                    // 위치정보 없는 사진일 때 에러 표시
-                    if (photoError != null) {
+                    if (error != null) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(photoError, color = PointRed, fontSize = 12.sp)
+                        Text(error, color = PointRed, fontSize = 12.sp)
                     }
                 }
                 MissionStatus.VERIFYING -> {

@@ -38,6 +38,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 @Composable
 fun HomeScreen(
@@ -55,6 +58,16 @@ fun HomeScreen(
             viewModel.onPhotoPicked(context, uri)
         }
     }
+    val locationPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.onLocationPermissionGranted(context)
+        } else {
+            viewModel.onLocationPermissionDenied()
+        }
+    }
+
     LazyColumn {
 
         item {
@@ -116,6 +129,18 @@ fun HomeScreen(
                     photoPicker.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
+                },
+                onUseCurrentLocation = {
+                    // 권한 있으면 바로 위치, 없으면 팝업
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (granted) {
+                        viewModel.onLocationPermissionGranted(context)
+                    } else {
+                        locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
                 }
             )
 
@@ -182,7 +207,8 @@ fun OngoingMissionCard(
     status: MissionStatus,
     photoError: String? = null,
     onVerify: () -> Unit,
-    onPickPhoto: () -> Unit = {}
+    onPickPhoto: () -> Unit = {},
+    onUseCurrentLocation: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -264,10 +290,10 @@ fun OngoingMissionCard(
                 MissionStatus.READY -> {
                     Button(
                         onClick = {
-                            if (mission.type == MissionType.PHOTO_LOCATION) {
-                                onPickPhoto()   // 사진 미션 → 갤러리 열기
-                            } else {
-                                onVerify()      // 나머지 → 기존 인증
+                            when (mission.type) {
+                                MissionType.PHOTO_LOCATION   -> onPickPhoto()
+                                MissionType.CURRENT_LOCATION -> onUseCurrentLocation()
+                                MissionType.RECEIPT          -> onVerify()
                             }
                         },
                         modifier = Modifier.fillMaxWidth()

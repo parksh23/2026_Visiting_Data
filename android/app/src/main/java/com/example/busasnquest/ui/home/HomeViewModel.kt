@@ -15,6 +15,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.busasnquest.util.PhotoLatLng
 import com.example.busasnquest.util.readPhotoLocation
+import com.example.busasnquest.util.getCurrentLocation
 
 // 미션의 완료 단계
 enum class MissionStatus {
@@ -63,6 +64,36 @@ class HomeViewModel : ViewModel() {
             _uiState.update {
                 it.copy(photoError = "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
             }
+        }
+    }
+
+    // 위치 권한을 허락받았을 때 → 현재 위치로 인증
+    fun onLocationPermissionGranted(context: Context) {
+        if (_uiState.value.status != MissionStatus.READY) return  // 중복 방지
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(status = MissionStatus.VERIFYING, photoError = null) }
+
+            val location = getCurrentLocation(context)
+
+            if (location != null) {
+                _uiState.update {
+                    it.copy(photoLocation = location, status = MissionStatus.COMPLETED)
+                }
+                UserRepository.addPoints(_uiState.value.mission.reward)
+            } else {
+                // 위치를 못 얻음 → 다시 시도할 수 있게 READY로 되돌림
+                _uiState.update {
+                    it.copy(status = MissionStatus.READY, photoError = "위치를 가져오지 못했어요. 야외에서 다시 시도해주세요.")
+                }
+            }
+        }
+    }
+
+    // 위치 권한을 거부했을 때
+    fun onLocationPermissionDenied() {
+        _uiState.update {
+            it.copy(photoError = "위치 권한이 있어야 이 미션을 완료할 수 있어요.")
         }
     }
 }

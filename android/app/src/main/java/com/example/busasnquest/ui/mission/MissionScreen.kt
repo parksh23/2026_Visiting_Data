@@ -25,12 +25,17 @@ import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SegmentedToggle
 import com.example.busasnquest.ui.theme.*
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun MissionScreen(navController: NavHostController) {
+fun MissionScreen(
+    navController: NavHostController,
+    viewModel: MissionViewModel = viewModel()
+) {
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LazyColumn {
 
         item {
@@ -50,8 +55,8 @@ fun MissionScreen(navController: NavHostController) {
 
             SegmentedToggle(
                 options = listOf("전체", "지역"),
-                selectedIndex = selectedTab,
-                onSelect = { selectedTab = it }
+                selectedIndex = uiState.selectedTab,
+                onSelect = {  viewModel.selectTab(it) }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -64,7 +69,7 @@ fun MissionScreen(navController: NavHostController) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    if (selectedTab == 0) "전체 지역 진행 현황" else "지역별 미션",
+                    if (uiState.selectedTab == 0) "전체 지역 진행 현황" else "지역별 미션",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextMain
@@ -75,7 +80,7 @@ fun MissionScreen(navController: NavHostController) {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        items(districtProgressList) { district ->
+        items(uiState.districts) { district ->
             DistrictProgressRow(district) {
                 navController.navigate("map/${district.name}")
             }

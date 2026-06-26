@@ -19,7 +19,7 @@ val ongoingMission = OngoingMission(
     reward = 100,
     current = 0,
     total = 1,
-    type = MissionType.CURRENT_LOCATION  // 이 미션은 '현재 위치 인증'
+    type = MissionType.CURRENT_LOCATION // 이 미션은 '현재 위치 인증'
 )
 
 // 미션 - 구·군별 진행 현황 (16개)

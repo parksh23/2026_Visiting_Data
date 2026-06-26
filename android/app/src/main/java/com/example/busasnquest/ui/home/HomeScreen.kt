@@ -109,7 +109,14 @@ fun HomeScreen(
             OngoingMissionCard(
                 mission = uiState.mission,
                 status = uiState.status,
-                onVerify = { viewModel.verifyMission() }
+                photoError = uiState.photoError,
+                onVerify = { viewModel.verifyMission() },
+                onPickPhoto = {
+                    // 갤러리에서 '사진만' 고르도록 열기
+                    photoPicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -173,7 +180,9 @@ fun verifyButtonLabel(type: MissionType): String = when (type) {
 fun OngoingMissionCard(
     mission: OngoingMission,
     status: MissionStatus,
-    onVerify: () -> Unit
+    photoError: String? = null,
+    onVerify: () -> Unit,
+    onPickPhoto: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -254,10 +263,21 @@ fun OngoingMissionCard(
             when (status) {
                 MissionStatus.READY -> {
                     Button(
-                        onClick = onVerify,
+                        onClick = {
+                            if (mission.type == MissionType.PHOTO_LOCATION) {
+                                onPickPhoto()   // 사진 미션 → 갤러리 열기
+                            } else {
+                                onVerify()      // 나머지 → 기존 인증
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(verifyButtonLabel(mission.type))
+                    }
+                    // 위치정보 없는 사진일 때 에러 표시
+                    if (photoError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(photoError, color = PointRed, fontSize = 12.sp)
                     }
                 }
                 MissionStatus.VERIFYING -> {

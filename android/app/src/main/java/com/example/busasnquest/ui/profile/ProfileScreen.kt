@@ -28,7 +28,7 @@ import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.*
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(onLogout: () -> Unit = {}) {
 
     Column(
         modifier = Modifier
@@ -94,7 +94,7 @@ fun ProfileScreen() {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFFF3E1E1))
-                .clickable { }
+                .clickable { onLogout() }
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {

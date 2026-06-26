@@ -73,8 +73,6 @@ class RankingViewModel(
         }
     }
 
-    // 생성자에 Repository 를 주입해주는 팩토리.
-    // 화면에서 viewModel(factory = RankingViewModel.Factory) 로 사용.
     companion object {
         val Factory = viewModelFactory {
             initializer {

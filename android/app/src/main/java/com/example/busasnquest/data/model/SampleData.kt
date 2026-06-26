@@ -18,7 +18,8 @@ val ongoingMission = OngoingMission(
     region = "남구 용호동",
     reward = 100,
     current = 0,
-    total = 1
+    total = 1,
+    type = MissionType.CURRENT_LOCATION  // 이 미션은 '현재 위치 인증'
 )
 
 // 미션 - 구·군별 진행 현황 (16개)

@@ -28,10 +28,33 @@ import com.example.busasnquest.ui.components.SectionTitle
 import com.example.busasnquest.ui.theme.*
 import androidx.compose.material3.Button
 import com.example.busasnquest.data.repository.UserRepository
+import com.example.busasnquest.data.model.MissionType
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.busasnquest.ui.home.MissionStatus
+import androidx.compose.material3.ButtonDefaults
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun HomeScreen(navController: NavHostController) {
+fun HomeScreen(
+    navController: NavHostController,
+    viewModel: HomeViewModel = viewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
+    // 갤러리(사진 선택기) 준비. 사진을 고르면 uri가 돌아온다.
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.onPhotoPicked(context, uri)
+        }
+    }
     LazyColumn {
 
         item {
@@ -83,7 +106,11 @@ fun HomeScreen(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            OngoingMissionCard(ongoingMission)
+            OngoingMissionCard(
+                mission = uiState.mission,
+                status = uiState.status,
+                onVerify = { viewModel.verifyMission() }
+            )
 
             Spacer(modifier = Modifier.height(28.dp))
 
@@ -131,9 +158,23 @@ fun MapPlaceholder(onClick: () -> Unit) {
         }
     }
 }
+fun missionTypeLabel(type: MissionType): String = when (type) {
+    MissionType.PHOTO_LOCATION   -> "📷 사진 위치 인증"
+    MissionType.CURRENT_LOCATION -> "📍 현재 위치 인증"
+    MissionType.RECEIPT          -> "🧾 결제 영수증 인증"
+}
+fun verifyButtonLabel(type: MissionType): String = when (type) {
+    MissionType.PHOTO_LOCATION   -> "📷 사진 올려서 인증하기"
+    MissionType.CURRENT_LOCATION -> "📍 현재 위치로 인증하기"
+    MissionType.RECEIPT          -> "🧾 영수증 올려서 인증하기"
+}
 
 @Composable
-fun OngoingMissionCard(mission: OngoingMission) {
+fun OngoingMissionCard(
+    mission: OngoingMission,
+    status: MissionStatus,
+    onVerify: () -> Unit
+) {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -178,7 +219,10 @@ fun OngoingMissionCard(mission: OngoingMission) {
 
             Text(mission.region, color = TextSub, fontSize = 13.sp)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ↓ 추가: 이 미션의 완료 방식 표시
+            Text(missionTypeLabel(mission.type), color = IconBlue, fontSize = 12.sp)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -205,6 +249,37 @@ fun OngoingMissionCard(mission: OngoingMission) {
             Spacer(modifier = Modifier.height(6.dp))
 
             Text("${mission.current}/${mission.total}", color = TextSub, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            when (status) {
+                MissionStatus.READY -> {
+                    Button(
+                        onClick = onVerify,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(verifyButtonLabel(mission.type))
+                    }
+                }
+                MissionStatus.VERIFYING -> {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("인증 확인 중...")
+                    }
+                }
+                MissionStatus.COMPLETED -> {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = IconGreen)
+                    ) {
+                        Text("✓ 미션 완료! +${mission.reward}P")
+                    }
+                }
+            }
         }
     }
 }

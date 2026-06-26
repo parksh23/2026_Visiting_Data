@@ -10,7 +10,8 @@ data class OngoingMission(
     val region: String,
     val reward: Int,
     val current: Int,
-    val total: Int
+    val total: Int,
+    val type: MissionType = MissionType.CURRENT_LOCATION
 )
 
 // 구·군별 진행 현황

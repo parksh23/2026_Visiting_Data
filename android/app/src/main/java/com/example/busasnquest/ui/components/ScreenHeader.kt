@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.busasnquest.data.model.USER_POINT
 import com.example.busasnquest.ui.theme.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.busasnquest.data.repository.UserRepository

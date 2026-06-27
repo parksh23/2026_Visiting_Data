@@ -22,6 +22,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.OngoingMission
 import com.example.busasnquest.data.model.MissionType
+import com.example.busasnquest.data.model.MissionState
+import com.example.busasnquest.data.model.occupationRate
+import com.example.busasnquest.data.model.completedDistrictCount
+import com.example.busasnquest.data.model.totalDistrictCount
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
@@ -49,41 +53,37 @@ fun HomeScreen(
     navController: NavHostController,
     viewModel: HomeViewModel = viewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val missions by viewModel.homeMissions.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // 어느 미션이 액션을 요청했는지 기억해둘 곳 (사진/카메라 결과가 올 때 필요)
-    var activeIndex by remember { mutableStateOf(0) }
+    // 어느 미션이 액션을 요청했는지 기억 (사진/카메라 결과가 올 때 필요)
+    var activeId by remember { mutableStateOf(0) }
     var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
 
-    // 갤러리(사진 선택기)
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            viewModel.onPhotoPicked(activeIndex, context, uri)
+            viewModel.onPhotoPicked(activeId, context, uri)
         }
     }
 
-    // 위치 권한 팝업
     val locationPermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            viewModel.onLocationPermissionGranted(activeIndex, context)
+            viewModel.onLocationPermissionGranted(activeId, context)
         } else {
-            viewModel.onLocationPermissionDenied(activeIndex)
+            viewModel.onLocationPermissionDenied(activeId)
         }
     }
 
-    // 카메라 실행
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        viewModel.onReceiptCaptured(activeIndex, success)
+        viewModel.onReceiptCaptured(activeId, success)
     }
 
-    // 카메라 권한 팝업
     val cameraPermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -92,7 +92,7 @@ fun HomeScreen(
             pendingReceiptUri = uri
             cameraLauncher.launch(uri)
         } else {
-            viewModel.onCameraPermissionDenied(activeIndex)
+            viewModel.onCameraPermissionDenied(activeId)
         }
     }
 
@@ -107,9 +107,9 @@ fun HomeScreen(
 
             ProgressCard(
                 label = "나의 점령률",
-                percentText = "35%",
-                caption = "5/16 구·군 점령",
-                progress = 0.35f
+                percentText = "${(occupationRate * 100).toInt()}%",
+                caption = "$completedDistrictCount/$totalDistrictCount 구·군 점령",
+                progress = occupationRate
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -147,31 +147,51 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 미션 목록을 하나씩 카드로 그림
-            uiState.missions.forEachIndexed { index, item ->
+            // 진행 중인 미션이 없을 때 안내
+            if (missions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardWhite)
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "도전 중인 미션이 없어요.\n미션 탭에서 도전해보세요!",
+                        color = TextSub,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            // 진행 중인 미션들을 카드로
+            missions.forEach { item ->
+                val id = item.mission.id
                 OngoingMissionCard(
                     mission = item.mission,
-                    status = item.status,
+                    state = item.state,
                     error = item.error,
                     onPickPhoto = {
-                        activeIndex = index
+                        activeId = id
                         photoPicker.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
                     },
                     onUseCurrentLocation = {
-                        activeIndex = index
+                        activeId = id
                         val granted = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.ACCESS_FINE_LOCATION
                         ) == PackageManager.PERMISSION_GRANTED
                         if (granted) {
-                            viewModel.onLocationPermissionGranted(index, context)
+                            viewModel.onLocationPermissionGranted(id, context)
                         } else {
                             locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                         }
                     },
                     onCaptureReceipt = {
-                        activeIndex = index
+                        activeId = id
                         val granted = ContextCompat.checkSelfPermission(
                             context, Manifest.permission.CAMERA
                         ) == PackageManager.PERMISSION_GRANTED
@@ -199,9 +219,6 @@ fun HomeScreen(
     }
 }
 
-/**
- * 부산 지도 자리표시자.
- */
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
     Box(
@@ -247,7 +264,7 @@ fun verifyButtonLabel(type: MissionType): String = when (type) {
 @Composable
 fun OngoingMissionCard(
     mission: OngoingMission,
-    status: MissionStatus,
+    state: MissionState,
     error: String? = null,
     onPickPhoto: () -> Unit = {},
     onUseCurrentLocation: () -> Unit = {},
@@ -284,7 +301,7 @@ fun OngoingMissionCard(
                     .background(IconGreen)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("지역 미션", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(mission.district, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -315,8 +332,8 @@ fun OngoingMissionCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            when (status) {
-                MissionStatus.READY -> {
+            when (state) {
+                MissionState.IN_PROGRESS -> {
                     Button(
                         onClick = {
                             when (mission.type) {
@@ -334,7 +351,7 @@ fun OngoingMissionCard(
                         Text(error, color = PointRed, fontSize = 12.sp)
                     }
                 }
-                MissionStatus.VERIFYING -> {
+                MissionState.VERIFYING -> {
                     Button(
                         onClick = {},
                         enabled = false,
@@ -343,7 +360,7 @@ fun OngoingMissionCard(
                         Text("인증 확인 중...")
                     }
                 }
-                MissionStatus.COMPLETED -> {
+                MissionState.COMPLETED -> {
                     Button(
                         onClick = {},
                         enabled = false,
@@ -352,6 +369,9 @@ fun OngoingMissionCard(
                     ) {
                         Text("✓ 미션 완료! +${mission.reward}P")
                     }
+                }
+                MissionState.NOT_STARTED -> {
+                    // 홈에는 NOT_STARTED가 안 오지만, when을 완성하기 위해 비워둠
                 }
             }
         }

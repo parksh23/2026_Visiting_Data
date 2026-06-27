@@ -36,6 +36,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.data.repository.OccupationStat
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 
 @Composable
 fun MissionScreen(
@@ -92,7 +94,8 @@ fun MissionScreen(
                     item = item,
                     onChallenge = { viewModel.startMission(item.mission.id) },
                     onClick = { navController.navigate("missionDetail/${item.mission.id}") },
-                    onVerify = { verify(item.mission.id, item.mission.type) }
+                    onVerify = { verify(item.mission.id, item.mission.type) },
+                    onToggleSaved = { viewModel.toggleSaved(item.mission.id) }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -120,7 +123,8 @@ fun MissionScreen(
                                 item = item,
                                 onChallenge = { viewModel.startMission(item.mission.id) },
                                 onClick = { navController.navigate("missionDetail/${item.mission.id}") },
-                                onVerify = { verify(item.mission.id, item.mission.type) }
+                                onVerify = { verify(item.mission.id, item.mission.type) },
+                                onToggleSaved = { viewModel.toggleSaved(item.mission.id) }
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
@@ -139,7 +143,8 @@ fun MissionCard(
     item: MissionWithState,
     onChallenge: () -> Unit,
     onClick: () -> Unit = {},
-    onVerify: () -> Unit = {}
+    onVerify: () -> Unit = {},
+    onToggleSaved: () -> Unit = {}
 ) {
     val mission = item.mission
 
@@ -152,7 +157,23 @@ fun MissionCard(
             .clickable { onClick() }
             .padding(16.dp)
     ) {
-        Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextMain)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                mission.title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = TextMain,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = "찜하기",
+                tint = if (item.saved) PointRed else TextSub,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable { onToggleSaved() }
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(mission.region, color = TextSub, fontSize = 12.sp)
 

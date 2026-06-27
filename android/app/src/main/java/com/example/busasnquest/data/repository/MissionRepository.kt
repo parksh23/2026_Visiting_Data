@@ -18,7 +18,8 @@ import kotlinx.coroutines.flow.SharingStarted
 data class MissionWithState(
     val mission: OngoingMission,
     val state: MissionState = MissionState.NOT_STARTED,
-    val error: String? = null
+    val error: String? = null,
+    val saved: Boolean = false        // 찜 여부
 )
 // 구·군별 미션 진행 상황
 data class DistrictMissionProgress(
@@ -56,6 +57,11 @@ object MissionRepository {
         allMissions.map { MissionWithState(mission = it) }
     )
     val missions: StateFlow<List<MissionWithState>> = _missions.asStateFlow()
+
+    // 찜하기 토글 (하트 누르면 켜지고, 또 누르면 꺼짐)
+    fun toggleSaved(id: Int) {
+        updateMission(id) { it.copy(saved = !it.saved) }
+    }
 
     // 특정 미션의 상태를 바꾸는 헬퍼
     private fun updateMission(id: Int, transform: (MissionWithState) -> MissionWithState) {

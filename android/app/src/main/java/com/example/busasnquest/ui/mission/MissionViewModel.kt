@@ -60,4 +60,7 @@ class MissionViewModel : ViewModel() {
     fun startMission(id: Int) {
         MissionRepository.startMission(id)
     }
+    fun toggleSaved(id: Int) {
+        MissionRepository.toggleSaved(id)
+    }
 }

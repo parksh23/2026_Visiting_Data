@@ -64,9 +64,9 @@ fun ProfileScreen(
         ) {
             profileMenuItems.forEachIndexed { index, item ->
                 MenuRow(item) {
-                    // "미션 내역"이면 내역 화면으로 이동
-                    if (item.title == "미션 내역") {
-                        navController.navigate("missionHistory")
+                    when (item.title) {
+                        "미션 내역" -> navController.navigate("missionHistory")
+                        "찜한 미션" -> navController.navigate("savedMission")
                     }
                 }
                 if (index != profileMenuItems.lastIndex) {

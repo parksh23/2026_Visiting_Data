@@ -30,6 +30,7 @@ import com.example.busasnquest.ui.theme.BgSoftBlue
 import kotlinx.coroutines.launch
 import com.example.busasnquest.ui.detail.MissionDetailScreen
 import com.example.busasnquest.ui.profile.MissionHistoryScreen
+import com.example.busasnquest.ui.profile.SavedMissionScreen
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
@@ -127,6 +128,9 @@ fun BusanQuestApp() {
                     }
                     composable("missionHistory") {
                         MissionHistoryScreen(navController = navController)
+                    }
+                    composable("savedMission") {
+                        SavedMissionScreen(navController = navController)
                     }
                 }
             }

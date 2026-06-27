@@ -155,10 +155,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            SectionTitle("최근 점령 지역")
-            Spacer(modifier = Modifier.height(12.dp))
-
-            RecentCapturedCard("해운대구", "점령일 2024.05.16")
 
             Spacer(modifier = Modifier.height(120.dp))
         }

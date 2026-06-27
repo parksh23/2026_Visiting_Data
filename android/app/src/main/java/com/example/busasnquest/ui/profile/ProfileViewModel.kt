@@ -17,7 +17,8 @@ data class ProfileUiState(
     val points: Int = 0,
     val completedCount: Int = 0,
     val savedCount: Int = 0,
-    val completedMissions: List<MissionWithState> = emptyList()
+    val completedMissions: List<MissionWithState> = emptyList(),
+    val savedMissions: List<MissionWithState> = emptyList()    // 찜한 미션
 )
 
 class ProfileViewModel : ViewModel() {
@@ -25,10 +26,13 @@ class ProfileViewModel : ViewModel() {
     val uiState: StateFlow<ProfileUiState> =
         combine(UserRepository.points, MissionRepository.missions) { points, missions ->
             val completed = missions.filter { it.state == MissionState.COMPLETED }
+            val saved = missions.filter { it.saved }
             ProfileUiState(
                 points = points,
                 completedCount = completed.size,
-                completedMissions = completed
+                completedMissions = completed,
+                savedCount = saved.size,
+                savedMissions = saved
             )
         }.stateIn(
             scope = viewModelScope,

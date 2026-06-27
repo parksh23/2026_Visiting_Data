@@ -29,11 +29,12 @@ import com.example.busasnquest.ui.theme.*
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.material3.CircularProgressIndicator
-import com.example.busasnquest.data.remote.UserProfileDto
+import androidx.navigation.NavHostController
+
 
 @Composable
 fun ProfileScreen(
+    navController: NavHostController,
     onLogout: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel()
 ) {
@@ -49,18 +50,7 @@ fun ProfileScreen(
             subtitle = "나의 활동과 정보를 확인하세요!"
         )
 
-        if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = NavyMain)
-            }
-        } else if (uiState.profile != null) {
-            ProfileSummaryCard(profile = uiState.profile!!)
-        }
+        ProfileSummaryCard(uiState = uiState)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -73,7 +63,12 @@ fun ProfileScreen(
                 .background(CardWhite)
         ) {
             profileMenuItems.forEachIndexed { index, item ->
-                MenuRow(item)
+                MenuRow(item) {
+                    // "미션 내역"이면 내역 화면으로 이동
+                    if (item.title == "미션 내역") {
+                        navController.navigate("missionHistory")
+                    }
+                }
                 if (index != profileMenuItems.lastIndex) {
                     HorizontalDivider(
                         color = DividerGray,
@@ -125,7 +120,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileSummaryCard(profile: UserProfileDto) {
+fun ProfileSummaryCard(uiState: ProfileUiState) {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -159,9 +154,7 @@ fun ProfileSummaryCard(profile: UserProfileDto) {
 
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProfileStat(profile.points, "보유 포인트")
-                    ProfileStat(profile.completedMissions.toString(), "완료 미션")
-                    ProfileStat(profile.savedMissions.toString(), "찜한 미션")
+                    Text(uiState.name, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         Icons.Outlined.Edit,
@@ -171,9 +164,23 @@ fun ProfileSummaryCard(profile: UserProfileDto) {
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("부산을 사랑하는 여행자", color = TextSub, fontSize = 13.sp)
+                Text(uiState.intro, color = TextSub, fontSize = 13.sp)
                 Text("부산의 매력을 찾아 미션에 도전해요!", color = TextSub, fontSize = 13.sp)
             }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        HorizontalDivider(color = DividerGray)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 통계 3개 (가로로)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ProfileStat("%,d".format(uiState.points) + "P", "보유 포인트")
+            ProfileStat(uiState.completedCount.toString(), "완료 미션")
+            ProfileStat(uiState.savedCount.toString(), "찜한 미션")
         }
     }
 }
@@ -188,11 +195,11 @@ fun ProfileStat(value: String, label: String) {
 }
 
 @Composable
-fun MenuRow(item: MenuItem) {
+fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable { onClick() }
             .padding(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

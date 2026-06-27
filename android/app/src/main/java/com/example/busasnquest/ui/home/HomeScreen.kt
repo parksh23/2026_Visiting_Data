@@ -2,14 +2,31 @@ package com.example.busasnquest.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,82 +36,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.busasnquest.data.model.OngoingMission
+import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.MissionType
+import com.example.busasnquest.data.model.OngoingMission
+import com.example.busasnquest.data.model.completedDistrictCount
+import com.example.busasnquest.data.model.occupationRate
+import com.example.busasnquest.data.model.totalDistrictCount
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
-import com.example.busasnquest.ui.theme.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import android.net.Uri
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.example.busasnquest.util.createImageUri
+import com.example.busasnquest.ui.components.rememberMissionVerifier
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.IconBlue
+import com.example.busasnquest.ui.theme.IconGreen
+import com.example.busasnquest.ui.theme.IconGreenBg
+import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.PointOrange
+import com.example.busasnquest.ui.theme.PointRed
+import com.example.busasnquest.ui.theme.TextMain
+import com.example.busasnquest.ui.theme.TextSub
 
 @Composable
 fun HomeScreen(
     navController: NavHostController,
     viewModel: HomeViewModel = viewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val missions by viewModel.homeMissions.collectAsStateWithLifecycle()
 
-    // 어느 미션이 액션을 요청했는지 기억해둘 곳 (사진/카메라 결과가 올 때 필요)
-    var activeIndex by remember { mutableStateOf(0) }
-    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
-
-    // 갤러리(사진 선택기)
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            viewModel.onPhotoPicked(activeIndex, context, uri)
-        }
-    }
-
-    // 위치 권한 팝업
-    val locationPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.onLocationPermissionGranted(activeIndex, context)
-        } else {
-            viewModel.onLocationPermissionDenied(activeIndex)
-        }
-    }
-
-    // 카메라 실행
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        viewModel.onReceiptCaptured(activeIndex, success)
-    }
-
-    // 카메라 권한 팝업
-    val cameraPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            val uri = createImageUri(context)
-            pendingReceiptUri = uri
-            cameraLauncher.launch(uri)
-        } else {
-            viewModel.onCameraPermissionDenied(activeIndex)
-        }
-    }
+    // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
+    val verify = rememberMissionVerifier(viewModel)
 
     LazyColumn {
 
@@ -107,9 +80,9 @@ fun HomeScreen(
 
             ProgressCard(
                 label = "나의 점령률",
-                percentText = "35%",
-                caption = "5/16 구·군 점령",
-                progress = 0.35f
+                percentText = "${(occupationRate * 100).toInt()}%",
+                caption = "$completedDistrictCount/$totalDistrictCount 구·군 점령",
+                progress = occupationRate
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -147,42 +120,36 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 미션 목록을 하나씩 카드로 그림
-            uiState.missions.forEachIndexed { index, item ->
+            // 진행 중인 미션이 없을 때 안내
+            if (missions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardWhite)
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "도전 중인 미션이 없어요.\n미션 탭에서 도전해보세요!",
+                        color = TextSub,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            // 진행 중인 미션들을 카드로
+            missions.forEach { item ->
+                val id = item.mission.id
                 OngoingMissionCard(
                     mission = item.mission,
-                    status = item.status,
+                    state = item.state,
                     error = item.error,
-                    onPickPhoto = {
-                        activeIndex = index
-                        photoPicker.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onUseCurrentLocation = {
-                        activeIndex = index
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            viewModel.onLocationPermissionGranted(index, context)
-                        } else {
-                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-                    },
-                    onCaptureReceipt = {
-                        activeIndex = index
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            val uri = createImageUri(context)
-                            pendingReceiptUri = uri
-                            cameraLauncher.launch(uri)
-                        } else {
-                            cameraPermission.launch(Manifest.permission.CAMERA)
-                        }
-                    }
+                    onClick = { navController.navigate("missionDetail/$id") },
+                    onPickPhoto = { verify(id, item.mission.type) },
+                    onUseCurrentLocation = { verify(id, item.mission.type) },
+                    onCaptureReceipt = { verify(id, item.mission.type) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -199,9 +166,6 @@ fun HomeScreen(
     }
 }
 
-/**
- * 부산 지도 자리표시자.
- */
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
     Box(
@@ -247,8 +211,9 @@ fun verifyButtonLabel(type: MissionType): String = when (type) {
 @Composable
 fun OngoingMissionCard(
     mission: OngoingMission,
-    status: MissionStatus,
+    state: MissionState,
     error: String? = null,
+    onClick: () -> Unit = {},
     onPickPhoto: () -> Unit = {},
     onUseCurrentLocation: () -> Unit = {},
     onCaptureReceipt: () -> Unit = {}
@@ -259,6 +224,7 @@ fun OngoingMissionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(CardWhite)
+            .clickable { onClick() }
     ) {
 
         Box(
@@ -284,7 +250,7 @@ fun OngoingMissionCard(
                     .background(IconGreen)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("지역 미션", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(mission.district, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -315,8 +281,8 @@ fun OngoingMissionCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            when (status) {
-                MissionStatus.READY -> {
+            when (state) {
+                MissionState.IN_PROGRESS -> {
                     Button(
                         onClick = {
                             when (mission.type) {
@@ -334,7 +300,7 @@ fun OngoingMissionCard(
                         Text(error, color = PointRed, fontSize = 12.sp)
                     }
                 }
-                MissionStatus.VERIFYING -> {
+                MissionState.VERIFYING -> {
                     Button(
                         onClick = {},
                         enabled = false,
@@ -343,7 +309,7 @@ fun OngoingMissionCard(
                         Text("인증 확인 중...")
                     }
                 }
-                MissionStatus.COMPLETED -> {
+                MissionState.COMPLETED -> {
                     Button(
                         onClick = {},
                         enabled = false,
@@ -352,6 +318,9 @@ fun OngoingMissionCard(
                     ) {
                         Text("✓ 미션 완료! +${mission.reward}P")
                     }
+                }
+                MissionState.NOT_STARTED -> {
+                    // 홈에는 NOT_STARTED가 안 오지만, when을 완성하기 위해 비워둠
                 }
             }
         }

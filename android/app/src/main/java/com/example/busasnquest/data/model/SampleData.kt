@@ -12,34 +12,6 @@ const val USER_NAME = "부산갈매기"
 
 // ───────────────── SAMPLE DATA (스크린샷 기준) ─────────────────
 
-// 홈 - 진행 중인 미션
-// 진행 중인 미션 목록 (타입별로 다양하게)
-val ongoingMissions = listOf(
-    OngoingMission(
-        title = "오록도 해안길 걷기",
-        region = "남구 용호동",
-        reward = 100,
-        current = 0,
-        total = 1,
-        type = MissionType.CURRENT_LOCATION
-    ),
-    OngoingMission(
-        title = "광안리 해변에서 인증샷 찍기",
-        region = "수영구 광안동",
-        reward = 80,
-        current = 0,
-        total = 1,
-        type = MissionType.PHOTO_LOCATION
-    ),
-    OngoingMission(
-        title = "남포동 맛집에서 식사하기",
-        region = "중구 남포동",
-        reward = 150,
-        current = 0,
-        total = 1,
-        type = MissionType.RECEIPT
-    )
-)
 
 // 미션 - 구·군별 진행 현황 (16개)
 val districtProgressList = listOf(
@@ -90,3 +62,15 @@ val settingItems = listOf(
     SettingItem("이용약관", Icons.Outlined.Description),
     SettingItem("개인정보처리방침", Icons.Outlined.Shield),
 )
+
+// ───────────────── 진행률 계산 ─────────────────
+
+val completedDistrictCount: Int
+    get() = districtProgressList.count { it.completed == it.total && it.total > 0 }
+
+val totalDistrictCount: Int
+    get() = districtProgressList.size
+
+val occupationRate: Float
+    get() = if (totalDistrictCount == 0) 0f
+    else completedDistrictCount.toFloat() / totalDistrictCount

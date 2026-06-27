@@ -26,6 +26,13 @@ data class DistrictMissionProgress(
     val completed: Int,    // 완료한 미션 수
     val total: Int         // 전체 미션 수
 )
+
+// 점령 통계
+data class OccupationStat(
+    val completedMissions: Int = 0,
+    val totalMissions: Int = 0,
+    val rate: Float = 0f
+)
 // 앱 전체에서 미션을 관리하는 단일 진실 공급원
 object MissionRepository {
 
@@ -98,6 +105,24 @@ object MissionRepository {
                 scope = scope,
                 started = SharingStarted.WhileSubscribed(5000),
                 initialValue = emptyList()
+            )
+    // 점령률 = 모든 미션을 완료한 구·군 / 미션이 있는 전체 구·군
+    // 점령률 = 완료한 미션 / 전체 미션
+    val occupation: StateFlow<OccupationStat> =
+        _missions
+            .map { list ->
+                val completed = list.count { it.state == MissionState.COMPLETED }
+                val total = list.size
+                OccupationStat(
+                    completedMissions = completed,
+                    totalMissions = total,
+                    rate = if (total == 0) 0f else completed.toFloat() / total
+                )
+            }
+            .stateIn(
+                scope = scope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = OccupationStat()
             )
 }
 private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

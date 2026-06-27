@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
+import com.example.busasnquest.data.repository.OccupationStat
 
 data class MissionUiState(
     val selectedTab: Int = 0,                              // 0 = 전체, 1 = 지역
@@ -44,7 +45,8 @@ class MissionViewModel : ViewModel() {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = MissionUiState()
         )
-
+    // 점령률 (실제 미션 완료 기반)
+    val occupation: StateFlow<OccupationStat> = MissionRepository.occupation
     fun selectTab(index: Int) {
         _localState.value = _localState.value.copy(selectedTab = index)
     }

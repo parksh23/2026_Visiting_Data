@@ -2,41 +2,37 @@ package com.example.busasnquest.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.busasnquest.data.remote.FakeBusanQuestApi
-import com.example.busasnquest.data.remote.UserProfileDto
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.example.busasnquest.data.model.MissionState
+import com.example.busasnquest.data.repository.MissionRepository
+import com.example.busasnquest.data.repository.MissionWithState
+import com.example.busasnquest.data.repository.UserRepository
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 
 data class ProfileUiState(
-    val profile: UserProfileDto? = null,
-    val isLoading: Boolean = false
+    val name: String = "부산갈매기",
+    val intro: String = "부산을 사랑하는 여행자",
+    val points: Int = 0,
+    val completedCount: Int = 0,
+    val savedCount: Int = 0,
+    val completedMissions: List<MissionWithState> = emptyList()
 )
 
 class ProfileViewModel : ViewModel() {
 
-    // 지금은 가짜 API. 서버 준비되면 RetrofitInstance.api 로 바꾸면 끝.
-    private val api = FakeBusanQuestApi()
-
-    private val _uiState = MutableStateFlow(ProfileUiState())
-    val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
-
-    init {
-        loadProfile()
-    }
-
-    private fun loadProfile() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            try {
-                val result = api.getMyProfile()      // 여기서 가짜 데이터 받아옴
-                _uiState.update { it.copy(profile = result, isLoading = false) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false) }
-                println("통신 실패: ${e.message}")
-            }
-        }
-    }
+    val uiState: StateFlow<ProfileUiState> =
+        combine(UserRepository.points, MissionRepository.missions) { points, missions ->
+            val completed = missions.filter { it.state == MissionState.COMPLETED }
+            ProfileUiState(
+                points = points,
+                completedCount = completed.size,
+                completedMissions = completed
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ProfileUiState()
+        )
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
+import com.example.busasnquest.data.repository.OccupationStat
 
 class HomeViewModel : ViewModel() {
 
@@ -36,6 +37,8 @@ class HomeViewModel : ViewModel() {
                 started = SharingStarted.WhileSubscribed(5000),
                 initialValue = emptyList()
             )
+    // 점령률 (실제 미션 완료 기반)
+    val occupation: StateFlow<OccupationStat> = MissionRepository.occupation
 
     // 사진을 골랐을 때 (id로 미션 지정)
     fun onPhotoPicked(id: Int, context: Context, uri: Uri) {

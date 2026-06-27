@@ -29,6 +29,7 @@ import com.example.busasnquest.ui.ranking.RankingScreen
 import com.example.busasnquest.ui.theme.BgSoftBlue
 import kotlinx.coroutines.launch
 import com.example.busasnquest.ui.detail.MissionDetailScreen
+import com.example.busasnquest.ui.profile.MissionHistoryScreen
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
@@ -106,6 +107,7 @@ fun BusanQuestApp() {
 
                     composable("profile") {
                         ProfileScreen(
+                            navController = navController,
                             onLogout = {
                                 scope.launch { tokenStore.clear() }
                                 navController.navigate("login") {
@@ -122,6 +124,9 @@ fun BusanQuestApp() {
                     ) {
                         val missionId = it.arguments?.getInt("missionId") ?: 0
                         MissionDetailScreen(navController = navController, missionId = missionId)
+                    }
+                    composable("missionHistory") {
+                        MissionHistoryScreen(navController = navController)
                     }
                 }
             }

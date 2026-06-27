@@ -42,9 +42,6 @@ import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
-import com.example.busasnquest.data.model.completedDistrictCount
-import com.example.busasnquest.data.model.occupationRate
-import com.example.busasnquest.data.model.totalDistrictCount
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
@@ -58,6 +55,7 @@ import com.example.busasnquest.ui.theme.PointOrange
 import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.data.repository.OccupationStat
 
 @Composable
 fun HomeScreen(
@@ -65,6 +63,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val missions by viewModel.homeMissions.collectAsStateWithLifecycle()
+    val occupation by viewModel.occupation.collectAsStateWithLifecycle()
 
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(viewModel)
@@ -80,9 +79,9 @@ fun HomeScreen(
 
             ProgressCard(
                 label = "나의 점령률",
-                percentText = "${(occupationRate * 100).toInt()}%",
-                caption = "$completedDistrictCount/$totalDistrictCount 구·군 점령",
-                progress = occupationRate
+                percentText = "${(occupation.rate * 100).toInt()}%",
+                caption = "${occupation.completedMissions}/${occupation.totalMissions} 미션 완료",
+                progress = occupation.rate
             )
 
             Spacer(modifier = Modifier.height(24.dp))

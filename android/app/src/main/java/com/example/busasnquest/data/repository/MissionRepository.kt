@@ -7,6 +7,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 
 // 미션 하나 + 그 미션의 상태
 data class MissionWithState(
@@ -14,7 +20,12 @@ data class MissionWithState(
     val state: MissionState = MissionState.NOT_STARTED,
     val error: String? = null
 )
-
+// 구·군별 미션 진행 상황
+data class DistrictMissionProgress(
+    val name: String,      // 구·군 이름
+    val completed: Int,    // 완료한 미션 수
+    val total: Int         // 전체 미션 수
+)
 // 앱 전체에서 미션을 관리하는 단일 진실 공급원
 object MissionRepository {
 
@@ -68,4 +79,25 @@ object MissionRepository {
     fun setError(id: Int, message: String) {
         updateMission(id) { it.copy(state = MissionState.IN_PROGRESS, error = message) }
     }
+
+    // 미션을 구·군별로 묶어서 진행률 계산 (실시간)
+    val districtProgress: StateFlow<List<DistrictMissionProgress>> =
+        _missions
+            .map { list ->
+                list.groupBy { it.mission.district }      // 구·군별로 묶기
+                    .map { (district, missions) ->
+                        DistrictMissionProgress(
+                            name = district,
+                            completed = missions.count { it.state == MissionState.COMPLETED },
+                            total = missions.size
+                        )
+                    }
+                    .sortedByDescending { it.total }       // 미션 많은 구·군 먼저
+            }
+            .stateIn(
+                scope = scope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 }
+private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

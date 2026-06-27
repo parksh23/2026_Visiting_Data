@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.example.busasnquest.data.model.DistrictProgress
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.completedDistrictCount
 import com.example.busasnquest.data.model.occupationRate
@@ -38,6 +37,7 @@ import com.example.busasnquest.ui.theme.*
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.busasnquest.data.repository.DistrictMissionProgress
 
 @Composable
 fun MissionScreen(
@@ -208,13 +208,14 @@ fun MissionCard(
 /** 구·군 한 줄: 이름 + 진행 바 + 퍼센트 + 개수 + 화살표(펼침 표시). */
 @Composable
 fun DistrictProgressRow(
-    district: DistrictProgress,
+    district: DistrictMissionProgress,
     expanded: Boolean,
     onClick: () -> Unit
 ) {
     val percent = if (district.total == 0) 0f
     else district.completed.toFloat() / district.total
     val percentInt = (percent * 100).toInt()
+    val barColor = if (percentInt == 100) IconGreen else PointOrange   // 색은 진행도에 따라
 
     Row(
         modifier = Modifier
@@ -241,7 +242,7 @@ fun DistrictProgressRow(
                     "$percentInt%",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (percentInt == 0) TextSub else district.color
+                    color = if (percentInt == 0) TextSub else barColor
                 )
             }
             Spacer(modifier = Modifier.height(5.dp))
@@ -258,7 +259,7 @@ fun DistrictProgressRow(
                             .fillMaxWidth(percent)
                             .fillMaxHeight()
                             .clip(CircleShape)
-                            .background(district.color)
+                            .background(barColor)
                     )
                 }
             }

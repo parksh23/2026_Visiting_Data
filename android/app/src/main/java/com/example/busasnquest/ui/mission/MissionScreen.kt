@@ -32,25 +32,12 @@ import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SegmentedToggle
+import com.example.busasnquest.ui.components.rememberMissionVerifier
+import com.example.busasnquest.ui.home.HomeViewModel
 import com.example.busasnquest.ui.theme.*
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.clickable
-import android.Manifest
-import android.content.pm.PackageManager
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import com.example.busasnquest.data.model.MissionType
-import com.example.busasnquest.ui.home.HomeViewModel
-import com.example.busasnquest.util.createImageUri
 
 @Composable
 fun MissionScreen(
@@ -59,64 +46,9 @@ fun MissionScreen(
     homeViewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
-    // 어느 미션이 인증을 요청했는지 기억
-    var activeId by remember { mutableStateOf(0) }
-    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
-
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) homeViewModel.onPhotoPicked(activeId, context, uri)
-    }
-    val locationPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) homeViewModel.onLocationPermissionGranted(activeId, context)
-        else homeViewModel.onLocationPermissionDenied(activeId)
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        homeViewModel.onReceiptCaptured(activeId, success)
-    }
-    val cameraPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            val uri = createImageUri(context)
-            pendingReceiptUri = uri
-            cameraLauncher.launch(uri)
-        } else homeViewModel.onCameraPermissionDenied(activeId)
-    }
-
-    // 인증 시작 동작을 한 곳에 모음 (타입별 분기)
-    fun startVerify(id: Int, type: MissionType) {
-        activeId = id
-        when (type) {
-            MissionType.PHOTO_LOCATION -> photoPicker.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
-            MissionType.CURRENT_LOCATION -> {
-                val granted = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-                if (granted) homeViewModel.onLocationPermissionGranted(id, context)
-                else locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-            MissionType.RECEIPT -> {
-                val granted = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.CAMERA
-                ) == PackageManager.PERMISSION_GRANTED
-                if (granted) {
-                    val uri = createImageUri(context)
-                    pendingReceiptUri = uri
-                    cameraLauncher.launch(uri)
-                } else cameraPermission.launch(Manifest.permission.CAMERA)
-            }
-        }
-    }
+    // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
+    val verify = rememberMissionVerifier(homeViewModel)
 
     LazyColumn {
 
@@ -161,7 +93,7 @@ fun MissionScreen(
                     item = item,
                     onChallenge = { viewModel.startMission(item.mission.id) },
                     onClick = { navController.navigate("missionDetail/${item.mission.id}") },
-                    onVerify = { startVerify(item.mission.id, item.mission.type) }
+                    onVerify = { verify(item.mission.id, item.mission.type) }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -189,7 +121,7 @@ fun MissionScreen(
                                 item = item,
                                 onChallenge = { viewModel.startMission(item.mission.id) },
                                 onClick = { navController.navigate("missionDetail/${item.mission.id}") },
-                                onVerify = { startVerify(item.mission.id, item.mission.type) }
+                                onVerify = { verify(item.mission.id, item.mission.type) }
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }

@@ -2,14 +2,31 @@ package com.example.busasnquest.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,34 +36,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.busasnquest.data.model.OngoingMission
-import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.MissionState
-import com.example.busasnquest.data.model.occupationRate
+import com.example.busasnquest.data.model.MissionType
+import com.example.busasnquest.data.model.OngoingMission
 import com.example.busasnquest.data.model.completedDistrictCount
+import com.example.busasnquest.data.model.occupationRate
 import com.example.busasnquest.data.model.totalDistrictCount
 import com.example.busasnquest.ui.components.ProgressCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SectionTitle
-import com.example.busasnquest.ui.theme.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import android.net.Uri
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.example.busasnquest.util.createImageUri
+import com.example.busasnquest.ui.components.rememberMissionVerifier
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.IconBlue
+import com.example.busasnquest.ui.theme.IconGreen
+import com.example.busasnquest.ui.theme.IconGreenBg
+import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.PointOrange
+import com.example.busasnquest.ui.theme.PointRed
+import com.example.busasnquest.ui.theme.TextMain
+import com.example.busasnquest.ui.theme.TextSub
 
 @Composable
 fun HomeScreen(
@@ -54,47 +65,9 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val missions by viewModel.homeMissions.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
-    // 어느 미션이 액션을 요청했는지 기억 (사진/카메라 결과가 올 때 필요)
-    var activeId by remember { mutableStateOf(0) }
-    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
-
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            viewModel.onPhotoPicked(activeId, context, uri)
-        }
-    }
-
-    val locationPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.onLocationPermissionGranted(activeId, context)
-        } else {
-            viewModel.onLocationPermissionDenied(activeId)
-        }
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        viewModel.onReceiptCaptured(activeId, success)
-    }
-
-    val cameraPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            val uri = createImageUri(context)
-            pendingReceiptUri = uri
-            cameraLauncher.launch(uri)
-        } else {
-            viewModel.onCameraPermissionDenied(activeId)
-        }
-    }
+    // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
+    val verify = rememberMissionVerifier(viewModel)
 
     LazyColumn {
 
@@ -173,36 +146,10 @@ fun HomeScreen(
                     mission = item.mission,
                     state = item.state,
                     error = item.error,
-                    onPickPhoto = {
-                        activeId = id
-                        photoPicker.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onUseCurrentLocation = {
-                        activeId = id
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            viewModel.onLocationPermissionGranted(id, context)
-                        } else {
-                            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-                    },
-                    onCaptureReceipt = {
-                        activeId = id
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            val uri = createImageUri(context)
-                            pendingReceiptUri = uri
-                            cameraLauncher.launch(uri)
-                        } else {
-                            cameraPermission.launch(Manifest.permission.CAMERA)
-                        }
-                    }
+                    onClick = { navController.navigate("missionDetail/$id") },
+                    onPickPhoto = { verify(id, item.mission.type) },
+                    onUseCurrentLocation = { verify(id, item.mission.type) },
+                    onCaptureReceipt = { verify(id, item.mission.type) }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -266,6 +213,7 @@ fun OngoingMissionCard(
     mission: OngoingMission,
     state: MissionState,
     error: String? = null,
+    onClick: () -> Unit = {},
     onPickPhoto: () -> Unit = {},
     onUseCurrentLocation: () -> Unit = {},
     onCaptureReceipt: () -> Unit = {}
@@ -276,6 +224,7 @@ fun OngoingMissionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(CardWhite)
+            .clickable { onClick() }
     ) {
 
         Box(

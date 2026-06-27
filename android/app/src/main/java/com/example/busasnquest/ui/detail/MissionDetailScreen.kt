@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.busasnquest.ui.home.HomeViewModel
 import com.example.busasnquest.util.createImageUri
+import com.example.busasnquest.ui.components.rememberMissionVerifier
 
 @Composable
 fun MissionDetailScreen(
@@ -48,46 +49,12 @@ fun MissionDetailScreen(
     missionId: Int,
     viewModel: HomeViewModel = viewModel()
 ) {
-    val context = LocalContext.current
-
     // Repository에서 이 미션을 실시간으로 가져옴
     val missions by MissionRepository.missions.collectAsStateWithLifecycle()
     val item = missions.firstOrNull { it.mission.id == missionId }
 
-    var pendingReceiptUri by remember { mutableStateOf<Uri?>(null) }
-
-    // 사진 선택
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) viewModel.onPhotoPicked(missionId, context, uri)
-    }
-
-    // 위치 권한
-    val locationPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) viewModel.onLocationPermissionGranted(missionId, context)
-        else viewModel.onLocationPermissionDenied(missionId)
-    }
-
-    // 카메라
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        viewModel.onReceiptCaptured(missionId, success)
-    }
-
-    // 카메라 권한
-    val cameraPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            val uri = createImageUri(context)
-            pendingReceiptUri = uri
-            cameraLauncher.launch(uri)
-        } else viewModel.onCameraPermissionDenied(missionId)
-    }
+    // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
+    val verify = rememberMissionVerifier(viewModel)
     // 미션을 못 찾으면 (이론상 거의 없음) 빈 화면
     if (item == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -174,37 +141,11 @@ fun MissionDetailScreen(
                 }
                 MissionState.IN_PROGRESS -> {
                     Button(
-                        onClick = {
-                            when (mission.type) {
-                                MissionType.PHOTO_LOCATION -> {
-                                    photoPicker.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                }
-                                MissionType.CURRENT_LOCATION -> {
-                                    val granted = ContextCompat.checkSelfPermission(
-                                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                    if (granted) viewModel.onLocationPermissionGranted(missionId, context)
-                                    else locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                                }
-                                MissionType.RECEIPT -> {
-                                    val granted = ContextCompat.checkSelfPermission(
-                                        context, Manifest.permission.CAMERA
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                    if (granted) {
-                                        val uri = createImageUri(context)
-                                        pendingReceiptUri = uri
-                                        cameraLauncher.launch(uri)
-                                    } else cameraPermission.launch(Manifest.permission.CAMERA)
-                                }
-                            }
-                        },
+                        onClick = { verify(mission.id, mission.type) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(verifyButtonLabelDetail(mission.type))
                     }
-                    // 에러 메시지 (위치정보 없음 등)
                     if (item.error != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(item.error, color = PointRed, fontSize = 12.sp)

@@ -56,6 +56,10 @@ import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.data.repository.OccupationStat
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.example.busasnquest.R
 
 @Composable
 fun HomeScreen(
@@ -163,32 +167,12 @@ fun HomeScreen(
 
 @Composable
 fun MapPlaceholder(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth()
-            .height(280.dp)
-            .shadow(4.dp, RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.verticalGradient(listOf(Color(0xFFE8F0FF), Color(0xFFDDE7F5)))
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.Map,
-                contentDescription = null,
-                tint = NavyMain,
-                modifier = Modifier.size(72.dp)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("여기에 부산 지도 이미지 삽입", fontWeight = FontWeight.Bold, color = NavyMain)
-            Spacer(modifier = Modifier.height(6.dp))
-            Text("탭하여 지도 화면으로 이동", color = TextSub, fontSize = 13.sp)
-        }
-    }
+    Image(
+        painter = painterResource(id = R.drawable.busan_map),
+        contentDescription = "부산 지도",
+        modifier = Modifier.fillMaxWidth(),
+        contentScale = ContentScale.FillWidth
+    )
 }
 
 fun missionTypeLabel(type: MissionType): String = when (type) {

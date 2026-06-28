@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import com.example.busasnquest.ui.detail.MissionDetailScreen
 import com.example.busasnquest.ui.profile.MissionHistoryScreen
 import com.example.busasnquest.ui.profile.SavedMissionScreen
+import com.example.busasnquest.ui.ranking.DistrictRankingScreen
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
@@ -104,7 +105,7 @@ fun BusanQuestApp() {
                         MapScreen(region)
                     }
 
-                    composable("ranking") { RankingScreen() }
+                    composable("ranking") { RankingScreen(navController) }
 
                     composable("profile") {
                         ProfileScreen(
@@ -131,6 +132,15 @@ fun BusanQuestApp() {
                     }
                     composable("savedMission") {
                         SavedMissionScreen(navController = navController)
+                    }
+                    composable(
+                        route = "districtRanking/{districtName}",
+                        arguments = listOf(
+                            navArgument("districtName") { type = NavType.StringType }
+                        )
+                    ) {
+                        val districtName = it.arguments?.getString("districtName") ?: ""
+                        DistrictRankingScreen(navController = navController, districtName = districtName)
                     }
                 }
             }

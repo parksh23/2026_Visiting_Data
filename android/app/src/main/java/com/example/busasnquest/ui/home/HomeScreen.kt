@@ -60,6 +60,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import com.example.busasnquest.R
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import com.example.busasnquest.ui.components.clickableNoRipple
 
 @Composable
 fun HomeScreen(
@@ -93,8 +97,8 @@ fun HomeScreen(
             SectionTitle("지도에서 지역을 선택하세요")
             Spacer(modifier = Modifier.height(12.dp))
 
-            MapPlaceholder {
-                navController.navigate("map/부산")
+            MapPlaceholder { districtName ->
+                navController.navigate("map/$districtName")
             }
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -166,12 +170,62 @@ fun HomeScreen(
 }
 
 @Composable
-fun MapPlaceholder(onClick: () -> Unit) {
-    Image(
-        painter = painterResource(id = R.drawable.busan_map),
-        contentDescription = "부산 지도",
-        modifier = Modifier.fillMaxWidth(),
-        contentScale = ContentScale.FillWidth
+fun MapPlaceholder(onDistrictClick: (String) -> Unit) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // 약도 이미지
+        Image(
+            painter = painterResource(id = R.drawable.busan_map),
+            contentDescription = "부산 지도",
+            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.FillWidth
+        )
+
+        // 이미지 실제 표시 크기 (가로는 꽉 차고, 세로는 비율대로)
+        val mapWidth = maxWidth
+        // 약도 이미지의 가로:세로 비율 (이미지가 세로로 좀 더 김)
+        val mapHeight = mapWidth * 1.21f
+
+        // ── 16개 구·군 클릭 영역 ──
+        DistrictHotspot("기장군", 0.80f, 0.22f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("금정구", 0.60f, 0.31f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("북구", 0.48f, 0.41f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("동래구", 0.61f, 0.44f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("해운대구", 0.77f, 0.45f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("사상구", 0.41f, 0.56f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("부산진구", 0.53f, 0.55f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("연제구", 0.65f, 0.55f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("강서구", 0.20f, 0.63f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("수영구", 0.70f, 0.62f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("서구", 0.47f, 0.67f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("동구", 0.53f, 0.67f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("남구", 0.64f, 0.69f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("사하구", 0.38f, 0.74f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("중구", 0.51f, 0.74f, mapWidth, mapHeight, onDistrictClick)
+        DistrictHotspot("영도구", 0.57f, 0.80f, mapWidth, mapHeight, onDistrictClick)
+    }
+}
+
+/** 지도 위 구·군 클릭 영역 (투명). 디버그용으로 살짝 보이게 해둠. */
+@Composable
+fun DistrictHotspot(
+    name: String,
+    xRatio: Float,
+    yRatio: Float,
+    mapWidth: androidx.compose.ui.unit.Dp,
+    mapHeight: androidx.compose.ui.unit.Dp,
+    onClick: (String) -> Unit
+) {
+    val hotspotSize = 36.dp
+    Box(
+        modifier = Modifier
+            .offset(
+                x = mapWidth * xRatio - hotspotSize / 2,
+                y = mapHeight * yRatio - hotspotSize / 2
+            )
+            .size(hotspotSize)
+            .clip(CircleShape)
+            .background(Color.Transparent)
+            .clickable { onClick(name) }
     )
 }
 
@@ -203,7 +257,7 @@ fun OngoingMissionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(CardWhite)
-            .clickable { onClick() }
+            .clickableNoRipple { onClick() }
     ) {
 
         Box(
@@ -303,43 +357,5 @@ fun OngoingMissionCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun RecentCapturedCard(region: String, date: String) {
-
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(CardWhite)
-            .padding(18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(IconGreenBg, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = IconGreen,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column {
-                Text(region, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(date, color = TextSub, fontSize = 12.sp)
-            }
-        }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub)
     }
 }

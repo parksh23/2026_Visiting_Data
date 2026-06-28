@@ -33,9 +33,8 @@ fun BottomNavigationBar(navController: NavHostController) {
 
     fun navigateTab(route: String) {
         navController.navigate(route) {
-            popUpTo(navController.graph.startDestinationId) { saveState = true }
+            popUpTo("home") { inclusive = false }
             launchSingleTop = true
-            restoreState = true
         }
     }
 

@@ -34,6 +34,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -42,6 +43,8 @@ import androidx.core.content.ContextCompat
 import com.example.busasnquest.ui.home.HomeViewModel
 import com.example.busasnquest.util.createImageUri
 import com.example.busasnquest.ui.components.rememberMissionVerifier
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 
 @Composable
 fun MissionDetailScreen(
@@ -70,7 +73,7 @@ fun MissionDetailScreen(
             .fillMaxSize()
             .background(BgSoftBlue)
     ) {
-        // 상단 바: 뒤로가기
+        // 상단 바: 뒤로가기 + 찜하기
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -81,6 +84,22 @@ fun MissionDetailScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = NavyMain)
             }
             Text("미션 상세", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NavyMain)
+
+            Spacer(modifier = Modifier.weight(1f))   // 가운데 공간 밀어내기
+
+            IconButton(onClick = { MissionRepository.toggleSaved(mission.id) }) {
+                Icon(
+                    imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = "찜하기",
+                    tint = if (item.saved) PointRed else TextSub,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { MissionRepository.toggleSaved(mission.id) }
+                )
+            }
         }
 
         // 미션 이미지 자리표시자

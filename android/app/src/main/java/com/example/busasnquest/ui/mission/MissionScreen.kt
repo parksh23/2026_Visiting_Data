@@ -38,6 +38,7 @@ import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.data.repository.OccupationStat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import com.example.busasnquest.ui.components.clickableNoRipple
 
 @Composable
 fun MissionScreen(
@@ -171,7 +172,7 @@ fun MissionCard(
                 tint = if (item.saved) PointRed else TextSub,
                 modifier = Modifier
                     .size(22.dp)
-                    .clickable { onToggleSaved() }
+                    .clickableNoRipple { onToggleSaved() }
             )
         }
         Spacer(modifier = Modifier.height(4.dp))

@@ -93,6 +93,13 @@ object MissionRepository {
         updateMission(id) { it.copy(state = MissionState.IN_PROGRESS, error = message) }
     }
 
+    // 특정 구에서 내가 완료한 미션 수
+    fun completedCountInDistrict(district: String): Int {
+        return _missions.value.count {
+            it.mission.district == district && it.state == MissionState.COMPLETED
+        }
+    }
+
     // 미션을 구·군별로 묶어서 진행률 계산 (실시간)
     val districtProgress: StateFlow<List<DistrictMissionProgress>> =
         _missions

@@ -5,41 +5,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import com.example.busasnquest.ui.theme.*
 
-// ───────────────── 공통 데이터 ─────────────────
-
-const val USER_POINT = "2,450P"
-const val USER_NAME = "부산갈매기"
 
 // ───────────────── SAMPLE DATA (스크린샷 기준) ─────────────────
-
-// 홈 - 진행 중인 미션
-val ongoingMission = OngoingMission(
-    title = "오록도 해안길 걷기",
-    region = "남구 용호동",
-    reward = 100,
-    current = 0,
-    total = 1
-)
-
-// 미션 - 구·군별 진행 현황 (16개)
-val districtProgressList = listOf(
-    DistrictProgress("중구", 3, 3, BarYellow),
-    DistrictProgress("동구", 2, 2, BarCoral),
-    DistrictProgress("해운대구", 2, 2, BarPurple),
-    DistrictProgress("북구", 1, 2, BarCoral),
-    DistrictProgress("동래구", 1, 2, BarOrange),
-    DistrictProgress("수영구", 1, 2, BarCoral),
-    DistrictProgress("남구", 0, 2, TrackGray),
-    DistrictProgress("부산진구", 0, 2, TrackGray),
-    DistrictProgress("금정구", 0, 2, TrackGray),
-    DistrictProgress("연제구", 0, 2, TrackGray),
-    DistrictProgress("사상구", 0, 1, TrackGray),
-    DistrictProgress("사하구", 0, 1, TrackGray),
-    DistrictProgress("서구", 0, 1, TrackGray),
-    DistrictProgress("영도구", 0, 1, TrackGray),
-    DistrictProgress("기장군", 0, 1, TrackGray),
-    DistrictProgress("강서구", 0, 1, TrackGray),
-)
 
 // 랭킹 리스트
 val rankingList = listOf(

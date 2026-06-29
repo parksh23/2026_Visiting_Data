@@ -16,13 +16,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.busasnquest.data.model.USER_POINT
 import com.example.busasnquest.ui.theme.*
-
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.busasnquest.data.repository.UserRepository
+import androidx.compose.runtime.getValue
 /**
  * 상단 헤더: 좌측에 제목 + (선택) 강조 단어 + 부제,
  * 우측에 포인트 배지 + 알림 벨.
  */
+fun formatPoints(value: Int): String {
+    return "%,d".format(value) + "P"
+}
 @Composable
 fun ScreenHeader(
     title: String,
@@ -74,6 +78,7 @@ fun ScreenHeader(
 
 @Composable
 fun PointPill() {
+    val points by UserRepository.points.collectAsStateWithLifecycle()
     Row(
         modifier = Modifier
             .clip(CircleShape)
@@ -89,7 +94,7 @@ fun PointPill() {
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(USER_POINT, fontWeight = FontWeight.Bold, color = NavyMain, fontSize = 14.sp)
+        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = NavyMain, fontSize = 14.sp)
     }
 }
 

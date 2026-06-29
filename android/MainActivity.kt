@@ -178,10 +178,50 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        android.util.Log.d("KeyHash", "===== onCreate 실행됨! =====")
+        printKeyHash()   // ← ① 여기 추가 (setContent 위)
+
         setContent {
             MaterialTheme {
                 BusanQuestApp()
             }
+        }
+    }
+
+    // ↓ ② onCreate 닫는 } 다음, 클래스 닫는 } 안쪽에 함수 추가
+    private fun printKeyHash() {
+        try {
+            val info = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(
+                    packageName,
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(
+                    packageName,
+                    android.content.pm.PackageManager.GET_SIGNATURES
+                )
+            }
+
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                info.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures
+            }
+
+            signatures?.forEach { signature ->
+                val md = java.security.MessageDigest.getInstance("SHA")
+                md.update(signature.toByteArray())
+                val keyHash = android.util.Base64.encodeToString(
+                    md.digest(),
+                    android.util.Base64.NO_WRAP
+                )
+                android.util.Log.d("KeyHash", "키해시: $keyHash")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("KeyHash", "에러: ${e.message}")
         }
     }
 }

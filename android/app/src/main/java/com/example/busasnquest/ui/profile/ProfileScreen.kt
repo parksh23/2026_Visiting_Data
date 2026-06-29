@@ -26,22 +26,31 @@ import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.model.*
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.*
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
+
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(
+    navController: NavHostController,
+    onLogout: () -> Unit = {},
+    viewModel: ProfileViewModel = viewModel()
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-
         ScreenHeader(
             title = "내 정보",
             subtitle = "나의 활동과 정보를 확인하세요!"
         )
 
-        ProfileSummaryCard()
+        ProfileSummaryCard(uiState = uiState)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -54,7 +63,12 @@ fun ProfileScreen() {
                 .background(CardWhite)
         ) {
             profileMenuItems.forEachIndexed { index, item ->
-                MenuRow(item)
+                MenuRow(item) {
+                    when (item.title) {
+                        "미션 내역" -> navController.navigate("missionHistory")
+                        "찜한 미션" -> navController.navigate("savedMission")
+                    }
+                }
                 if (index != profileMenuItems.lastIndex) {
                     HorizontalDivider(
                         color = DividerGray,
@@ -94,7 +108,7 @@ fun ProfileScreen() {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFFF3E1E1))
-                .clickable { }
+                .clickable { onLogout() }
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -106,7 +120,7 @@ fun ProfileScreen() {
 }
 
 @Composable
-fun ProfileSummaryCard() {
+fun ProfileSummaryCard(uiState: ProfileUiState) {
     Column(
         modifier = Modifier
             .padding(horizontal = 20.dp)
@@ -140,7 +154,7 @@ fun ProfileSummaryCard() {
 
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(USER_NAME, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
+                    Text(uiState.name, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         Icons.Outlined.Edit,
@@ -150,7 +164,7 @@ fun ProfileSummaryCard() {
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("부산을 사랑하는 여행자", color = TextSub, fontSize = 13.sp)
+                Text(uiState.intro, color = TextSub, fontSize = 13.sp)
                 Text("부산의 매력을 찾아 미션에 도전해요!", color = TextSub, fontSize = 13.sp)
             }
         }
@@ -159,13 +173,14 @@ fun ProfileSummaryCard() {
         HorizontalDivider(color = DividerGray)
         Spacer(modifier = Modifier.height(20.dp))
 
+        // 통계 3개 (가로로)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            ProfileStat("2,450P", "보유 포인트")
-            ProfileStat("86", "완료 미션")
-            ProfileStat("28", "찜한 미션")
+            ProfileStat("%,d".format(uiState.points) + "P", "보유 포인트")
+            ProfileStat(uiState.completedCount.toString(), "완료 미션")
+            ProfileStat(uiState.savedCount.toString(), "찜한 미션")
         }
     }
 }
@@ -180,11 +195,11 @@ fun ProfileStat(value: String, label: String) {
 }
 
 @Composable
-fun MenuRow(item: MenuItem) {
+fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable { onClick() }
             .padding(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -78,4 +78,7 @@ dependencies {
     // 사진 / 위치 (CurrentLocation, PhotoLocation 용)
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    implementation("com.kakao.maps.open:android:2.12.18")
 }
+

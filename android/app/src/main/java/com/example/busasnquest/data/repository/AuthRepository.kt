@@ -1,6 +1,10 @@
 package com.example.busasnquest.data.repository
 
 import kotlinx.coroutines.delay
+import com.example.busasnquest.data.remote.AuthApi
+import com.example.busasnquest.data.remote.LoginRequestDto
+import retrofit2.HttpException
+import java.io.IOException
 
 /**
  * 인증 데이터 계층의 추상화.
@@ -27,6 +31,21 @@ class FakeAuthRepository : AuthRepository {
             Result.success("fake-token-${System.currentTimeMillis()}")
         } else {
             Result.failure(Exception("이메일 또는 비밀번호를 확인해주세요."))
+        }
+    }
+}
+
+class RetrofitAuthRepository(
+    private val api: AuthApi
+) : AuthRepository {
+    override suspend fun login(email: String, password: String): Result<String> {
+        return try {
+            val response = api.login(LoginRequestDto(email, password))
+            Result.success(response.token)
+        } catch (e: HttpException) {
+            Result.failure(Exception("이메일 또는 비밀번호가 올바르지 않습니다."))
+        } catch (e: IOException) {
+            Result.failure(Exception("네트워크 연결을 확인해주세요."))
         }
     }
 }

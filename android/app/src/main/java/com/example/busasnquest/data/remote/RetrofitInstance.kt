@@ -28,4 +28,14 @@ object RetrofitInstance {
             .build()
             .create(BusanQuestApi::class.java)
     }
+
+    // 로그인용 API 추가
+    val authApi: AuthApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(AuthApi::class.java)
+    }
 }

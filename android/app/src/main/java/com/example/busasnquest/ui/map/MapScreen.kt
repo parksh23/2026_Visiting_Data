@@ -43,10 +43,12 @@ fun MapScreen(region: String) {
                         },
                         object : KakaoMapReadyCallback() {
                             override fun onMapReady(kakaoMap: KakaoMap) {
-                                // 지도 준비 완료 → 부산으로 카메라 이동
-                                val busan = LatLng.from(35.1796, 129.0756)
+                                // 넘어온 region의 좌표로 카메라 이동
+                                val center = districtCenters[region] ?: districtCenters["부산"]!!
+                                // 특정 구면 더 확대(14), 부산 전체면 덜 확대(10)
+                                val zoom = if (region == "부산") 10 else 14
                                 kakaoMap.moveCamera(
-                                    CameraUpdateFactory.newCenterPosition(busan, 10)
+                                    CameraUpdateFactory.newCenterPosition(center, zoom)
                                 )
                             }
                         }
@@ -56,3 +58,23 @@ fun MapScreen(region: String) {
         )
     }
 }
+// 구·군별 지도 중심 좌표
+val districtCenters = mapOf(
+    "해운대구" to LatLng.from(35.1631, 129.1635),
+    "수영구" to LatLng.from(35.1455, 129.1131),
+    "중구" to LatLng.from(35.1041, 129.0323),
+    "부산진구" to LatLng.from(35.1631, 129.0533),
+    "동래구" to LatLng.from(35.1969, 129.0839),
+    "남구" to LatLng.from(35.1366, 129.0844),
+    "북구" to LatLng.from(35.1975, 128.9903),
+    "사하구" to LatLng.from(35.1045, 128.9749),
+    "금정구" to LatLng.from(35.2429, 129.0921),
+    "강서구" to LatLng.from(35.2122, 128.9808),
+    "연제구" to LatLng.from(35.1763, 129.0797),
+    "사상구" to LatLng.from(35.1525, 128.9910),
+    "동구" to LatLng.from(35.1295, 129.0453),
+    "서구" to LatLng.from(35.0979, 129.0243),
+    "영도구" to LatLng.from(35.0911, 129.0679),
+    "기장군" to LatLng.from(35.2445, 129.2223),
+    "부산" to LatLng.from(35.1796, 129.0756)  // 전체
+)

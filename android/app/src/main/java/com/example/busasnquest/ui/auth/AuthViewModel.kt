@@ -7,8 +7,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.busasnquest.data.local.TokenStore
+import com.example.busasnquest.data.remote.RetrofitInstance
 import com.example.busasnquest.data.repository.AuthRepository
-import com.example.busasnquest.data.repository.FakeAuthRepository
+import com.example.busasnquest.data.repository.RetrofitAuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +46,30 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * 카카오 로그인.
+     * LoginScreen 에서 카카오 SDK 로그인으로 받은 access token 을 넘겨받아
+     * 백엔드로 보내고, 돌아온 우리 서버 JWT 를 저장한다.
+     */
+    fun loginWithKakao(kakaoAccessToken: String) {
+        _uiState.value = LoginUiState.Loading
+        viewModelScope.launch {
+            repository.loginWithKakao(kakaoAccessToken)
+                .onSuccess { token ->
+                    tokenStore.saveToken(token)
+                    _uiState.value = LoginUiState.Success
+                }
+                .onFailure { e ->
+                    _uiState.value = LoginUiState.Error(e.message ?: "카카오 로그인에 실패했습니다.")
+                }
+        }
+    }
+
+    // 카카오 SDK 자체에서 로그인이 취소/실패했을 때 화면에 메시지를 표시
+    fun onKakaoError(message: String) {
+        _uiState.value = LoginUiState.Error(message)
+    }
+
     // 에러 메시지를 닫거나 다시 입력할 때 상태 초기화
     fun resetState() {
         _uiState.value = LoginUiState.Idle
@@ -52,12 +77,13 @@ class AuthViewModel(
 
     companion object {
         // Application Context 로 TokenStore 를 만들어 주입한다.
-        // 서버가 생기면 FakeAuthRepository() 자리만 실제 구현으로 교체.
+        // 카카오 로그인은 백엔드(RetrofitInstance.authApi)로 연동한다.
+        // 이메일 로그인은 아직 백엔드가 없어 RetrofitAuthRepository 내부에서 기존 방식(가짜)을 유지한다.
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as Application
                 AuthViewModel(
-                    repository = FakeAuthRepository(),
+                    repository = RetrofitAuthRepository(RetrofitInstance.authApi),
                     tokenStore = TokenStore(app)
                 )
             }

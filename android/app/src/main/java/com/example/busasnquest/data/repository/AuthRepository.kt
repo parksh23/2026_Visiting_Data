@@ -2,6 +2,7 @@ package com.example.busasnquest.data.repository
 
 import kotlinx.coroutines.delay
 import com.example.busasnquest.data.remote.AuthApi
+import com.example.busasnquest.data.remote.KakaoLoginRequestDto
 import com.example.busasnquest.data.remote.LoginRequestDto
 import retrofit2.HttpException
 import java.io.IOException
@@ -15,6 +16,9 @@ import java.io.IOException
  */
 interface AuthRepository {
     suspend fun login(email: String, password: String): Result<String>
+
+    // 카카오 access token 을 서버로 보내 우리 서버 JWT 를 받는다
+    suspend fun loginWithKakao(kakaoAccessToken: String): Result<String>
 }
 
 /**
@@ -33,17 +37,49 @@ class FakeAuthRepository : AuthRepository {
             Result.failure(Exception("이메일 또는 비밀번호를 확인해주세요."))
         }
     }
+
+    override suspend fun loginWithKakao(kakaoAccessToken: String): Result<String> {
+        delay(500)
+        return Result.success("fake-kakao-token-${System.currentTimeMillis()}")
+    }
 }
 
 class RetrofitAuthRepository(
     private val api: AuthApi
 ) : AuthRepository {
+    /**
+     * 이메일/비밀번호 로그인.
+     * 아직 백엔드에 이메일 로그인 엔드포인트가 없으므로 기존 동작(가짜 검증)을 유지한다.
+     * 서버에 /api/v1/auth/login 이 준비되면 아래 주석 처리된 실제 호출로 교체하면 된다.
+     */
     override suspend fun login(email: String, password: String): Result<String> {
+        delay(800)
+        return if (email.isNotBlank() && password.length >= 4) {
+            Result.success("fake-token-${System.currentTimeMillis()}")
+        } else {
+            Result.failure(Exception("이메일 또는 비밀번호를 확인해주세요."))
+        }
+        // 백엔드 준비 시:
+        // return try {
+        //     val response = api.login(LoginRequestDto(email, password))
+        //     Result.success(response.token)
+        // } catch (e: HttpException) {
+        //     Result.failure(Exception("이메일 또는 비밀번호가 올바르지 않습니다."))
+        // } catch (e: IOException) {
+        //     Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        // }
+    }
+
+    /**
+     * 카카오 로그인: 카카오 access token 을 서버로 보내면
+     * 서버가 카카오에 검증 후 우리 서버 JWT 를 돌려준다.
+     */
+    override suspend fun loginWithKakao(kakaoAccessToken: String): Result<String> {
         return try {
-            val response = api.login(LoginRequestDto(email, password))
+            val response = api.kakaoLogin(KakaoLoginRequestDto(kakaoAccessToken))
             Result.success(response.token)
         } catch (e: HttpException) {
-            Result.failure(Exception("이메일 또는 비밀번호가 올바르지 않습니다."))
+            Result.failure(Exception("카카오 로그인에 실패했습니다. 다시 시도해주세요."))
         } catch (e: IOException) {
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
         }

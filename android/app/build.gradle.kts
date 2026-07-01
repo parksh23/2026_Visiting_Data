@@ -37,6 +37,13 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        jniLibs {
+            // 카카오맵 네이티브 라이브러리(libK3fAndroid.so 등)를 설치 시 풀어주도록 설정
+            // (ReLinker가 .so 파일을 찾을 수 있게 함 → MissingLibraryException 해결)
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -80,5 +87,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("com.kakao.maps.open:android:2.12.18")
+
+    // 카카오 로그인 (카카오맵과 같은 네이티브 앱 키 사용)
+    implementation("com.kakao.sdk:v2-user:2.20.1")
 }
 

@@ -2,42 +2,59 @@ package com.example.busasnquest.ui.ranking
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.busasnquest.data.model.RankEntry
-import com.example.busasnquest.ui.components.FilterChipBox
 import com.example.busasnquest.ui.components.ScreenHeader
-import com.example.busasnquest.ui.theme.*
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Box
-
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.IconBlue
+import com.example.busasnquest.ui.theme.IconBlueBg
+import com.example.busasnquest.ui.theme.MedalBronze
+import com.example.busasnquest.ui.theme.MedalGold
+import com.example.busasnquest.ui.theme.MedalSilver
+import com.example.busasnquest.ui.theme.NavyLight
+import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.TextMain
+import com.example.busasnquest.ui.theme.TextSub
+import androidx.navigation.NavHostController
 
 @Composable
 fun RankingScreen(
-    viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
+    navController: NavHostController,
+    //서버 연결되면 이걸로 수정
+    //viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
+    viewModel: RankingViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
@@ -70,46 +87,24 @@ fun RankingScreen(
                         selectedTab = selectedTab,
                         onSelectTab = viewModel::onSelectTab
                     )
-
                     Spacer(modifier = Modifier.height(18.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        FilterChipBox("전체")
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                items(s.rankings) { entry ->
-                    RankingRow(entry)
+                if (selectedTab == 1) {
+                    // 지역 랭킹: 16개 구 목록
+                    items(busanDistricts) { district ->
+                        DistrictRankRow(district) {
+                            navController.navigate("districtRanking/$district")
+                        }
+                    }
+                } else {
+                    // 전체 랭킹: 순위 목록
+                    items(s.rankings) { entry ->
+                        RankingRow(entry)
+                    }
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 20.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFEDF1F6))
-                            .clickable { }
-                            .padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("더보기", color = TextSub, fontWeight = FontWeight.Bold)
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = TextSub
-                            )
-                        }
-                    }
                     Spacer(modifier = Modifier.height(120.dp))
                 }
             }
@@ -182,7 +177,7 @@ fun MyRankCard(
                     .background(NavyLight)
                     .padding(4.dp)
             ) {
-                val tabs = listOf("전체 랭킹", "지역 랭킹", "친구 랭킹")
+                val tabs = listOf("전체 랭킹", "지역 랭킹")
                 tabs.forEachIndexed { index, label ->
                     val selected = index == selectedTab
                     Box(
@@ -291,6 +286,35 @@ fun RankingRow(entry: RankEntry) {
             fontWeight = FontWeight.Bold,
             color = NavyMain,
             fontSize = 15.sp
+        )
+    }
+}
+
+// 부산 16개 구·군 (랭킹 지역 목록용)
+val busanDistricts = listOf(
+    "중구", "서구", "동구", "영도구", "부산진구", "동래구",
+    "남구", "북구", "해운대구", "사하구", "금정구", "강서구",
+    "연제구", "수영구", "사상구", "기장군"
+)
+
+@Composable
+fun DistrictRankRow(district: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardWhite)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(district, fontWeight = FontWeight.Bold, color = TextMain, fontSize = 15.sp)
+        Icon(
+            Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = TextSub
         )
     }
 }

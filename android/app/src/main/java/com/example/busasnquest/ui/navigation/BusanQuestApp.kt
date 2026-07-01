@@ -28,6 +28,10 @@ import com.example.busasnquest.ui.profile.ProfileScreen
 import com.example.busasnquest.ui.ranking.RankingScreen
 import com.example.busasnquest.ui.theme.BgSoftBlue
 import kotlinx.coroutines.launch
+import com.example.busasnquest.ui.detail.MissionDetailScreen
+import com.example.busasnquest.ui.profile.MissionHistoryScreen
+import com.example.busasnquest.ui.profile.SavedMissionScreen
+import com.example.busasnquest.ui.ranking.DistrictRankingScreen
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
@@ -101,10 +105,11 @@ fun BusanQuestApp() {
                         MapScreen(region)
                     }
 
-                    composable("ranking") { RankingScreen() }
+                    composable("ranking") { RankingScreen(navController) }
 
                     composable("profile") {
                         ProfileScreen(
+                            navController = navController,
                             onLogout = {
                                 scope.launch { tokenStore.clear() }
                                 navController.navigate("login") {
@@ -112,6 +117,30 @@ fun BusanQuestApp() {
                                 }
                             }
                         )
+                    }
+                    composable(
+                        route = "missionDetail/{missionId}",
+                        arguments = listOf(
+                            navArgument("missionId") { type = NavType.IntType }
+                        )
+                    ) {
+                        val missionId = it.arguments?.getInt("missionId") ?: 0
+                        MissionDetailScreen(navController = navController, missionId = missionId)
+                    }
+                    composable("missionHistory") {
+                        MissionHistoryScreen(navController = navController)
+                    }
+                    composable("savedMission") {
+                        SavedMissionScreen(navController = navController)
+                    }
+                    composable(
+                        route = "districtRanking/{districtName}",
+                        arguments = listOf(
+                            navArgument("districtName") { type = NavType.StringType }
+                        )
+                    ) {
+                        val districtName = it.arguments?.getString("districtName") ?: ""
+                        DistrictRankingScreen(navController = navController, districtName = districtName)
                     }
                 }
             }

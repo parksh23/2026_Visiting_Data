@@ -1,9 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+import os
+import httpx
+import jwt
 
 app = FastAPI(title="Busan Quest API Server")
+
+# JWT 서명용 비밀키 (실서비스에서는 환경변수로 관리하세요)
+JWT_SECRET = os.getenv("JWT_SECRET", "busan-quest-dev-secret-change-me")
+JWT_ALGORITHM = "HS256"
 
 # 안드로이드 에뮬레이터에서 접근할 수 있도록 CORS 설정 허용
 app.add_middleware(
@@ -86,3 +93,56 @@ def get_rankings():
         RankEntry(rank=3, name="광안리러버", score="3,150P"),
         RankEntry(rank=12, name="부산갈매기 (나)", score="2,450P", is_me=True),
     ]
+
+
+# --- 3. 카카오 로그인 ---
+
+class KakaoLoginRequest(BaseModel):
+    access_token: str
+
+class LoginResponse(BaseModel):
+    token: str
+
+@app.post("/api/v1/auth/kakao", response_model=LoginResponse)
+async def kakao_login(req: KakaoLoginRequest):
+    """
+    앱이 카카오 SDK 로 받은 access_token 을 받아서
+    1) 카카오 서버에 토큰을 검증하고 사용자 정보를 조회한 뒤
+    2) 우리 서버의 JWT 를 발급해 돌려준다.
+    """
+    # 1) 카카오에 토큰 검증 + 사용자 정보 조회
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://kapi.kakao.com/v2/user/me",
+                headers={"Authorization": f"Bearer {req.access_token}"},
+            )
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="카카오 서버와 통신할 수 없습니다.")
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="유효하지 않은 카카오 토큰입니다.")
+
+    kakao_user = resp.json()
+    kakao_id = kakao_user.get("id")
+    if kakao_id is None:
+        raise HTTPException(status_code=401, detail="카카오 사용자 정보를 가져올 수 없습니다.")
+
+    # (참고) 닉네임/이메일이 필요하면 아래에서 꺼내 DB 저장/회원가입에 사용
+    account = kakao_user.get("kakao_account", {})
+    nickname = account.get("profile", {}).get("nickname")
+    email = account.get("email")
+
+    # 2) 여기서 DB 에 kakao_id 로 회원 조회/생성 (DB 연결 후 구현)
+    #    지금은 DB 가 없으므로 kakao_id 를 그대로 사용자 식별자로 사용한다.
+
+    # 3) 우리 서버 JWT 발급
+    payload = {
+        "sub": f"kakao:{kakao_id}",
+        "provider": "kakao",
+        "nickname": nickname,
+        "email": email,
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    return LoginResponse(token=token)

@@ -65,6 +65,43 @@ class AuthViewModel(
         }
     }
 
+    /**
+     * 이메일 회원가입.
+     * 1) 클라이언트에서 이메일 형식/비밀번호 길이/비밀번호 일치를 먼저 검사하고
+     * 2) 통과하면 repository.signup 을 호출한다.
+     * 성공 시 토큰을 저장해 가입과 동시에 자동 로그인 처리한다.
+     */
+    fun signup(email: String, password: String, passwordConfirm: String) {
+        val trimmedEmail = email.trim()
+
+        // 클라이언트 1차 유효성 검사
+        val validationError = when {
+            trimmedEmail.isBlank() || !trimmedEmail.contains("@") ->
+                "올바른 이메일 형식을 입력해주세요."
+            password.length < 8 ->
+                "비밀번호는 8자 이상이어야 합니다."
+            password != passwordConfirm ->
+                "비밀번호가 일치하지 않습니다."
+            else -> null
+        }
+        if (validationError != null) {
+            _uiState.value = LoginUiState.Error(validationError)
+            return
+        }
+
+        _uiState.value = LoginUiState.Loading
+        viewModelScope.launch {
+            repository.signup(trimmedEmail, password)
+                .onSuccess { token ->
+                    tokenStore.saveToken(token)   // 가입과 동시에 자동 로그인
+                    _uiState.value = LoginUiState.Success
+                }
+                .onFailure { e ->
+                    _uiState.value = LoginUiState.Error(e.message ?: "회원가입에 실패했습니다.")
+                }
+        }
+    }
+
     // 카카오 SDK 자체에서 로그인이 취소/실패했을 때 화면에 메시지를 표시
     fun onKakaoError(message: String) {
         _uiState.value = LoginUiState.Error(message)

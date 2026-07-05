@@ -4,6 +4,7 @@ import kotlinx.coroutines.delay
 import com.example.busasnquest.data.remote.AuthApi
 import com.example.busasnquest.data.remote.KakaoLoginRequestDto
 import com.example.busasnquest.data.remote.LoginRequestDto
+import com.example.busasnquest.data.remote.SignupRequestDto
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -19,6 +20,9 @@ interface AuthRepository {
 
     // 카카오 access token 을 서버로 보내 우리 서버 JWT 를 받는다
     suspend fun loginWithKakao(kakaoAccessToken: String): Result<String>
+
+    // 이메일/비밀번호로 회원가입 후 JWT 를 받는다
+    suspend fun signup(email: String, password: String): Result<String>
 }
 
 /**
@@ -41,6 +45,11 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun loginWithKakao(kakaoAccessToken: String): Result<String> {
         delay(500)
         return Result.success("fake-kakao-token-${System.currentTimeMillis()}")
+    }
+
+    override suspend fun signup(email: String, password: String): Result<String> {
+        delay(800)
+        return Result.success("fake-signup-token-${System.currentTimeMillis()}")
     }
 }
 
@@ -83,5 +92,24 @@ class RetrofitAuthRepository(
         } catch (e: IOException) {
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
         }
+    }
+
+    /**
+     * 이메일 회원가입.
+     * 아직 백엔드에 회원가입 엔드포인트가 없으므로 임시로 가짜 성공 토큰을 반환한다.
+     * 서버에 /api/v1/auth/signup 이 준비되면 아래 주석 처리된 실제 호출로 교체하면 된다.
+     */
+    override suspend fun signup(email: String, password: String): Result<String> {
+        delay(800)
+        return Result.success("fake-signup-token-${System.currentTimeMillis()}")
+        // 백엔드 준비 시:
+        // return try {
+        //     val response = api.signup(SignupRequestDto(email, password))
+        //     Result.success(response.token)
+        // } catch (e: HttpException) {
+        //     Result.failure(Exception("이미 가입된 이메일이거나 입력이 올바르지 않습니다."))
+        // } catch (e: IOException) {
+        //     Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        // }
     }
 }

@@ -88,3 +88,9 @@ data class KakaoLoginRequestDto(
     @SerializedName("access_token")
     val accessToken: String
 )
+
+// 회원가입 요청 - 서버로 보낼 것
+data class SignupRequestDto(
+    val email: String,
+    val password: String
+)

@@ -47,6 +47,8 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var passwordConfirm by remember { mutableStateOf("") }
+    var passwordConfirmVisible by remember { mutableStateOf(false) }
 
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
@@ -116,17 +118,44 @@ fun LoginScreen(
                 }
             )
 
-            Spacer(Modifier.height(10.dp))
+            // ── 비밀번호 확인 (회원가입 탭에서만 표시) ──
+            if (selectedTab == 1) {
+                Spacer(Modifier.height(18.dp))
+                FieldLabel("Confirm Password")
+                Spacer(Modifier.height(8.dp))
+                AuthTextField(
+                    value = passwordConfirm,
+                    onValueChange = { passwordConfirm = it },
+                    hint = "Re-enter your password",
+                    keyboardType = KeyboardType.Password,
+                    visualTransformation =
+                        if (passwordConfirmVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val icon = if (passwordConfirmVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        Icon(
+                            icon,
+                            contentDescription = "비밀번호 확인 표시 전환",
+                            tint = HintGray,
+                            modifier = Modifier.clickable { passwordConfirmVisible = !passwordConfirmVisible }
+                        )
+                    }
+                )
+            }
 
-            Text(
-                "Forgot password?",
-                color = Indigo,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
-            )
+            // ── 비밀번호 찾기 (로그인 탭에서만 표시) ──
+            if (selectedTab == 0) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Forgot password?",
+                    color = Indigo,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
+                )
+            }
 
             // ── 에러 메시지 ──
             if (errorMessage != null) {
@@ -136,9 +165,12 @@ fun LoginScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // ── Continue 버튼 ──
+            // ── Continue / Sign up 버튼 ──
             Button(
-                onClick = { viewModel.login(email, password) },
+                onClick = {
+                    if (selectedTab == 0) viewModel.login(email, password)
+                    else viewModel.signup(email, password, passwordConfirm)
+                },
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Indigo),

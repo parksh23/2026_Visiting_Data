@@ -19,6 +19,7 @@ engine = create_engine(
     connect_args={
         "config_dir": ORACLE_WALLET_PATH,
         "wallet_location": ORACLE_WALLET_PATH,
+        "wallet_password": ORACLE_WALLET_PASSWORD,
     }
 )
 

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from middleware import log_requests
 from pydantic import BaseModel
 from typing import List
 
@@ -13,6 +14,8 @@ app = FastAPI()
 
 # 로깅 시스템 가동
 setup_logging()
+
+app.middleware("http")(log_requests)
 
 app.add_middleware(
     CORSMiddleware,

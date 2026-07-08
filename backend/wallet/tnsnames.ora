@@ -1,0 +1,12 @@
+visiting2026_high = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))(connect_data=(service_name=gf42e2bf77db727_visiting2026_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+visiting2026_medium = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))(connect_data=(service_name=gf42e2bf77db727_visiting2026_medium.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+visiting2026_low = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))(connect_data=(service_name=gf42e2bf77db727_visiting2026_low.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+visiting2026_tp = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))(connect_data=(service_name=gf42e2bf77db727_visiting2026_tp.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+visiting2026_tpurgent = (description= (retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))(connect_data=(service_name=gf42e2bf77db727_visiting2026_tpurgent.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))
+
+
+

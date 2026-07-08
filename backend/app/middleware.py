@@ -1,6 +1,6 @@
 import time
 from fastapi import Request
-from logcontrol import logger
+from log_control import logger
 
 # 서버로 들어오는 모든 통신(신호)을 기록하는 미들웨어 함수
 async def log_requests(request: Request, call_next):

@@ -2,14 +2,20 @@ from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 # 💡 앞서 설계한 database.py와 models.py에서 연동 도구들을 가져옵니다.
 from database import get_db, engine
 import models
+from log_control import setup_logging
+from middleware import log_requests
 
 app = FastAPI(title="Busan Quest API Server")
+
+# 로깅 시스템 가동
+setup_logging()
 
 # 안드로이드 에뮬레이터 및 외부 프론트엔드 접근을 위한 CORS 허용 설정
 app.add_middleware(

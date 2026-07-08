@@ -4,3 +4,5 @@ sqlalchemy
 oracledb
 python-dotenv
 pydantic
+loguru
+httpx

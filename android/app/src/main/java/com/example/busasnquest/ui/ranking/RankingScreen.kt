@@ -38,13 +38,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.CardWhite
-import com.example.busasnquest.ui.theme.IconBlue
-import com.example.busasnquest.ui.theme.IconBlueBg
+import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.MedalBronze
 import com.example.busasnquest.ui.theme.MedalGold
 import com.example.busasnquest.ui.theme.MedalSilver
-import com.example.busasnquest.ui.theme.NavyLight
-import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.SeaBlue
+import com.example.busasnquest.ui.theme.SeaBlueBg
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import androidx.navigation.NavHostController
@@ -98,8 +99,12 @@ fun RankingScreen(
                         }
                     }
                 } else {
-                    // 전체 랭킹: 순위 목록
-                    items(s.rankings) { entry ->
+                    // 전체 랭킹: 상위 3명은 포디움, 나머지는 리스트
+                    item {
+                        RankingPodium(s.rankings.take(3))
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    items(s.rankings.drop(3)) { entry ->
                         RankingRow(entry)
                     }
                 }
@@ -125,12 +130,12 @@ fun MyRankCard(
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(NavyMain)
+            .background(Coral)
             .padding(24.dp)
     ) {
         Column {
 
-            Text("내 순위", color = Color.White.copy(0.8f), fontSize = 14.sp)
+            Text("내 순위", color = Color.White.copy(0.85f), fontSize = 14.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -174,7 +179,7 @@ fun MyRankCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(NavyLight)
+                    .background(CoralDark)
                     .padding(4.dp)
             ) {
                 val tabs = listOf("전체 랭킹", "지역 랭킹")
@@ -191,7 +196,7 @@ fun MyRankCard(
                     ) {
                         Text(
                             label,
-                            color = if (selected) NavyMain else Color.White.copy(0.8f),
+                            color = if (selected) Coral else Color.White.copy(0.85f),
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp
                         )
@@ -217,7 +222,7 @@ fun RankingRow(entry: RankEntry) {
             .padding(horizontal = 20.dp, vertical = 5.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (entry.isMe) Color(0xFFFDF1E0) else CardWhite)
+            .background(if (entry.isMe) CoralTint else CardWhite)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -248,7 +253,7 @@ fun RankingRow(entry: RankEntry) {
                     Text(
                         "${entry.rank}",
                         fontWeight = FontWeight.Bold,
-                        color = NavyMain,
+                        color = Coral,
                         fontSize = 15.sp
                     )
                 }
@@ -260,13 +265,13 @@ fun RankingRow(entry: RankEntry) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(IconBlueBg, CircleShape),
+                    .background(SeaBlueBg, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Outlined.Person,
                     contentDescription = null,
-                    tint = IconBlue,
+                    tint = SeaBlue,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -284,9 +289,68 @@ fun RankingRow(entry: RankEntry) {
         Text(
             entry.score,
             fontWeight = FontWeight.Bold,
-            color = NavyMain,
+            color = Coral,
             fontSize = 15.sp
         )
+    }
+}
+
+// 상위 3명 포디움
+@Composable
+fun RankingPodium(top: List<RankEntry>) {
+    if (top.isEmpty()) return
+    // 2등 - 1등 - 3등 순서로 배치
+    val ordered = listOf(
+        top.getOrNull(1) to 2,
+        top.getOrNull(0) to 1,
+        top.getOrNull(2) to 3
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        ordered.forEach { (entry, place) ->
+            if (entry != null) {
+                PodiumColumn(entry, place, Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modifier) {
+    val medal = when (place) {
+        1 -> MedalGold
+        2 -> MedalSilver
+        else -> MedalBronze
+    }
+    val avatarSize = if (place == 1) 60.dp else 48.dp
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(avatarSize)
+                .background(medal, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("$place", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            entry.name,
+            color = TextMain,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            maxLines = 1
+        )
+        Text(entry.score, color = TextSub, fontSize = 11.sp)
     }
 }
 

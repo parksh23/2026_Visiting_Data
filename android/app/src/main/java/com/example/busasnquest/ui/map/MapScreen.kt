@@ -13,6 +13,11 @@ import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
+import com.example.busasnquest.R
+import com.example.busasnquest.data.repository.MissionRepository
+import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
 
 @Composable
 fun MapScreen(region: String) {
@@ -45,11 +50,52 @@ fun MapScreen(region: String) {
                             override fun onMapReady(kakaoMap: KakaoMap) {
                                 // 넘어온 region의 좌표로 카메라 이동
                                 val center = districtCenters[region] ?: districtCenters["부산"]!!
-                                // 특정 구면 더 확대(14), 부산 전체면 덜 확대(10)
                                 val zoom = if (region == "부산") 10 else 14
                                 kakaoMap.moveCamera(
                                     CameraUpdateFactory.newCenterPosition(center, zoom)
                                 )
+
+                                // ── 미션 핀 꽂기 ──
+                                val missions = MissionRepository.missions.value.filter {
+                                    region == "부산" || it.mission.district == region
+                                }
+
+
+                                if (missions.isEmpty()) return
+
+                                // 핀 스타일 (아이콘)
+                                // 벡터 아이콘을 비트맵으로 변환해서 사용
+                                val pinBitmap = androidx.core.content.ContextCompat
+                                    .getDrawable(context, R.drawable.ic_mission_pin)
+                                    ?.let { drawable ->
+                                        val bmp = android.graphics.Bitmap.createBitmap(
+                                            drawable.intrinsicWidth.coerceAtLeast(1),
+                                            drawable.intrinsicHeight.coerceAtLeast(1),
+                                            android.graphics.Bitmap.Config.ARGB_8888
+                                        )
+                                        val canvas = android.graphics.Canvas(bmp)
+                                        drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                        drawable.draw(canvas)
+                                        bmp
+                                    }
+
+                                val styles = kakaoMap.labelManager?.addLabelStyles(
+                                    LabelStyles.from(
+                                        LabelStyle.from(pinBitmap)
+                                    )
+                                )
+
+                                // 라벨 레이어에 미션마다 핀 추가
+                                val layer = kakaoMap.labelManager?.layer
+                                missions.forEach { item ->
+                                    val m = item.mission
+                                    if (m.lat == 0.0 && m.lng == 0.0) return@forEach
+                                    layer?.addLabel(
+                                        LabelOptions.from(LatLng.from(m.lat, m.lng))
+                                            .setStyles(styles)
+                                            .setTag(m.id.toString())
+                                    )
+                                }
                             }
                         }
                     )

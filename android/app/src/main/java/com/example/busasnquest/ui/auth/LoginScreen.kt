@@ -3,7 +3,6 @@ package com.example.busasnquest.ui.auth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,7 +20,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.content.Context
+import com.kakao.sdk.auth.model.OAuthToken
+import com.kakao.sdk.common.model.ClientError
+import com.kakao.sdk.common.model.ClientErrorCause
+import com.kakao.sdk.user.UserApiClient
 
 // 사진의 색감에 맞춘 로컬 색상
 private val LoginBg = Color(0xFFE9EAF8)
@@ -36,11 +41,14 @@ fun LoginScreen(
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     var selectedTab by remember { mutableStateOf(0) }       // 0=Log in, 1=Sign up
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var passwordConfirm by remember { mutableStateOf("") }
+    var passwordConfirmVisible by remember { mutableStateOf(false) }
 
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
@@ -110,17 +118,44 @@ fun LoginScreen(
                 }
             )
 
-            Spacer(Modifier.height(10.dp))
+            // ── 비밀번호 확인 (회원가입 탭에서만 표시) ──
+            if (selectedTab == 1) {
+                Spacer(Modifier.height(18.dp))
+                FieldLabel("Confirm Password")
+                Spacer(Modifier.height(8.dp))
+                AuthTextField(
+                    value = passwordConfirm,
+                    onValueChange = { passwordConfirm = it },
+                    hint = "Re-enter your password",
+                    keyboardType = KeyboardType.Password,
+                    visualTransformation =
+                        if (passwordConfirmVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val icon = if (passwordConfirmVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                        Icon(
+                            icon,
+                            contentDescription = "비밀번호 확인 표시 전환",
+                            tint = HintGray,
+                            modifier = Modifier.clickable { passwordConfirmVisible = !passwordConfirmVisible }
+                        )
+                    }
+                )
+            }
 
-            Text(
-                "Forgot password?",
-                color = Indigo,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
-            )
+            // ── 비밀번호 찾기 (로그인 탭에서만 표시) ──
+            if (selectedTab == 0) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Forgot password?",
+                    color = Indigo,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
+                )
+            }
 
             // ── 에러 메시지 ──
             if (errorMessage != null) {
@@ -130,9 +165,12 @@ fun LoginScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // ── Continue 버튼 ──
+            // ── Continue / Sign up 버튼 ──
             Button(
-                onClick = { viewModel.login(email, password) },
+                onClick = {
+                    if (selectedTab == 0) viewModel.login(email, password)
+                    else viewModel.signup(email, password, passwordConfirm)
+                },
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Indigo),
@@ -167,10 +205,17 @@ fun LoginScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── 소셜 버튼 (이번엔 UI만, 동작 없음) ──
-            SocialButton("Login with Apple", Color(0xFF111111))
-            Spacer(Modifier.height(12.dp))
-            SocialButton("Login with Google", Color(0xFF4285F4))
+            // ── 카카오 로그인 버튼 ──
+            KakaoLoginButton(
+                enabled = !isLoading,
+                onClick = {
+                    startKakaoLogin(
+                        context = context,
+                        onToken = { accessToken -> viewModel.loginWithKakao(accessToken) },
+                        onError = { msg -> viewModel.onKakaoError(msg) }
+                    )
+                }
+            )
 
             Spacer(Modifier.height(22.dp))
 
@@ -246,22 +291,56 @@ private fun AuthTextField(
 }
 
 @Composable
-private fun SocialButton(label: String, markColor: Color) {
-    OutlinedButton(
-        onClick = { /* TODO: 소셜 로그인 (추후 연결) */ },
+private fun KakaoLoginButton(enabled: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, FieldBorder),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFFFEE500),   // 카카오 브랜드 노란색
+            contentColor = Color(0xFF191919)
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(markColor)
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(label, color = Color(0xFF333333), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+        Text("카카오로 로그인", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    }
+}
+
+/**
+ * 카카오 SDK 로그인을 실행한다.
+ * - 카카오톡 앱이 설치돼 있으면 앱으로 로그인, 없으면 카카오 계정(웹)으로 로그인
+ * - 성공 시 access token 을 onToken 으로, 실패/취소 시 메시지를 onError 로 전달
+ */
+private fun startKakaoLogin(
+    context: Context,
+    onToken: (String) -> Unit,
+    onError: (String) -> Unit
+) {
+    // 카카오 계정(웹) 로그인 콜백
+    val accountCallback: (OAuthToken?, Throwable?) -> Unit = { token, error ->
+        when {
+            error != null -> onError("카카오 로그인에 실패했습니다.")
+            token != null -> onToken(token.accessToken)
+        }
+    }
+
+    if (UserApiClient.instance.isKakaoTalkLoginAvailable(context)) {
+        UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
+            if (error != null) {
+                // 사용자가 직접 취소한 경우엔 계정 로그인으로 넘어가지 않는다
+                if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
+                    onError("로그인이 취소되었습니다.")
+                    return@loginWithKakaoTalk
+                }
+                // 그 외 오류면 카카오 계정 로그인으로 폴백
+                UserApiClient.instance.loginWithKakaoAccount(context, callback = accountCallback)
+            } else if (token != null) {
+                onToken(token.accessToken)
+            }
+        }
+    } else {
+        UserApiClient.instance.loginWithKakaoAccount(context, callback = accountCallback)
     }
 }

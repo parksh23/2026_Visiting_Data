@@ -82,3 +82,15 @@ data class LoginRequestDto(
 data class LoginResponseDto(
     val token: String
 )
+
+// 카카오 로그인 요청 - 앱이 받은 카카오 access token 을 서버로 전달
+data class KakaoLoginRequestDto(
+    @SerializedName("access_token")
+    val accessToken: String
+)
+
+// 회원가입 요청 - 서버로 보낼 것
+data class SignupRequestDto(
+    val email: String,
+    val password: String
+)

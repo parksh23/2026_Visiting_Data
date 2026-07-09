@@ -1,10 +1,12 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from middleware import log_requests
 from pydantic import BaseModel
 from typing import List
 
-# 💡 1. app. 접두어 제거 및 setup_logging 임포트 추가
+# app. 접두어 제거 및 setup_logging 임포트 추가
 from database import Base, engine
 import models
 from routers import text_files
@@ -56,7 +58,7 @@ class RankEntry(BaseModel):
     is_me: bool = False
 
 
-# 💡 2. 중복되던 루트(/) 경로를 하나로 깔끔하게 통합
+# 중복되던 루트(/) 경로를 하나로 깔끔하게 통합
 @app.get("/")
 def read_root():
     return {"message": "Busan Quest API Server is running successfully!"}
@@ -102,3 +104,15 @@ def get_rankings():
         RankEntry(rank=3, name="광안리러버", score="3,150P"),
         RankEntry(rank=12, name="부산갈매기 (나)", score="2,450P", is_me=True),
     ]
+
+# 로그 확인 주소
+@app.get("/logs", response_class=PlainTextResponse)
+def read_server_logs():
+    log_path = "./logs/server_logs.txt"
+
+    if os.path.exists(log_path):
+        with open(log_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+
+    return "아직 로그 파일이 생성되지 않았습니다."

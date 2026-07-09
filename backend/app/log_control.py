@@ -4,7 +4,7 @@ import logging
 from loguru import logger
 
 # 1. 저장 경로 설정
-LOG_DIR = "/data/logs" if os.environ.get("RENDER") else "./logs"
+LOG_DIR = "./logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE_PATH = os.path.join(LOG_DIR, "server_logs.txt")
 

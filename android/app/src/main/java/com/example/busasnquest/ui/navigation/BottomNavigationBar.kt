@@ -72,7 +72,7 @@ fun BottomItem(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val color = if (selected) NavyMain else TextSub
+    val color = if (selected) Coral else TextSub
 
     Column(
         modifier = Modifier.clickable { onClick() },

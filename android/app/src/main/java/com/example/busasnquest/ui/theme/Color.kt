@@ -31,3 +31,11 @@ val IconPinkBg = Color(0xFFFCE4EC)
 val IconPink = Color(0xFFE8638F)
 val IconGreenBg = Color(0xFFE3F3E8)
 val IconGreen = Color(0xFF49A86B)
+
+// ── 리뉴얼 배색 (에어비앤비 모티브: 부산 바다 코럴 + 블루) ──
+val Coral = Color(0xFFFF5A5F)       // 시그니처 강조색 (버튼/선택/강조)
+val CoralDark = Color(0xFFD8484D)   // 코럴 위 세그먼트 트랙 등
+val CoralTint = Color(0xFFFFF1F1)   // 내 행/로그아웃 등 옅은 배경
+val SeaBlue = Color(0xFF0E7C86)     // 보조 강조 (바다)
+val SeaBlueBg = Color(0xFFE1F5EE)   // 바다블루 옅은 배경
+val SurfaceGray = Color(0xFFF7F7F7) // 통계 카드 등 섹션 배경

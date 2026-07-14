@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,7 @@ import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.MedalBronze
@@ -127,9 +129,10 @@ fun MyRankCard(
 ) {
     Box(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
+            .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(Coral)
             .padding(24.dp)
     ) {
@@ -221,7 +224,7 @@ fun RankingRow(entry: RankEntry) {
         modifier = Modifier
             .padding(horizontal = 20.dp, vertical = 5.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(if (entry.isMe) CoralTint else CardWhite)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -367,7 +370,7 @@ fun DistrictRankRow(district: String, onClick: () -> Unit) {
         modifier = Modifier
             .padding(horizontal = 20.dp, vertical = 5.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 16.dp),

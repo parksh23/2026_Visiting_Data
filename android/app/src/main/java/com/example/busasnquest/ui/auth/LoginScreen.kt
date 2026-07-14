@@ -77,32 +77,32 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                AuthTab("Log in", selectedTab == 0) { selectedTab = 0 }
+                AuthTab("로그인", selectedTab == 0) { selectedTab = 0 }
                 Spacer(Modifier.width(28.dp))
-                AuthTab("Sign up", selectedTab == 1) { selectedTab = 1 }
+                AuthTab("회원가입", selectedTab == 1) { selectedTab = 1 }
             }
 
             Spacer(Modifier.height(28.dp))
 
             // ── 이메일 ──
-            FieldLabel("Your Email")
+            FieldLabel("이메일")
             Spacer(Modifier.height(8.dp))
             AuthTextField(
                 value = email,
                 onValueChange = { email = it },
-                hint = "Enter your email",
+                hint = "이메일을 입력하세요",
                 keyboardType = KeyboardType.Email
             )
 
             Spacer(Modifier.height(18.dp))
 
             // ── 비밀번호 ──
-            FieldLabel("Password")
+            FieldLabel("비밀번호")
             Spacer(Modifier.height(8.dp))
             AuthTextField(
                 value = password,
                 onValueChange = { password = it },
-                hint = "Enter your password",
+                hint = "비밀번호를 입력하세요",
                 keyboardType = KeyboardType.Password,
                 visualTransformation =
                     if (passwordVisible) VisualTransformation.None
@@ -121,12 +121,12 @@ fun LoginScreen(
             // ── 비밀번호 확인 (회원가입 탭에서만 표시) ──
             if (selectedTab == 1) {
                 Spacer(Modifier.height(18.dp))
-                FieldLabel("Confirm Password")
+                FieldLabel("비밀번호 확인")
                 Spacer(Modifier.height(8.dp))
                 AuthTextField(
                     value = passwordConfirm,
                     onValueChange = { passwordConfirm = it },
-                    hint = "Re-enter your password",
+                    hint = "비밀번호를 다시 입력하세요",
                     keyboardType = KeyboardType.Password,
                     visualTransformation =
                         if (passwordConfirmVisible) VisualTransformation.None
@@ -147,7 +147,7 @@ fun LoginScreen(
             if (selectedTab == 0) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Forgot password?",
+                    "비밀번호를 잊으셨나요?",
                     color = Indigo,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -186,7 +186,7 @@ fun LoginScreen(
                     )
                 } else {
                     Text(
-                        if (selectedTab == 0) "Continue" else "Sign up",
+                        if (selectedTab == 0) "로그인" else "회원가입",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
@@ -199,7 +199,7 @@ fun LoginScreen(
             // ── or 구분선 ──
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
-                Text("  or  ", color = HintGray, fontSize = 12.sp)
+                Text("  또는  ", color = HintGray, fontSize = 12.sp)
                 HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
             }
 
@@ -224,9 +224,9 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
             ) {
-                Text("Don't have an account? ", color = HintGray, fontSize = 13.sp)
+                Text("계정이 없으신가요? ", color = HintGray, fontSize = 13.sp)
                 Text(
-                    "Sign up",
+                    "회원가입",
                     color = Indigo,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,

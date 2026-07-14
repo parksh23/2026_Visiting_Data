@@ -49,7 +49,7 @@ fun ProgressCard(
             .fillMaxWidth()
             .shadow(8.dp, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
-            .background(NavyMain)
+            .background(Coral)
             .padding(24.dp)
     ) {
         Column {
@@ -101,7 +101,7 @@ fun GradientProgressBar(progress: Float) {
                     .fillMaxWidth(progress.coerceIn(0f, 1f))
                     .fillMaxHeight()
                     .clip(CircleShape)
-                    .background(Brush.horizontalGradient(spectrum))
+                    .background(Color.White)
             )
         }
 
@@ -139,7 +139,7 @@ fun SegmentedToggle(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(13.dp))
-                    .background(if (selected) NavyMain else Color.Transparent)
+                    .background(if (selected) Coral else Color.Transparent)
                     .clickable { onSelect(index) }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center

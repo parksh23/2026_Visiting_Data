@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +60,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
         ) {
             profileMenuItems.forEachIndexed { index, item ->
@@ -85,7 +86,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
         ) {
             settingItems.forEachIndexed { index, item ->
@@ -106,7 +107,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CoralTint)
                 .clickable { onLogout() }
                 .padding(vertical = 18.dp),
@@ -123,9 +124,10 @@ fun ProfileScreen(
 fun ProfileSummaryCard(uiState: ProfileUiState) {
     Column(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
+            .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CardWhite)
             .padding(24.dp)
     ) {

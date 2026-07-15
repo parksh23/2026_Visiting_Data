@@ -90,11 +90,11 @@ fun PointPill() {
         Icon(
             Icons.Filled.Star,
             contentDescription = null,
-            tint = PointOrange,
+            tint = Coral,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = NavyMain, fontSize = 14.sp)
+        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = TextMain, fontSize = 14.sp)
     }
 }
 

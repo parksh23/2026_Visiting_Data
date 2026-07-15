@@ -17,13 +17,20 @@ ORACLE_DSN = os.getenv("ORACLE_DSN")
 ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD")
 
 # 💡 2. 월렛 폴더의 절대 경로 지정 (backend/wallet)
-# 경로 연산을 위해 Path 객체 상태를 유지하고, 환경변수에서 Base64 텍스트를 읽어옵니다.
 WALLET_DIR = BASE_DIR.parent / "wallet"
 WALLET_B64 = os.getenv("WALLET_ZIP_BASE64")
 
-# 🚨 [추가된 핵심 로직] Render 환경변수 검증 및 지갑 자동 조립
-if not WALLET_B64:
-    raise ValueError("🚨 [에러] Render 환경변수 'WALLET_ZIP_BASE64'가 비어있습니다! 대시보드를 확인해주세요.")
+# 현재 실행 환경이 Render 클라우드인지 확인 (Render는 자동으로 RENDER=true 변수를 주입함)
+IS_RENDER_ENV = os.getenv("RENDER") == "true"
+
+if IS_RENDER_ENV:
+    # 1. 클라우드 서버 환경: Base64 텍스트가 반드시 있어야 함
+    if not WALLET_B64:
+        raise ValueError("🚨 [서버 에러] Render 환경변수 'WALLET_ZIP_BASE64'가 비어있습니다! 대시보드를 확인해주세요.")
+else:
+    # 2. 로컬(내 컴퓨터) 환경: Base64 텍스트 대신 실제 wallet 폴더가 있어야 함
+    if not WALLET_DIR.exists():
+        raise ValueError(f"🚨 [로컬 에러] 로컬 지갑 폴더를 찾을 수 없습니다! ({WALLET_DIR} 경로에 오라클 지갑 압축을 풀어주세요.)")
 
 # 서버 내부에 tnsnames.ora가 없다면 환경변수 텍스트를 풀어 지갑을 자동으로 만듭니다.
 if not (WALLET_DIR / "tnsnames.ora").exists():

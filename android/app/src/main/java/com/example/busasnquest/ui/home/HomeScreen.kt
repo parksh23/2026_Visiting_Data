@@ -169,13 +169,6 @@ private fun HomeHeader(points: Int) {
                     Spacer(Modifier.width(5.dp))
                     Text("%,d".format(points), color = Coral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier.size(34.dp).clip(CircleShape).background(SurfaceGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Notifications, contentDescription = "알림", tint = TextSub, modifier = Modifier.size(18.dp))
-                }
             }
         }
         Spacer(Modifier.height(14.dp))

@@ -63,11 +63,7 @@ fun ScreenHeader(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PointPill()
-                Spacer(modifier = Modifier.width(10.dp))
-                BellButton()
-            }
+            PointPill()
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -98,15 +94,4 @@ fun PointPill() {
     }
 }
 
-@Composable
-fun BellButton() {
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .background(CardWhite, CircleShape)
-            .border(1.dp, DividerGray, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Outlined.Notifications, contentDescription = "알림", tint = NavyMain)
-    }
-}
+

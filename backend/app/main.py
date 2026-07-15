@@ -5,14 +5,40 @@ from fastapi.responses import PlainTextResponse
 from middleware import log_requests
 from pydantic import BaseModel
 from typing import List
-
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 # app. 접두어 제거 및 setup_logging 임포트 추가
 from database import Base, engine
 import models
-from routers import text_files
+from routers import text_files, rankings
+from scheduler import update_rankings_job
 from log_control import setup_logging
 
-app = FastAPI()
+# 앱 생명주기 관리자
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = BackgroundScheduler()
+
+    # 오전 0시(자정), 오후 12시(정오)에 실행되도록 크론(Cron) 설정 추가
+    scheduler.add_job(
+        update_rankings_job,
+        CronTrigger(hour="0,12", minute="0")
+    )
+    # 5초마다 랭킹 업데이트 (확인용)
+    #scheduler.add_job(update_rankings_job, 'interval', seconds=5)
+    scheduler.start()
+
+    # 🌟 개발/테스트를 위해, 서버를 켤 때 무조건 1번 실행하게 합니다.
+    # 이렇게 해야 방금 만든 빈 랭킹 테이블에 당장 테스트할 데이터가 들어갑니다!
+    update_rankings_job()
+
+    yield
+
+    # 서버 종료 시 스케줄러도 함께 종료
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
 
 # 로깅 시스템 가동
 setup_logging()
@@ -31,6 +57,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(text_files.router)
 
+app.include_router(rankings.router)
 
 # --- Pydantic 모델 정의 (안드로이드의 data class와 동일) ---
 class UserProfile(BaseModel):

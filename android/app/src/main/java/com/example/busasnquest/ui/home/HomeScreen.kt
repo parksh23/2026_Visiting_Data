@@ -54,7 +54,7 @@ fun HomeScreen(
     val recommended by viewModel.recommendedMissions.collectAsStateWithLifecycle()
     val points by viewModel.points.collectAsStateWithLifecycle()
 
-    val firstMission = missions.firstOrNull()?.mission
+
 
     Column(
         modifier = Modifier
@@ -86,11 +86,9 @@ fun HomeScreen(
         // 진행중인 미션 요약
         OngoingSummaryCard(
             occupation = occupation,
-            firstMission = firstMission,
-            onClick = {
-                if (firstMission != null) navController.navigate("missionDetail/${firstMission.id}")
-                else navController.navigate("mission")
-            }
+            missions = missions.map { it.mission },
+            onMissionClick = { id -> navController.navigate("missionDetail/$id") },
+            onEmptyClick = { navController.navigate("mission") }
         )
 
         Spacer(Modifier.height(24.dp))
@@ -272,8 +270,9 @@ private fun LocationRow(onClick: () -> Unit) {
 @Composable
 private fun OngoingSummaryCard(
     occupation: OccupationStat,
-    firstMission: OngoingMission?,
-    onClick: () -> Unit
+    missions: List<OngoingMission>,
+    onMissionClick: (Int) -> Unit,
+    onEmptyClick: () -> Unit
 ) {
     val percent = (occupation.rate * 100).toInt()
 
@@ -296,43 +295,70 @@ private fun OngoingSummaryCard(
 
         Spacer(Modifier.height(16.dp))
 
-        // 중첩 미션 카드
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(CardWhite)
-                .clickable { onClick() }
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        // 진행 중인 미션 카드 (여러 개면 옆으로 스와이프)
+        if (missions.isEmpty()) {
+            Row(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CoralTint),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CardWhite)
+                    .clickable { onEmptyClick() }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CoralTint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("도전 중인 미션이 없어요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
+                    Spacer(Modifier.height(2.dp))
+                    Text("미션 탭에서 새 미션에 도전해보세요", fontSize = 12.sp, color = TextSub, maxLines = 1)
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    firstMission?.title ?: "도전 중인 미션이 없어요",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMain,
-                    maxLines = 1
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    firstMission?.region ?: "미션 탭에서 새 미션에 도전해보세요",
-                    fontSize = 12.sp,
-                    color = TextSub,
-                    maxLines = 1
-                )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                missions.forEach { mission ->
+                    Row(
+                        modifier = Modifier
+                            .width(240.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CardWhite)
+                            .clickable { onMissionClick(mission.id) }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CoralTint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(mission.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
+                            Spacer(Modifier.height(2.dp))
+                            Text(mission.region, fontSize = 12.sp, color = TextSub, maxLines = 1)
+                        }
+                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
+                    }
+                }
             }
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
         }
 
         Spacer(Modifier.height(16.dp))

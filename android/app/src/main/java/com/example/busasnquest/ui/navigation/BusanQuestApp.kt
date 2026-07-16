@@ -1,5 +1,9 @@
 package com.example.busasnquest.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,17 +72,38 @@ fun BusanQuestApp() {
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
 
-            Scaffold(
-                containerColor = BgSoftBlue,
-                bottomBar = {
-                    if (showBottomBar) BottomNavigationBar(navController)
-                }
-            ) { padding ->
-
-                NavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    modifier = Modifier.padding(padding)
+            Scaffold(containerColor = BgSoftBlue) { padding ->
+                Box(Modifier.fillMaxSize()) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = startDestination,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = padding.calculateTopPadding()),
+                    enterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        ) + fadeIn(animationSpec = tween(300))
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        ) + fadeOut(animationSpec = tween(300))
+                    },
+                    popEnterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        ) + fadeIn(animationSpec = tween(300))
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        ) + fadeOut(animationSpec = tween(300))
+                    }
                 ) {
 
                     composable("login") {
@@ -96,13 +121,15 @@ fun BusanQuestApp() {
                     composable("mission") { MissionScreen(navController) }
 
                     composable(
-                        route = "map/{region}",
+                        route = "map/{region}?focus={focus}",
                         arguments = listOf(
-                            navArgument("region") { type = NavType.StringType }
+                            navArgument("region") { type = NavType.StringType },
+                            navArgument("focus") { type = NavType.BoolType; defaultValue = false }
                         )
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
-                        MapScreen(region)
+                        val focusSearch = it.arguments?.getBoolean("focus") ?: false
+                        MapScreen(region, navController, focusSearch)
                     }
 
                     composable("ranking") { RankingScreen(navController) }
@@ -141,6 +168,14 @@ fun BusanQuestApp() {
                     ) {
                         val districtName = it.arguments?.getString("districtName") ?: ""
                         DistrictRankingScreen(navController = navController, districtName = districtName)
+                    }
+                }
+
+                    if (showBottomBar) {
+                        BottomNavigationBar(
+                            navController = navController,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
                     }
                 }
             }

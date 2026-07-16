@@ -52,7 +52,9 @@ fun MissionScreen(
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(homeViewModel)
 
-    LazyColumn {
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+    ) {
 
         item {
             ScreenHeader(
@@ -169,7 +171,7 @@ fun MissionCard(
             Icon(
                 imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                 contentDescription = "찜하기",
-                tint = if (item.saved) PointRed else TextSub,
+                tint = if (item.saved) Coral else TextSub,
                 modifier = Modifier
                     .size(22.dp)
                     .clickableNoRipple { onToggleSaved() }
@@ -181,9 +183,9 @@ fun MissionCard(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(15.dp))
+            Icon(Icons.Filled.Star, contentDescription = null, tint = Coral, modifier = Modifier.size(15.dp))
             Spacer(modifier = Modifier.width(4.dp))
-            Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange, fontSize = 14.sp)
+            Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = Coral, fontSize = 14.sp)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -236,7 +238,7 @@ fun DistrictProgressRow(
     val percent = if (district.total == 0) 0f
     else district.completed.toFloat() / district.total
     val percentInt = (percent * 100).toInt()
-    val barColor = if (percentInt == 100) IconGreen else PointOrange   // 색은 진행도에 따라
+    val barColor = if (percentInt == 100) IconGreen else Coral   // 색은 진행도에 따라
 
     Row(
         modifier = Modifier

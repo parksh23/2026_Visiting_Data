@@ -20,7 +20,30 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import com.example.busasnquest.data.repository.OccupationStat
 
+// 추천 미션 배지 종류 (인기 / 신규 / 추천)
+enum class RecommendBadge { POPULAR, NEW, RECOMMEND }
+
+// 홈 "추천 미션" 카드에 쓰는 가벼운 데이터
+data class RecommendMission(
+    val id: Int,
+    val title: String,
+    val subtitle: String,
+    val reward: Int,
+    val distanceText: String,
+    val badge: RecommendBadge
+)
+
 class HomeViewModel : ViewModel() {
+
+    // 추천 미션 (지금은 샘플 데이터 → 이후 API GET /api/v1/missions 연동)
+    val recommendedMissions: StateFlow<List<RecommendMission>> =
+        MutableStateFlow(
+            listOf(
+                RecommendMission(101, "광안리 카페 방문", "수영구 카페 방문 인증", 200, "0.5km", RecommendBadge.POPULAR),
+                RecommendMission(102, "민락수변공원 산책", "수영구 공원 산책 인증", 150, "0.7km", RecommendBadge.NEW),
+                RecommendMission(103, "해운대 맛집 방문", "해운대구 맛집 방문 인증", 250, "1.2km", RecommendBadge.RECOMMEND)
+            )
+        ).asStateFlow()
 
     // Repository의 전체 미션 중 "진행 중(IN_PROGRESS)·인증 중·완료"만 걸러서 홈에 보여줌
     val homeMissions: StateFlow<List<MissionWithState>> =
@@ -39,6 +62,9 @@ class HomeViewModel : ViewModel() {
             )
     // 점령률 (실제 미션 완료 기반)
     val occupation: StateFlow<OccupationStat> = MissionRepository.occupation
+
+    // 보유 포인트 (홈 헤더 칩용)
+    val points: StateFlow<Int> = UserRepository.points
 
     // 사진을 골랐을 때 (id로 미션 지정)
     fun onPhotoPicked(id: Int, context: Context, uri: Uri) {

@@ -64,7 +64,9 @@ fun SavedMissionScreen(
                 )
             }
         } else {
-            LazyColumn {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+            ) {
                 item {
                     Text(
                         "찜한 미션 ${saved.size}개",

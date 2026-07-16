@@ -4,3 +4,8 @@ sqlalchemy
 oracledb
 python-dotenv
 pydantic
+loguru
+httpx
+pyjwt
+python-multipart
+apscheduler

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: busan-quest-api  # 원하는 서버 이름
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: log-storage    # 영구 디스크 이름
+      mountPath: /data     # 서버 내부의 /data 폴더를 영구 저장소로 지정
+      sizeGB: 1            # 디스크 용량 (로그용이므로 1GB면 충분)

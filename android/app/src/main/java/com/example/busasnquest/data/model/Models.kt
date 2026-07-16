@@ -13,7 +13,9 @@ data class OngoingMission(
     val current: Int,
     val total: Int,
     val type: MissionType = MissionType.CURRENT_LOCATION,
-    val district: String = ""
+    val district: String = "",
+    val lat: Double = 0.0,      // 위도 (지도 핀)
+    val lng: Double = 0.0       // 경도 (지도 핀)
 )
 
 // 구·군별 진행 현황

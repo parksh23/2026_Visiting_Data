@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,7 @@ fun ProfileScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = Dimens.bottomBarSpace)
     ) {
         ScreenHeader(
             title = "내 정보",
@@ -59,7 +61,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
         ) {
             profileMenuItems.forEachIndexed { index, item ->
@@ -85,7 +87,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
         ) {
             settingItems.forEachIndexed { index, item ->
@@ -106,13 +108,13 @@ fun ProfileScreen(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFFF3E1E1))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
+                .background(CoralTint)
                 .clickable { onLogout() }
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("로그아웃", color = PointRed, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("로그아웃", color = Coral, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(120.dp))
@@ -123,9 +125,10 @@ fun ProfileScreen(
 fun ProfileSummaryCard(uiState: ProfileUiState) {
     Column(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
+            .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CardWhite)
             .padding(24.dp)
     ) {
@@ -136,16 +139,13 @@ fun ProfileSummaryCard(uiState: ProfileUiState) {
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFFCFE0F2), Color(0xFFB7D0EA))),
-                        CircleShape
-                    ),
+                    .background(SeaBlue, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Outlined.Person,
                     contentDescription = null,
-                    tint = NavyMain,
+                    tint = Color.White,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -173,22 +173,28 @@ fun ProfileSummaryCard(uiState: ProfileUiState) {
         HorizontalDivider(color = DividerGray)
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 통계 3개 (가로로)
+        // 통계 3개 (서페이스 카드)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ProfileStat("%,d".format(uiState.points) + "P", "보유 포인트")
-            ProfileStat(uiState.completedCount.toString(), "완료 미션")
-            ProfileStat(uiState.savedCount.toString(), "찜한 미션")
+            ProfileStat("%,d".format(uiState.points) + "P", "보유 포인트", Modifier.weight(1f))
+            ProfileStat(uiState.completedCount.toString(), "완료 미션", Modifier.weight(1f))
+            ProfileStat(uiState.savedCount.toString(), "찜한 미션", Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-fun ProfileStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = NavyMain, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+fun ProfileStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceGray)
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = TextMain, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
         Text(label, color = TextSub, fontSize = 12.sp)
     }
@@ -206,7 +212,8 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .background(item.bg, CircleShape),
+                .clip(RoundedCornerShape(12.dp))
+                .background(item.bg),
             contentAlignment = Alignment.Center
         ) {
             Icon(item.icon, contentDescription = null, tint = item.tint, modifier = Modifier.size(22.dp))
@@ -233,7 +240,7 @@ fun SettingRow(item: SettingItem) {
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(item.icon, contentDescription = null, tint = NavyMain, modifier = Modifier.size(22.dp))
+        Icon(item.icon, contentDescription = null, tint = SeaBlue, modifier = Modifier.size(22.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Text(item.title, fontSize = 15.sp, color = TextMain, modifier = Modifier.weight(1f))
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub)

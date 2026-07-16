@@ -1,61 +1,70 @@
 import os
+import base64
+import zipfile
+import shutil
 from pathlib import Path
-import oracledb
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# .env 파일에서 환경변수 로드
-# 실행 위치(cwd)에 상관없이 이 database.py 파일과 같은 폴더의 .env를 찾도록 경로를 명시합니다.
-ENV_PATH = Path(__file__).resolve().parent / ".env"
-load_dotenv(dotenv_path=ENV_PATH)
+# 💡 1. .env 파일의 절대 경로 지정 (현재 파일 위치 기준)
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=BASE_DIR / ".env")
 
-# --- 1. Oracle 접속 정보 (.env 파일에서 불러옴) ---
 ORACLE_USER = os.getenv("ORACLE_USER")
 ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD")
-
-# [NOTE] ORACLE_DSN: Wallet 없이 TCPS(단방향 SSL)로 접속하는 전체 Connection Descriptor.
-# 예)
-# (description=
-#   (retry_count=20)(retry_delay=3)
-#   (address=(protocol=tcps)(port=1522)(host=adb.ap-osaka-1.oraclecloud.com))
-#   (connect_data=(service_name=gf42e2bf77db727_visiting2026_medium.adb.oraclecloud.com))
-#   (security=(ssl_server_dn_match=yes))
-# )
-# .env 파일에는 줄바꿈 없이 한 줄로 이어서 넣으세요.
 ORACLE_DSN = os.getenv("ORACLE_DSN")
+ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD")
 
-if not all([ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN]):
-    raise RuntimeError(
-        "환경변수가 누락되었습니다. .env 파일에 "
-        "ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN 을 설정하세요."
-    )
+# 💡 2. 월렛 폴더의 절대 경로 지정 (backend/wallet)
+# 경로 연산을 위해 Path 객체 상태를 유지하고, 환경변수에서 Base64 텍스트를 읽어옵니다.
+WALLET_DIR = BASE_DIR.parent / "wallet"
+WALLET_B64 = os.getenv("WALLET_ZIP_BASE64")
 
+# 🚨 [추가된 핵심 로직] Render 환경변수 검증 및 지갑 자동 조립
+if not WALLET_B64:
+    raise ValueError("🚨 [에러] Render 환경변수 'WALLET_ZIP_BASE64'가 비어있습니다! 대시보드를 확인해주세요.")
 
-# --- 2. SQLAlchemy 엔진 생성 ---
-# DSN 문자열에 괄호/콜론 등 특수문자가 많아서 URL로 조립하면 파싱이 깨지기 쉽습니다.
-# 그래서 creator 콜백을 통해 oracledb.connect()를 직접 호출하는 방식을 씁니다.
-# (python-oracledb의 Thin 모드이므로 Instant Client 설치도 필요 없습니다.)
-def _creator():
-    return oracledb.connect(
-        user=ORACLE_USER,
-        password=ORACLE_PASSWORD,
-        dsn=ORACLE_DSN,
-    )
+# 서버 내부에 tnsnames.ora가 없다면 환경변수 텍스트를 풀어 지갑을 자동으로 만듭니다.
+if not (WALLET_DIR / "tnsnames.ora").exists():
+    WALLET_DIR.mkdir(parents=True, exist_ok=True)
+    zip_path = WALLET_DIR / "wallet.zip"
 
+    # 1. 텍스트를 다시 zip 파일로 복원
+    with open(zip_path, "wb") as f:
+        f.write(base64.b64decode(WALLET_B64))
+
+    # 2. 압축 해제
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(WALLET_DIR)
+
+    # 3. 2중 폴더 방어 코드 (압축 해제 시 하위 폴더가 한 겹 더 생기면 파일을 밖으로 꺼냄)
+    for item in WALLET_DIR.iterdir():
+        if item.is_dir():
+            for sub_item in item.iterdir():
+                shutil.move(str(sub_item), str(WALLET_DIR))
+
+DATABASE_URL = f"oracle+oracledb://{ORACLE_USER}:{ORACLE_PASSWORD}@{ORACLE_DSN}"
 
 engine = create_engine(
-    "oracle+oracledb://",
-    creator=_creator,
-    pool_pre_ping=True,   # 연결이 끊겼는지 매 요청 전 확인 (idle timeout 대비)
-    pool_recycle=1800,    # 30분마다 커넥션 재생성
+    DATABASE_URL,
+    echo=True,
+    connect_args={
+        # 오라클 드라이버가 인식할 수 있도록 문자열(str)로 변환하여 주입합니다.
+        "config_dir": str(WALLET_DIR),
+        "wallet_location": str(WALLET_DIR),
+        "wallet_password": ORACLE_WALLET_PASSWORD,
+    }
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
 Base = declarative_base()
 
-
-# --- 3. FastAPI 의존성 주입용 DB 세션 ---
 def get_db():
     db = SessionLocal()
     try:

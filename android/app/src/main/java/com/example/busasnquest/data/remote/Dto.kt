@@ -41,23 +41,6 @@ data class MissionDto(
 )
 
 // 미션 인증(사진/위치/영수증) 제출용
-data class MissionVerifyRequestDto(
-    @SerializedName("mission_id")
-    val missionId: Int,
-
-    @SerializedName("mission_type")
-    val missionType: String,
-
-    @SerializedName("photo_url")
-    val photoUrl: String? = null,
-
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-
-    @SerializedName("receipt_image_url")
-    val receiptImageUrl: String? = null
-)
-
 // 지도 화면 - 구/군별 점령 현황
 data class DistrictStatusDto(
     @SerializedName("district_name")
@@ -93,4 +76,31 @@ data class KakaoLoginRequestDto(
 data class SignupRequestDto(
     val email: String,
     val password: String
+)
+// 미션 인증 제출 요청 DTO
+// 앱 → 백엔드로 보내는 데이터
+data class MissionVerifyRequestDto(
+    @SerializedName("mission_id")
+    val missionId: Int,
+
+    @SerializedName("mission_type")
+    val missionType: String,
+
+    @SerializedName("photo_url")
+    val photoUrl: String? = null,
+
+    val latitude: Double? = null,
+
+    val longitude: Double? = null,
+
+    @SerializedName("receipt_image_url")
+    val receiptImageUrl: String? = null
+)
+
+
+// 미션 인증 제출 응답 DTO
+// 백엔드 → 앱으로 돌아오는 데이터
+data class MissionVerifyResponseDto(
+    val success: Boolean,
+    val message: String
 )

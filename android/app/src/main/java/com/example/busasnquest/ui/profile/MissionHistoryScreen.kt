@@ -64,7 +64,9 @@ fun MissionHistoryScreen(
                 )
             }
         } else {
-            LazyColumn {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+            ) {
                 item {
                     Text(
                         "총 ${completed.size}개의 미션을 완료했어요!",

@@ -70,7 +70,9 @@ fun DistrictRankingScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn {
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+        ) {
             items(rankings) { entry ->
                 RankingRow(entry)
             }

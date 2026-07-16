@@ -7,10 +7,10 @@ from pathlib import Path
 from datetime import datetime
 import json
 
-from app.database import Base, engine
-from app import models
-from app.routers import text_files
-from app.routers import api_v1
+from database import Base, engine
+import models
+from routers import text_files
+from routers import api_v1
 
 
 app = FastAPI()

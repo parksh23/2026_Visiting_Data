@@ -63,11 +63,7 @@ fun ScreenHeader(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PointPill()
-                Spacer(modifier = Modifier.width(10.dp))
-                BellButton()
-            }
+            PointPill()
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -90,23 +86,12 @@ fun PointPill() {
         Icon(
             Icons.Filled.Star,
             contentDescription = null,
-            tint = PointOrange,
+            tint = Coral,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = NavyMain, fontSize = 14.sp)
+        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = TextMain, fontSize = 14.sp)
     }
 }
 
-@Composable
-fun BellButton() {
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .background(CardWhite, CircleShape)
-            .border(1.dp, DividerGray, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Outlined.Notifications, contentDescription = "알림", tint = NavyMain)
-    }
-}
+

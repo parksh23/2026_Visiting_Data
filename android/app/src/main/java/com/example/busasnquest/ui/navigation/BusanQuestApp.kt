@@ -1,10 +1,15 @@
 package com.example.busasnquest.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -20,6 +25,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.busasnquest.data.local.TokenStore
+import com.example.busasnquest.data.remote.SessionManager
 import com.example.busasnquest.ui.auth.LoginScreen
 import com.example.busasnquest.ui.home.HomeScreen
 import com.example.busasnquest.ui.map.MapScreen
@@ -68,17 +74,50 @@ fun BusanQuestApp() {
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
 
-            Scaffold(
-                containerColor = BgSoftBlue,
-                bottomBar = {
-                    if (showBottomBar) BottomNavigationBar(navController)
+            // 401 세션 만료 이벤트 구독:
+            // 어떤 API 든 401 이 발생하면 (토큰은 인터셉터가 이미 삭제함)
+            // 백스택을 전부 비우고 로그인 화면으로 보낸다.
+            LaunchedEffect(navController) {
+                SessionManager.sessionExpired.collect {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
-            ) { padding ->
+            }
 
-                NavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    modifier = Modifier.padding(padding)
+            Scaffold(containerColor = BgSoftBlue) { padding ->
+                Box(Modifier.fillMaxSize()) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = startDestination,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = padding.calculateTopPadding()),
+                    enterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        ) + fadeIn(animationSpec = tween(300))
+                    },
+                    exitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            animationSpec = tween(300)
+                        ) + fadeOut(animationSpec = tween(300))
+                    },
+                    popEnterTransition = {
+                        slideIntoContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        ) + fadeIn(animationSpec = tween(300))
+                    },
+                    popExitTransition = {
+                        slideOutOfContainer(
+                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            animationSpec = tween(300)
+                        ) + fadeOut(animationSpec = tween(300))
+                    }
                 ) {
 
                     composable("login") {
@@ -96,13 +135,15 @@ fun BusanQuestApp() {
                     composable("mission") { MissionScreen(navController) }
 
                     composable(
-                        route = "map/{region}",
+                        route = "map/{region}?focus={focus}",
                         arguments = listOf(
-                            navArgument("region") { type = NavType.StringType }
+                            navArgument("region") { type = NavType.StringType },
+                            navArgument("focus") { type = NavType.BoolType; defaultValue = false }
                         )
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
-                        MapScreen(region)
+                        val focusSearch = it.arguments?.getBoolean("focus") ?: false
+                        MapScreen(region, navController, focusSearch)
                     }
 
                     composable("ranking") { RankingScreen(navController) }
@@ -141,6 +182,14 @@ fun BusanQuestApp() {
                     ) {
                         val districtName = it.arguments?.getString("districtName") ?: ""
                         DistrictRankingScreen(navController = navController, districtName = districtName)
+                    }
+                }
+
+                    if (showBottomBar) {
+                        BottomNavigationBar(
+                            navController = navController,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
                     }
                 }
             }

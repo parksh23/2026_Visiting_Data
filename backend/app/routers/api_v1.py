@@ -4,9 +4,9 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import AppUser
-from app.auth_utils import (
+from database import get_db
+from models import AppUser
+from auth_utils import (
     create_access_token,
     get_current_user_email,
     hash_password,

@@ -8,3 +8,6 @@ loguru
 httpx
 pyjwt
 python-multipart
+apscheduler
+python-jose
+passlib

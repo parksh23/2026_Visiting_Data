@@ -5,8 +5,22 @@ import com.example.busasnquest.data.remote.AuthApi
 import com.example.busasnquest.data.remote.KakaoLoginRequestDto
 import com.example.busasnquest.data.remote.LoginRequestDto
 import com.example.busasnquest.data.remote.SignupRequestDto
+import org.json.JSONObject
 import retrofit2.HttpException
 import java.io.IOException
+
+// 서버가 내려준 에러 응답에서 detail 메시지를 뽑아낸다.
+// FastAPI 는 오류 시 {"detail": "..."} 형태로 응답한다.
+// 뽑아내지 못하면 fallback 문구를 사용한다.
+private fun HttpException.serverDetail(fallback: String): String {
+    return try {
+        val body = response()?.errorBody()?.string()
+        if (body.isNullOrBlank()) fallback
+        else JSONObject(body).optString("detail", fallback)
+    } catch (e: Exception) {
+        fallback
+    }
+}
 
 /**
  * 인증 데이터 계층의 추상화.
@@ -95,7 +109,7 @@ class RetrofitAuthRepository(
 
         } catch (e: HttpException) {
             // 서버가 401, 400 같은 오류 상태 코드를 내려준 경우
-            Result.failure(Exception("이메일 또는 비밀번호가 올바르지 않습니다."))
+            Result.failure(Exception(e.serverDetail("이메일 또는 비밀번호가 올바르지 않습니다.")))
 
         } catch (e: IOException) {
             // 서버가 꺼져 있거나, 네트워크 연결이 안 되는 경우
@@ -155,7 +169,8 @@ class RetrofitAuthRepository(
 
         } catch (e: HttpException) {
             // 이메일 중복 409, 입력 오류 400 등이 여기로 들어옴
-            Result.failure(Exception("이미 가입된 이메일이거나 입력이 올바르지 않습니다."))
+            // 서버가 준 구체적 이유(detail)를 그대로 보여준다.
+            Result.failure(Exception(e.serverDetail("이미 가입된 이메일이거나 입력이 올바르지 않습니다.")))
 
         } catch (e: IOException) {
             // 서버 연결 실패

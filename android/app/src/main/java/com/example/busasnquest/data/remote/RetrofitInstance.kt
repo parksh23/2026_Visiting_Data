@@ -13,7 +13,7 @@ import android.util.Log
 object RetrofitInstance {
 
     // 에뮬레이터에서 PC localhost로 접근하는 주소
-    private const val BASE_URL = "http://10.0.2.2:8000/"
+    private const val BASE_URL = "https://visiting-data.onrender.com/"
 
     // 앱 Context 저장용
     // TokenStore를 만들 때 필요함

@@ -72,16 +72,14 @@ fun BusanQuestApp() {
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
 
-            Scaffold(
-                containerColor = BgSoftBlue,
-                bottomBar = {
-                    if (showBottomBar) BottomNavigationBar(navController)
-                }
-            ) { padding ->
-                NavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    modifier = Modifier.padding(padding),
+            Scaffold(containerColor = BgSoftBlue) { padding ->
+                Box(Modifier.fillMaxSize()) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = startDestination,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = padding.calculateTopPadding()),
                     enterTransition = {
                         slideIntoContainer(
                             AnimatedContentTransitionScope.SlideDirection.Left,
@@ -129,7 +127,7 @@ fun BusanQuestApp() {
                         )
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
-                        MapScreen(region)
+                        MapScreen(region, navController)
                     }
 
                     composable("ranking") { RankingScreen(navController) }
@@ -168,6 +166,14 @@ fun BusanQuestApp() {
                     ) {
                         val districtName = it.arguments?.getString("districtName") ?: ""
                         DistrictRankingScreen(navController = navController, districtName = districtName)
+                    }
+                }
+
+                    if (showBottomBar) {
+                        BottomNavigationBar(
+                            navController = navController,
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
                     }
                 }
             }

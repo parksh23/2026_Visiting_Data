@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.busasnquest.ui.components.ScreenHeader
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
@@ -45,10 +44,11 @@ import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 
 @Composable
-fun MapScreen(region: String) {
+fun MapScreen(region: String, navController: androidx.navigation.NavHostController) {
     // 검색 결과 선택 시 카메라 이동에 쓰기 위해 지도 인스턴스를 보관
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedMission by remember { mutableStateOf<com.example.busasnquest.data.model.OngoingMission?>(null) }
 
     // region 내 미션 중 제목/구군명이 검색어와 일치하는 목록
     val missionsList by MissionRepository.missions.collectAsStateWithLifecycle()
@@ -133,6 +133,11 @@ fun MapScreen(region: String) {
                                                 .setTag(m.id.toString())
                                         )
                                     }
+                                    map.setOnLabelClickListener { _, _, label ->
+                                        val id = label.tag?.toString()?.toIntOrNull()
+                                        selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
+                                        true
+                                    }
                                 }
                             }
                         )
@@ -202,6 +207,36 @@ fun MapScreen(region: String) {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // ── 선택한 미션 미리보기 카드 (핀 클릭 시 하단에 표시) ──
+            selectedMission?.let { mission ->
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .clickable { navController.navigate("missionDetail/${mission.id}") },
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(mission.district, color = Color.Gray, fontSize = 13.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${mission.reward}P", color = com.example.busasnquest.ui.theme.Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        IconButton(onClick = { selectedMission = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "닫기")
                         }
                     }
                 }

@@ -3,6 +3,7 @@ package com.example.busasnquest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.lightColorScheme
@@ -20,7 +21,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        enableEdgeToEdge()
         // 카카오맵 초기화 (네이티브 앱 키)
         KakaoMapSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
 

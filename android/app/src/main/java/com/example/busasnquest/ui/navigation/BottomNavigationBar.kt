@@ -32,7 +32,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.busasnquest.ui.theme.*
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController) {
+fun BottomNavigationBar(
+    navController: NavHostController,
+    modifier: Modifier = Modifier
+) {
 
     val currentRoute =
         navController.currentBackStackEntryAsState().value?.destination?.route
@@ -46,8 +49,9 @@ fun BottomNavigationBar(navController: NavHostController) {
 
     // 플로팅 흰색 라운드 바
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .navigationBarsPadding()
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(

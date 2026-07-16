@@ -218,7 +218,9 @@ fun MapScreen(region: String, navController: androidx.navigation.NavHostControll
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp)
+                        .navigationBarsPadding()
+                        .padding(bottom = 100.dp, top = 16.dp)
                         .clickable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {

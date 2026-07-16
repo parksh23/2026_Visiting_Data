@@ -33,9 +33,17 @@ if WALLET_ZIP_BASE64 and not ORACLE_WALLET_PATH:
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(wallet_dir)
 
-    # 3. 오라클이 지갑을 찾을 수 있도록 경로 지정
-    ORACLE_WALLET_PATH = wallet_dir
-    print(f"✅ 오라클 지갑 세팅 완료: {ORACLE_WALLET_PATH}")
+    # 3. 압축 푼 폴더 내부를 뒤져서 tnsnames.ora 파일이 있는 '진짜 폴더 경로' 찾기
+    found_wallet_path = wallet_dir
+    for root, dirs, files in os.walk(wallet_dir):
+        if "tnsnames.ora" in files:
+            found_wallet_path = root
+            break
+
+    # 4. 오라클이 찾은 경로를 사용할 수 있도록 지정
+    ORACLE_WALLET_PATH = found_wallet_path
+    print(f"✅ 오라클 지갑 찐 위치 세팅 완료: {ORACLE_WALLET_PATH}")
+
 
 DATABASE_URL = f"oracle+oracledb://{ORACLE_USER}:{ORACLE_PASSWORD}@{ORACLE_DSN}"
 
@@ -45,7 +53,7 @@ engine = create_engine(
     connect_args={
         "config_dir": ORACLE_WALLET_PATH,
         "wallet_location": ORACLE_WALLET_PATH,
-        "wallet_password": ORACLE_WALLET_PASSWORD,  # 환경변수에 있던 지갑 비밀번호 추가
+        "wallet_password": ORACLE_WALLET_PASSWORD,
     }
 )
 

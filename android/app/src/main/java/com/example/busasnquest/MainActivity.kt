@@ -14,6 +14,7 @@ import com.example.busasnquest.ui.theme.AppShapes
 import com.example.busasnquest.ui.theme.AppTypography
 import com.example.busasnquest.ui.theme.BaeminBaseTextStyle
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.data.remote.RetrofitInstance
 import com.kakao.sdk.common.KakaoSdk
 import com.kakao.vectormap.KakaoMapSdk
 
@@ -22,6 +23,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // RetrofitInstance가 DataStore에서 토큰을 읽을 수 있게 초기화
+        RetrofitInstance.init(this)
+
         // 카카오맵 초기화 (네이티브 앱 키)
         KakaoMapSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
 

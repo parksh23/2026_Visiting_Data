@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 // ───────────────── DATA ─────────────────
 
 data class OngoingMission(
-    val id: Int,
+    val id: Int,                  // ← 미션 고유 번호
     val title: String,
     val region: String,
     val reward: Int,
@@ -14,8 +14,8 @@ data class OngoingMission(
     val total: Int,
     val type: MissionType = MissionType.CURRENT_LOCATION,
     val district: String = "",
-    val lat: Double = 0.0,      // 위도
-    val lng: Double = 0.0       // 경도
+    val lat: Double = 0.0,      // 위도 (지도 핀)
+    val lng: Double = 0.0       // 경도 (지도 핀)
 )
 
 // 구·군별 진행 현황

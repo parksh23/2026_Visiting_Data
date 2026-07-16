@@ -8,7 +8,7 @@ from datetime import datetime
 import json
 
 from database import Base, engine
-from app import models
+import models
 from routers import text_files
 from routers import api_v1
 

@@ -29,3 +29,17 @@
 ├── .env.example              # 환경변수 템플릿 (비밀번호 제외한 틀만 공유)
 ├── .gitignore                # 🚫 깃허브에 올리면 안 되는 파일 목록 (venv, .env 등)
 └── README.md                 # 백엔드 파트 실행 및 가상환경 세팅 가이드
+```
+USER_ID : 인덱스 역할\
+USER_CODE : 실질적 유저 ID 역할\
+LOGIN_ID : 사용자 ID\
+EMAIL : 사용자 이메일\
+PASSWORD_HASH : 비밀번호 암호화\
+ACCOUNT_STATUS : 사용자 상태\
+NICKNAME : 사용자 닉네임\
+LEVEL_NO : 사용자 LEVEL\
+TOTAL_POINTS : 사용자 포인트\
+COMPLETED_MISSIONS : 완료 미션\
+SAVED_MISSIONS : 저장 미션\
+CONQUERED_DISTRICTS : 진행중 미션\
+CREATED_AT : 계정 생성 시간

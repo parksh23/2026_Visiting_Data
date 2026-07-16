@@ -39,3 +39,4 @@ wallet/
 *.sqlite3
 *.log
 logs/
+data/

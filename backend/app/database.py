@@ -1,48 +1,49 @@
 import os
 import base64
 import zipfile
-import shutil
-from pathlib import Path
+import tempfile
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# 💡 1. .env 파일의 절대 경로 지정 (현재 파일 위치 기준)
-BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(dotenv_path=BASE_DIR / ".env")
+load_dotenv()
 
 ORACLE_USER = os.getenv("ORACLE_USER")
 ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD")
 ORACLE_DSN = os.getenv("ORACLE_DSN")
+
+# Render에 등록한 지갑 관련 변수 가져오기
+WALLET_ZIP_BASE64 = os.getenv("WALLET_ZIP_BASE64")
 ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD")
+ORACLE_WALLET_PATH = os.getenv("ORACLE_WALLET_PATH")
 
-# 💡 2. 월렛 폴더의 절대 경로 지정 (backend/wallet)
-# 경로 연산을 위해 Path 객체 상태를 유지하고, 환경변수에서 Base64 텍스트를 읽어옵니다.
-WALLET_DIR = BASE_DIR.parent / "wallet"
-WALLET_B64 = os.getenv("WALLET_ZIP_BASE64")
+# 🌟 클라우드(Render) 환경이라 BASE64 데이터가 존재한다면, 서버 부팅 시 압축 풀기
+if WALLET_ZIP_BASE64 and not ORACLE_WALLET_PATH:
+    # 서버 내부의 임시 폴더 경로 생성
+    wallet_dir = os.path.join(tempfile.gettempdir(), "oracle_wallet")
+    os.makedirs(wallet_dir, exist_ok=True)
 
-# 🚨 [추가된 핵심 로직] Render 환경변수 검증 및 지갑 자동 조립
-if not WALLET_B64:
-    raise ValueError("🚨 [에러] Render 환경변수 'WALLET_ZIP_BASE64'가 비어있습니다! 대시보드를 확인해주세요.")
+    zip_path = os.path.join(wallet_dir, "wallet.zip")
 
-# 서버 내부에 tnsnames.ora가 없다면 환경변수 텍스트를 풀어 지갑을 자동으로 만듭니다.
-if not (WALLET_DIR / "tnsnames.ora").exists():
-    WALLET_DIR.mkdir(parents=True, exist_ok=True)
-    zip_path = WALLET_DIR / "wallet.zip"
-
-    # 1. 텍스트를 다시 zip 파일로 복원
+    # 1. Base64 텍스트를 디코딩하여 zip 파일로 저장
     with open(zip_path, "wb") as f:
-        f.write(base64.b64decode(WALLET_B64))
+        f.write(base64.b64decode(WALLET_ZIP_BASE64))
 
-    # 2. 압축 해제
+    # 2. 압축 풀기
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(WALLET_DIR)
+        zip_ref.extractall(wallet_dir)
 
-    # 3. 2중 폴더 방어 코드 (압축 해제 시 하위 폴더가 한 겹 더 생기면 파일을 밖으로 꺼냄)
-    for item in WALLET_DIR.iterdir():
-        if item.is_dir():
-            for sub_item in item.iterdir():
-                shutil.move(str(sub_item), str(WALLET_DIR))
+    # 3. 압축 푼 폴더 내부를 뒤져서 tnsnames.ora 파일이 있는 '진짜 폴더 경로' 찾기
+    found_wallet_path = wallet_dir
+    for root, dirs, files in os.walk(wallet_dir):
+        if "tnsnames.ora" in files:
+            found_wallet_path = root
+            break
+
+    # 4. 오라클이 찾은 경로를 사용할 수 있도록 지정
+    ORACLE_WALLET_PATH = found_wallet_path
+    print(f"✅ 오라클 지갑 찐 위치 세팅 완료: {ORACLE_WALLET_PATH}")
+
 
 DATABASE_URL = f"oracle+oracledb://{ORACLE_USER}:{ORACLE_PASSWORD}@{ORACLE_DSN}"
 
@@ -50,9 +51,8 @@ engine = create_engine(
     DATABASE_URL,
     echo=True,
     connect_args={
-        # 오라클 드라이버가 인식할 수 있도록 문자열(str)로 변환하여 주입합니다.
-        "config_dir": str(WALLET_DIR),
-        "wallet_location": str(WALLET_DIR),
+        "config_dir": ORACLE_WALLET_PATH,
+        "wallet_location": ORACLE_WALLET_PATH,
         "wallet_password": ORACLE_WALLET_PASSWORD,
     }
 )

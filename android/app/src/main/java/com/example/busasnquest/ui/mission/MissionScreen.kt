@@ -39,6 +39,7 @@ import com.example.busasnquest.data.repository.OccupationStat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import com.example.busasnquest.ui.components.clickableNoRipple
+import com.example.busasnquest.ui.components.InlineErrorBanner
 
 @Composable
 fun MissionScreen(
@@ -48,6 +49,7 @@ fun MissionScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val occupation by viewModel.occupation.collectAsStateWithLifecycle()
+    val loadError by viewModel.loadError.collectAsStateWithLifecycle()
 
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(homeViewModel)
@@ -61,6 +63,12 @@ fun MissionScreen(
                 title = "미션",
                 subtitle = "다양한 미션을 완료하고 포인트를 모아보세요!"
             )
+
+            // 서버에서 미션을 못 불러온 경우 안내 배너 (로컬 데이터는 계속 표시)
+            loadError?.let { msg ->
+                InlineErrorBanner(message = msg, onRetry = viewModel::refreshFromServer)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             ProgressCard(
                 label = "전체 진행률",

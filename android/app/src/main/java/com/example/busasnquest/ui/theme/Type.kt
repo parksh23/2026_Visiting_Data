@@ -2,10 +2,12 @@ package com.example.busasnquest.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.example.busasnquest.R
 
 /**
  * 앱 공통 폰트.
@@ -21,7 +23,12 @@ import androidx.compose.ui.unit.sp
  *   )
  *   (import androidx.compose.ui.text.font.Font, com.example.busasnquest.R 추가)
  */
-val AppFontFamily: FontFamily = FontFamily.Default
+val AppFontFamily: FontFamily = FontFamily(
+    Font(R.font.pretendard_regular,  FontWeight.Normal),
+    Font(R.font.pretendard_medium,   FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold,     FontWeight.Bold)
+)
 
 // 배민식 공통 자간(살짝 좁게) — 한글 가독성/밀도
 private val Tracking = (-0.02).em

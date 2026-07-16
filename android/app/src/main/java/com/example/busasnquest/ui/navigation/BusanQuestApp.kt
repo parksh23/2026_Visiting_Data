@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -24,6 +25,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.busasnquest.data.local.TokenStore
+import com.example.busasnquest.data.remote.SessionManager
 import com.example.busasnquest.ui.auth.LoginScreen
 import com.example.busasnquest.ui.home.HomeScreen
 import com.example.busasnquest.ui.map.MapScreen
@@ -71,6 +73,18 @@ fun BusanQuestApp() {
 
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
+
+            // 401 세션 만료 이벤트 구독:
+            // 어떤 API 든 401 이 발생하면 (토큰은 인터셉터가 이미 삭제함)
+            // 백스택을 전부 비우고 로그인 화면으로 보낸다.
+            LaunchedEffect(navController) {
+                SessionManager.sessionExpired.collect {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
 
             Scaffold(containerColor = BgSoftBlue) { padding ->
                 Box(Modifier.fillMaxSize()) {

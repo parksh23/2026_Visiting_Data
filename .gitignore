@@ -1,0 +1,18 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Local backend runtime artifacts
+backend/data/
+backend/logs/
+backend/venv/
+backend/wallet/
+
+# Local virtual environments
+.venv/
+.venv-1/

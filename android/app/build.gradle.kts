@@ -37,6 +37,13 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        jniLibs {
+            // 카카오맵 네이티브 라이브러리(libK3fAndroid.so 등)를 설치 시 풀어주도록 설정
+            // (ReLinker가 .so 파일을 찾을 수 있게 함 → MissingLibraryException 해결)
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -55,5 +62,32 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation("androidx.compose.material:material-icons-extended")
+
+    // Compose Material Icons (버전 명시)
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
+
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    // Lifecycle (ViewModel + Compose)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+
+    // Retrofit / 네트워크
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // DataStore (토큰 저장)
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // 사진 / 위치 (CurrentLocation, PhotoLocation 용)
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    implementation("com.kakao.maps.open:android:2.12.18")
+
+    // 카카오 로그인 (카카오맵과 같은 네이티브 앱 키 사용)
+    implementation("com.kakao.sdk:v2-user:2.20.1")
 }

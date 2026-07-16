@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -76,7 +77,9 @@ fun RankingScreen(
         }
 
         is RankingUiState.Success -> {
-            LazyColumn {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+            ) {
                 item {
                     ScreenHeader(
                         title = "랭킹",

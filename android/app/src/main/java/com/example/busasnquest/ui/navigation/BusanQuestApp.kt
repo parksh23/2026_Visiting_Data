@@ -121,13 +121,15 @@ fun BusanQuestApp() {
                     composable("mission") { MissionScreen(navController) }
 
                     composable(
-                        route = "map/{region}",
+                        route = "map/{region}?focus={focus}",
                         arguments = listOf(
-                            navArgument("region") { type = NavType.StringType }
+                            navArgument("region") { type = NavType.StringType },
+                            navArgument("focus") { type = NavType.BoolType; defaultValue = false }
                         )
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
-                        MapScreen(region, navController)
+                        val focusSearch = it.arguments?.getBoolean("focus") ?: false
+                        MapScreen(region, navController, focusSearch)
                     }
 
                     composable("ranking") { RankingScreen(navController) }

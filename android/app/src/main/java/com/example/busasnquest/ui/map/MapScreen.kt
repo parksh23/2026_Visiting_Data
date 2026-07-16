@@ -18,13 +18,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,11 +48,25 @@ import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 
 @Composable
-fun MapScreen(region: String, navController: androidx.navigation.NavHostController) {
+fun MapScreen(
+    region: String,
+    navController: androidx.navigation.NavHostController,
+    focusSearch: Boolean = false
+) {
     // 검색 결과 선택 시 카메라 이동에 쓰기 위해 지도 인스턴스를 보관
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedMission by remember { mutableStateOf<com.example.busasnquest.data.model.OngoingMission?>(null) }
+
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(focusSearch) {
+        if (focusSearch) {
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     // region 내 미션 중 제목/구군명이 검색어와 일치하는 목록
     val missionsList by MissionRepository.missions.collectAsStateWithLifecycle()
@@ -172,6 +190,7 @@ fun MapScreen(region: String, navController: androidx.navigation.NavHostControll
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(searchFocusRequester)
                         .background(Color.White, RoundedCornerShape(14.dp))
                 )
 

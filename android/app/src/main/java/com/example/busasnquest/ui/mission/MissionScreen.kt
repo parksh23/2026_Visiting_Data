@@ -52,7 +52,9 @@ fun MissionScreen(
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(homeViewModel)
 
-    LazyColumn {
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+    ) {
 
         item {
             ScreenHeader(

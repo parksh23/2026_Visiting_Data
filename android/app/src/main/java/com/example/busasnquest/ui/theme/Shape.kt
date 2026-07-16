@@ -32,6 +32,8 @@ object Dimens {
     val cardPadding = 18.dp
     val cardGap = 12.dp
 
+    val bottomBarSpace = 50.dp   // 플로팅 탭바에 안 가려지게 스크롤 콘텐츠 맨 아래 여백
+
     // Elevation (부드러운 그림자)
     val elevationFloating = 8.dp
     val elevationCard = 2.dp

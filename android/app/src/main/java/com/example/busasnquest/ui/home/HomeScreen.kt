@@ -60,6 +60,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = Dimens.bottomBarSpace)
     ) {
         Spacer(Modifier.height(12.dp))
 
@@ -69,7 +70,7 @@ fun HomeScreen(
         Spacer(Modifier.height(16.dp))
 
         // 검색 바
-        SearchPill()
+        SearchPill { navController.navigate("map/부산?focus=true") }
 
         Spacer(Modifier.height(16.dp))
 
@@ -182,13 +183,14 @@ private fun HomeHeader(points: Int) {
 }
 
 @Composable
-private fun SearchPill() {
+private fun SearchPill(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
             .background(CardWhite)
+            .clickable { onClick() }
             .padding(horizontal = 20.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

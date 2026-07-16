@@ -45,6 +45,7 @@ fun ProfileScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(bottom = Dimens.bottomBarSpace)
     ) {
         ScreenHeader(
             title = "내 정보",

@@ -45,6 +45,17 @@ Bash
 uvicorn app.main:app --reload
 서버가 켜지면 브라우저에서 http://127.0.0.1:8000/docs 에 접속해 보세요. FastAPI가 자동으로 만들어준 멋진 API 테스트 화면(Swagger UI)을 볼 수 있습니다!
 ```
+
+## 프론트 연동 2차 적용
+
+- JWT 만료 기본값은 7일이며 `JWT_EXPIRE_MINUTES`로 변경할 수 있습니다. 리프레시 토큰은 사용하지 않습니다.
+- 미션 타입은 `PHOTO`, `CURRENT_LOCATION`, `RECEIPT` 세 종류입니다.
+- 위치 인증 허용 반경 기본값은 미션별 `RADIUS_M`이며 시드 데이터는 300m입니다.
+- 구·군 상태는 `empty`, `ongoing`, `cleared` 세 종류입니다.
+- 이미지 업로드는 JPG, 최대 5MB를 지원합니다.
+
+기존 Oracle DB에는 먼저 `migrations/002_frontend_integration.sql`을 적용하세요.
+로컬 화면 검증 데이터는 앱 디렉터리에서 `python seed_data.py`로 생성할 수 있습니다.
 📂 폴더 구조 (Folder Structure)
 app/api/ : URL 주소별 라우터 모음 (장소 API, 유저 API 등)
 

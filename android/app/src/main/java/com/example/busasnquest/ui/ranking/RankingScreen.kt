@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.busasnquest.data.model.RankEntry
+import com.example.busasnquest.ui.components.ErrorView
+import com.example.busasnquest.ui.components.LoadingView
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
@@ -56,24 +58,19 @@ import androidx.navigation.NavHostController
 @Composable
 fun RankingScreen(
     navController: NavHostController,
-    //서버 연결되면 이걸로 수정
-    //viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
-    viewModel: RankingViewModel = viewModel()
+    // 서버 연동: 탭 선택 시 /api/v1/rankings?type=all|region|friend 호출
+    viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
 ) {
     val state by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
 
     when (val s = state) {
         is RankingUiState.Loading -> {
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            LoadingView("랭킹을 불러오는 중...")
         }
 
         is RankingUiState.Error -> {
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text(s.message, color = TextSub)
-            }
+            ErrorView(message = s.message, onRetry = viewModel::retry)
         }
 
         is RankingUiState.Success -> {

@@ -135,6 +135,36 @@ object MissionRepository {
     }
 
 
+    /**
+     * 미션 인증을 서버로 제출한다. POST /api/v1/missions/verify
+     *
+     * 타입별로 채워야 하는 필드 (MissionVerifyRequestDto):
+     * - CURRENT_LOCATION → latitude, longitude
+     * - PHOTO            → photo_url (+ 사진의 GPS 좌표도 함께 전송)
+     * - RECEIPT          → receipt_image_url
+     *
+     * 성공/실패를 Result 로 돌려주고, 상태 변경(setCompleted/setError)은
+     * 호출한 쪽(HomeViewModel)에서 처리한다.
+     */
+    suspend fun verifyOnServer(request: MissionVerifyRequestDto): Result<String> {
+        return try {
+            val response = RetrofitInstance.api.verifyMission(request)
+            if (response.success) {
+                Result.success(response.message)
+            } else {
+                // 200 이지만 서버가 인증 거절 (예: 위치가 미션 장소와 다름)
+                Result.failure(Exception(response.message.ifBlank { "인증에 실패했습니다." }))
+            }
+        } catch (e: retrofit2.HttpException) {
+            Result.failure(Exception("인증 요청이 실패했습니다. (${e.code()})"))
+        } catch (e: java.io.IOException) {
+            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        } catch (e: Exception) {
+            Result.failure(Exception("인증 처리 중 오류가 발생했습니다."))
+        }
+    }
+
+
     // 특정 구에서 내가 완료한 미션 수
     fun completedCountInDistrict(district: String): Int {
         return _missions.value.count {

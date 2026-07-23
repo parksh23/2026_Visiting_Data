@@ -62,6 +62,31 @@ object RetrofitInstance {
                 chain.proceed(newRequest)
             }
 
+            // 401 Unauthorized 공통 처리 인터셉터
+            // - 토큰 만료/잘못된 토큰이면 저장된 JWT 를 삭제하고
+            // - SessionManager 로 이벤트를 발행 → BusanQuestApp 이 로그인 화면으로 이동
+            // - 로그인/회원가입/카카오 요청 자체의 401(비밀번호 틀림 등)은 제외
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val response = chain.proceed(request)
+
+                val isAuthCall = request.url.encodedPath.contains("/auth/")
+
+                if (response.code == 401 && !isAuthCall) {
+                    Log.w("AUTH_INTERCEPTOR", "401 발생 → 토큰 삭제 후 로그인 화면 이동: ${request.url}")
+
+                    // 저장된 JWT 삭제 (인터셉터는 suspend 불가 → runBlocking)
+                    runBlocking {
+                        TokenStore(appContext).clear()
+                    }
+
+                    // NavHost 쪽에 세션 만료 알림 (이벤트 발행만 하고 바로 빠져나옴)
+                    SessionManager.notifySessionExpired()
+                }
+
+                response
+            }
+
             // 통신 로그 확인용
             .addInterceptor(logger)
             .build()

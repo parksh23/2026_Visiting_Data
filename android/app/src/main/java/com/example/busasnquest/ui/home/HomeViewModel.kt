@@ -3,6 +3,9 @@ package com.example.busasnquest.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.busasnquest.data.model.MissionState
+import com.example.busasnquest.data.model.MissionType
+import com.example.busasnquest.data.model.toServerType
+import com.example.busasnquest.data.remote.MissionVerifyRequestDto
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.data.repository.UserRepository
@@ -10,7 +13,6 @@ import com.example.busasnquest.util.getCurrentLocation
 import com.example.busasnquest.util.readPhotoLocation
 import android.content.Context
 import android.net.Uri
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,26 +68,50 @@ class HomeViewModel : ViewModel() {
     // 보유 포인트 (홈 헤더 칩용)
     val points: StateFlow<Int> = UserRepository.points
 
-    // 사진을 골랐을 때 (id로 미션 지정)
+    // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
+
+    // PHOTO: 사진을 골랐을 때 → 사진 GPS 확인 후 photo_url + 좌표 전송
     fun onPhotoPicked(id: Int, context: Context, uri: Uri) {
         val location = readPhotoLocation(context, uri)
-        if (location != null) {
-            verifyAndComplete(id)
-        } else {
+        if (location == null) {
             MissionRepository.setError(id, "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
+            return
+        }
+        viewModelScope.launch {
+            MissionRepository.setVerifying(id)
+            // TODO(백엔드): 이미지 업로드 엔드포인트(presigned URL / multipart)가 정해지면
+            //  업로드 후 받은 실제 URL 로 교체. 지금은 기기 내 uri 문자열을 임시 전송.
+            submitVerification(
+                id,
+                MissionVerifyRequestDto(
+                    missionId = id,
+                    missionType = MissionType.PHOTO_LOCATION.toServerType(),
+                    photoUrl = uri.toString(),
+                    latitude = location.latitude,
+                    longitude = location.longitude
+                )
+            )
         }
     }
 
-    // 위치 권한 허락 → 현재 위치로 인증
+    // CURRENT_LOCATION: 위치 권한 허락 → 현재 위도/경도 전송
     fun onLocationPermissionGranted(id: Int, context: Context) {
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
             val location = getCurrentLocation(context)
-            if (location != null) {
-                completeMission(id)
-            } else {
+            if (location == null) {
                 MissionRepository.setError(id, "위치를 가져오지 못했어요. 야외에서 다시 시도해주세요.")
+                return@launch
             }
+            submitVerification(
+                id,
+                MissionVerifyRequestDto(
+                    missionId = id,
+                    missionType = MissionType.CURRENT_LOCATION.toServerType(),
+                    latitude = location.latitude,
+                    longitude = location.longitude
+                )
+            )
         }
     }
 
@@ -93,23 +119,34 @@ class HomeViewModel : ViewModel() {
         MissionRepository.setError(id, "위치 권한이 있어야 이 미션을 완료할 수 있어요.")
     }
 
-    // 영수증 촬영 완료
-    fun onReceiptCaptured(id: Int, success: Boolean) {
+    // RECEIPT: 영수증 촬영 완료 → receipt_image_url 전송
+    fun onReceiptCaptured(id: Int, success: Boolean, uri: Uri?) {
         if (!success) return
-        verifyAndComplete(id)
+        viewModelScope.launch {
+            MissionRepository.setVerifying(id)
+            // TODO(백엔드): 사진과 동일하게 업로드 엔드포인트 확정 후 실제 URL 로 교체.
+            submitVerification(
+                id,
+                MissionVerifyRequestDto(
+                    missionId = id,
+                    missionType = MissionType.RECEIPT.toServerType(),
+                    receiptImageUrl = uri?.toString()
+                )
+            )
+        }
     }
 
     fun onCameraPermissionDenied(id: Int) {
         MissionRepository.setError(id, "카메라 권한이 있어야 영수증을 촬영할 수 있어요.")
     }
 
-    // 인증 중 표시 → 1초 후 완료 (사진/영수증 공통)
-    private fun verifyAndComplete(id: Int) {
-        viewModelScope.launch {
-            MissionRepository.setVerifying(id)
-            delay(1000)
-            completeMission(id)
-        }
+    // 공통: 서버 제출 → 성공이면 완료 처리, 실패면 에러 표시 후 진행 중으로 복귀
+    private suspend fun submitVerification(id: Int, request: MissionVerifyRequestDto) {
+        MissionRepository.verifyOnServer(request)
+            .onSuccess { completeMission(id) }
+            .onFailure { e ->
+                MissionRepository.setError(id, e.message ?: "인증에 실패했습니다.")
+            }
     }
 
     // 완료 처리 + 포인트 적립

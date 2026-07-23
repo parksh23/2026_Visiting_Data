@@ -130,9 +130,12 @@ class RetrofitAuthRepository(
             val response = api.kakaoLogin(KakaoLoginRequestDto(kakaoAccessToken))
             Result.success(response.token)
         } catch (e: HttpException) {
-            Result.failure(Exception("카카오 로그인에 실패했습니다. 다시 시도해주세요."))
+            // 서버가 내려준 실패 사유(detail)가 있으면 그대로 보여준다
+            Result.failure(Exception(e.serverDetail("카카오 로그인에 실패했습니다. 다시 시도해주세요.")))
         } catch (e: IOException) {
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        } catch (e: Exception) {
+            Result.failure(Exception("카카오 로그인 중 오류가 발생했습니다."))
         }
     }
     /**

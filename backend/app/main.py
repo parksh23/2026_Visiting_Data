@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
@@ -12,6 +15,7 @@ import models
 from routers import text_files
 from routers import api_v1
 
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 app = FastAPI()
 
@@ -30,6 +34,20 @@ Base.metadata.create_all(bind=engine)
 app.include_router(text_files.router)
 app.include_router(api_v1.router)
 
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "요청 형식이 올바르지 않습니다."},
+    )
+
 
 # =========================
 # 서버 상태 확인용 루트 API
@@ -44,7 +62,6 @@ def read_root():
 # 로그 txt 저장 설정
 # =========================
 
-BASE_DIR = Path(__file__).resolve().parents[1]
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "server_signals.txt"
 

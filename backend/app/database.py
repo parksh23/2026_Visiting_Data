@@ -1,69 +1,64 @@
-import os
 import base64
-import zipfile
+import os
 import tempfile
+import zipfile
+from pathlib import Path
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
 
-ORACLE_USER = os.getenv("ORACLE_USER")
-ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD")
-ORACLE_DSN = os.getenv("ORACLE_DSN")
 
-# Render에 등록한 지갑 관련 변수 가져오기
-WALLET_ZIP_BASE64 = os.getenv("WALLET_ZIP_BASE64")
-ORACLE_WALLET_PASSWORD = os.getenv("ORACLE_WALLET_PASSWORD")
-ORACLE_WALLET_PATH = os.getenv("ORACLE_WALLET_PATH")
+def _oracle_database_url() -> str:
+    user = os.getenv("ORACLE_USER")
+    password = os.getenv("ORACLE_PASSWORD")
+    dsn = os.getenv("ORACLE_DSN")
+    if not all((user, password, dsn)):
+        raise RuntimeError(
+            "DATABASE_URL 또는 ORACLE_USER/ORACLE_PASSWORD/ORACLE_DSN을 설정해 주세요."
+        )
+    return f"oracle+oracledb://{user}:{password}@{dsn}"
 
-# 🌟 클라우드(Render) 환경이라 BASE64 데이터가 존재한다면, 서버 부팅 시 압축 풀기
-if WALLET_ZIP_BASE64 and not ORACLE_WALLET_PATH:
-    # 서버 내부의 임시 폴더 경로 생성
-    wallet_dir = os.path.join(tempfile.gettempdir(), "oracle_wallet")
-    os.makedirs(wallet_dir, exist_ok=True)
 
-    zip_path = os.path.join(wallet_dir, "wallet.zip")
+def _prepare_wallet() -> str | None:
+    wallet_path = os.getenv("ORACLE_WALLET_PATH")
+    wallet_base64 = os.getenv("WALLET_ZIP_BASE64")
+    if wallet_path or not wallet_base64:
+        return wallet_path
 
-    # 1. Base64 텍스트를 디코딩하여 zip 파일로 저장
-    with open(zip_path, "wb") as f:
-        f.write(base64.b64decode(WALLET_ZIP_BASE64))
+    wallet_dir = Path(tempfile.gettempdir()) / "busan_quest_oracle_wallet"
+    wallet_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = wallet_dir / "wallet.zip"
+    zip_path.write_bytes(base64.b64decode(wallet_base64))
+    with zipfile.ZipFile(zip_path) as archive:
+        archive.extractall(wallet_dir)
 
-    # 2. 압축 풀기
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(wallet_dir)
-
-    # 3. 압축 푼 폴더 내부를 뒤져서 tnsnames.ora 파일이 있는 '진짜 폴더 경로' 찾기
-    found_wallet_path = wallet_dir
-    for root, dirs, files in os.walk(wallet_dir):
+    for root, _, files in os.walk(wallet_dir):
         if "tnsnames.ora" in files:
-            found_wallet_path = root
-            break
-
-    # 4. 오라클이 찾은 경로를 사용할 수 있도록 지정
-    ORACLE_WALLET_PATH = found_wallet_path
-    print(f"✅ 오라클 지갑 찐 위치 세팅 완료: {ORACLE_WALLET_PATH}")
+            return root
+    return str(wallet_dir)
 
 
-DATABASE_URL = f"oracle+oracledb://{ORACLE_USER}:{ORACLE_PASSWORD}@{ORACLE_DSN}"
+DATABASE_URL = os.getenv("DATABASE_URL") or _oracle_database_url()
+engine_options: dict = {"pool_pre_ping": True}
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    connect_args={
-        "config_dir": ORACLE_WALLET_PATH,
-        "wallet_location": ORACLE_WALLET_PATH,
-        "wallet_password": ORACLE_WALLET_PASSWORD,
-    }
-)
+if DATABASE_URL.startswith("sqlite"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+elif DATABASE_URL.startswith("oracle"):
+    wallet_path = _prepare_wallet()
+    if wallet_path:
+        engine_options["connect_args"] = {
+            "config_dir": wallet_path,
+            "wallet_location": wallet_path,
+            "wallet_password": os.getenv("ORACLE_WALLET_PASSWORD"),
+        }
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
+engine = create_engine(DATABASE_URL, **engine_options)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()

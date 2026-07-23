@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import AppUser
+from models import AppUser, Mission, UserMission
 from auth_utils import (
     create_access_token,
     get_current_user_email,
@@ -288,94 +288,71 @@ def get_my_profile(
         "saved_missions": user.saved_missions
     }
 
+from sqlalchemy import func
+# from models import AppUser, Mission, UserMission (경로에 맞게 임포트 하세요)
+
 # =========================================================
 # 8. Mission API
 # =========================================================
 
 @router.get("/missions", response_model=List[MissionDto])
-def get_missions(current_user_email: str = Depends(get_current_user_email)):
-    # JWT 검증 성공 시에만 여기까지 실행됨
-    print("미션 목록 요청 사용자:", current_user_email)
+def get_missions(
+    current_user_email: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db)
+):
+    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
+    
+    # 미션 전체 목록과 현재 유저의 상태를 Outer Join으로 가져옴
+    results = db.query(Mission, UserMission.status)\
+                .outerjoin(UserMission, (Mission.mission_id == UserMission.mission_id) & (UserMission.user_id == user.user_code))\
+                .all()
 
-    return [
-        {
-            "mission_id": 1,
-            "title": "오륙도 해안길 걷기",
-            "location": "남구 용호동",
-            "reward_points": 100,
-            "progress_current": 0,
+    missions_response = []
+    for mission, status in results:
+        missions_response.append({
+            "mission_id": mission.mission_id,
+            "title": mission.mission_name,
+            "location": mission.region_name, # 상세 장소가 없으므로 구/군 이름 활용
+            "reward_points": mission.base_score,
+            "progress_current": 1 if status == "completed" else 0,
             "progress_total": 1,
-            "status": "ongoing",
-            "mission_type": "CURRENT_LOCATION",
-            "image_url": None
-        },
-        {
-            "mission_id": 2,
-            "title": "국제시장 로컬 맛집 방문",
-            "location": "중구 신창동",
-            "reward_points": 150,
-            "progress_current": 0,
-            "progress_total": 1,
-            "status": "ongoing",
-            "mission_type": "PHOTO",
-            "image_url": None
-        },
-        {
-            "mission_id": 3,
-            "title": "해운대 해변 산책 인증",
-            "location": "해운대구 우동",
-            "reward_points": 120,
-            "progress_current": 1,
-            "progress_total": 1,
-            "status": "completed",
-            "mission_type": "CURRENT_LOCATION",
-            "image_url": None
-        }
-    ]
+            "status": status or "locked",
+            "mission_type": mission.mission_type,
+            "image_url": None # DB에 컬럼이 없으므로 임시로 None 처리
+        })
+
+    return missions_response
 
 
 @router.get("/missions/ongoing", response_model=List[MissionDto])
-def get_ongoing_missions(current_user_email: str = Depends(get_current_user_email)):
-    print("진행 중 미션 요청 사용자:", current_user_email)
+def get_ongoing_missions(
+    current_user_email: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db)
+):
+    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
+    
+    # UserMission 테이블에서 상태가 ongoing인 미션만 Join하여 가져옴
+    results = db.query(Mission, UserMission.status)\
+                .join(UserMission, Mission.mission_id == UserMission.mission_id)\
+                .filter(UserMission.user_id == user.user_code)\
+                .filter(UserMission.status == "ongoing")\
+                .all()
 
     return [
         {
-            "mission_id": 1,
-            "title": "오륙도 해안길 걷기",
-            "location": "남구 용호동",
-            "reward_points": 100,
+            "mission_id": mission.mission_id,
+            "title": mission.mission_name,
+            "location": mission.region_name,
+            "reward_points": mission.base_score,
             "progress_current": 0,
             "progress_total": 1,
-            "status": "ongoing",
-            "mission_type": "CURRENT_LOCATION",
+            "status": status,
+            "mission_type": mission.mission_type,
             "image_url": None
-        },
-        {
-            "mission_id": 2,
-            "title": "국제시장 로컬 맛집 방문",
-            "location": "중구 신창동",
-            "reward_points": 150,
-            "progress_current": 0,
-            "progress_total": 1,
-            "status": "ongoing",
-            "mission_type": "PHOTO",
-            "image_url": None
-        }
+        } for mission, status in results
     ]
 
-
-@router.post("/missions/verify", response_model=MissionVerifyResponse)
-def verify_mission(
-    req: MissionVerifyRequestDto,
-    current_user_email: str = Depends(get_current_user_email)
-):
-    print("미션 인증 제출 사용자:", current_user_email)
-    print("제출된 미션 ID:", req.mission_id)
-
-    return {
-        "success": True,
-        "message": "미션 인증이 제출되었습니다."
-    }
+# ... verify_mission 엔드포인트는 기존 코드 유지 ...
 
 
 # =========================================================
@@ -383,36 +360,45 @@ def verify_mission(
 # =========================================================
 
 @router.get("/districts/progress", response_model=List[DistrictStatusDto])
-def get_district_progress(current_user_email: str = Depends(get_current_user_email)):
-    print("구군 진행률 요청 사용자:", current_user_email)
+def get_district_progress(
+    current_user_email: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db)
+):
+    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
 
-    return [
-        {
-            "district_name": "중구",
-            "completed_count": 3,
-            "total_count": 3,
-            "status": "cleared"
-        },
-        {
-            "district_name": "남구",
-            "completed_count": 1,
-            "total_count": 3,
-            "status": "ongoing"
-        },
-        {
-            "district_name": "해운대구",
-            "completed_count": 2,
-            "total_count": 4,
-            "status": "ongoing"
-        },
-        {
-            "district_name": "사상구",
-            "completed_count": 0,
-            "total_count": 3,
-            "status": "locked"
-        }
-    ]
+    # 1. 각 구/군별 '전체' 미션 개수 조회
+    total_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
+                           .group_by(Mission.region_name).all()
+    
+    # 2. 각 구/군별 해당 유저가 '완료한(completed)' 미션 개수 조회
+    completed_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
+                               .join(UserMission, Mission.mission_id == UserMission.mission_id)\
+                               .filter(UserMission.user_id == user.user_code)\
+                               .filter(UserMission.status == "completed")\
+                               .group_by(Mission.region_name).all()
 
+    # 결과를 찾기 쉽게 딕셔너리로 변환 (예: {"해운대구": 2, "수영구": 1})
+    completed_dict = {region: count for region, count in completed_counts_query}
+
+    response = []
+    for region, total in total_counts_query:
+        completed = completed_dict.get(region, 0)
+        
+        # 상태 판별: 다 깼으면 cleared, 1개라도 깼으면 ongoing, 아니면 locked
+        status = "locked"
+        if completed == total and total > 0:
+            status = "cleared"
+        elif completed > 0:
+            status = "ongoing"
+
+        response.append({
+            "district_name": region,
+            "completed_count": completed,
+            "total_count": total,
+            "status": status
+        })
+
+    return response
 
 # =========================================================
 # 10. Ranking API

@@ -46,3 +46,27 @@ class AppUser(Base):
     saved_missions = Column("SAVED_MISSIONS", Integer, nullable=False, default=0)
 
     conquered_districts = Column("CONQUERED_DISTRICTS", Integer, nullable=False, default=0)
+
+# =========================
+# 전체 미션 정보 테이블
+# =========================
+class Mission(Base):
+    __tablename__ = "MISSIONS"
+
+    mission_id = Column("MISSION_ID", Integer, primary_key=True, index=True)
+    mission_name = Column("MISSION_NAME", String(100), nullable=False)
+    region_name = Column("REGION_NAME", String(50), nullable=False)
+    base_score = Column("BASE_SCORE", Integer, default=0)
+    mission_type = Column("MISSION_TYPE", String(50), nullable=False)
+
+
+# =========================
+# 유저별 미션 진행 상태 테이블
+# =========================
+class UserMission(Base):
+    __tablename__ = "USER_MISSIONS"
+
+    mapping_id = Column("MAPPING_ID", Integer, primary_key=True, index=True)
+    user_id = Column("USER_ID", String(20), nullable=False, index=True) # AppUser의 user_code와 매칭
+    mission_id = Column("MISSION_ID", Integer, nullable=False, index=True)
+    status = Column("STATUS", String(30), default="ongoing")

@@ -21,7 +21,7 @@ import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.ui.components.InlineErrorBanner
-import com.example.busasnquest.ui.components.MissionHeroCard
+import com.example.busasnquest.ui.components.MissionCard
 import com.example.busasnquest.ui.components.ScreenHeader
 import com.example.busasnquest.ui.components.SegmentedToggle
 import com.example.busasnquest.ui.components.rememberMissionVerifier
@@ -33,8 +33,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 /**
  * 미션 탭 (리디자인 v2)
  * - 세그먼트 [지역별 | 종류별]
- * - 지역별: 부산 16개 구·군 4×4 히트맵 그리드가 남은 세로 공간을 꽉 채움 (weight 기반)
- * - 종류별: 인증 방식 필터 칩 + 이미지 히어로 카드 리스트 (스크롤)
+ * - 지역별: 부산 지도 실루엣 히트맵 (남은 세로 공간 전체 사용)
+ * - 종류별: 인증 방식 필터 칩 + 미션 카드 리스트 (스크롤)
  * 지도 탭과의 역할 분리(A안): 여기는 "게임판", 지도 탭은 실제 카카오맵.
  */
 @Composable
@@ -49,7 +49,7 @@ fun MissionScreen(
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(homeViewModel)
 
-    // 진행 중 미션이 있는 구 (그리드 박스에 점 표시)
+    // 진행 중 미션이 있는 구 (지도에 점 표시)
     val inProgressSet = remember(uiState.allMissions) {
         uiState.allMissions
             .filter { it.state == MissionState.IN_PROGRESS || it.state == MissionState.VERIFYING }
@@ -57,7 +57,7 @@ fun MissionScreen(
             .toSet()
     }
 
-    // 그리드가 weight 로 남은 높이를 전부 쓰도록 LazyColumn 이 아닌 Column 구조
+    // 지도가 weight 로 남은 높이를 전부 쓰도록 LazyColumn 이 아닌 Column 구조
     Column(modifier = Modifier.fillMaxSize()) {
 
         ScreenHeader(
@@ -80,20 +80,20 @@ fun MissionScreen(
         Spacer(modifier = Modifier.height(14.dp))
 
         if (uiState.selectedTab == 0) {
-            // ───── 지역별: 16개 구·군 히트맵 그리드 (남은 화면 전체 사용) ─────
-            DistrictGrid(
+            // ───── 지역별: 부산 지도 실루엣 히트맵 (남은 화면 전체 사용) ─────
+            BusanMap(
                 districts = uiState.districts,
                 inProgressSet = inProgressSet,
                 selected = uiState.selectedDistrict,
                 onSelect = { viewModel.selectDistrict(it) },
                 modifier = Modifier
                     .weight(1f)
-                    // 시스템 내비게이션 인셋 + 플로팅 탭바 높이만큼 확보 (마지막 행 가림 방지)
+                    // 시스템 내비게이션 인셋 + 플로팅 탭바 높이만큼 확보 (지도 하단 가림 방지)
                     .navigationBarsPadding()
                     .padding(bottom = 92.dp)
             )
         } else {
-            // ───── 종류별: 인증 방식 필터 칩 + 히어로 카드 리스트 ─────
+            // ───── 종류별: 인증 방식 필터 칩 + 미션 카드 리스트 ─────
             TypeFilterChips(
                 selected = uiState.typeFilter,
                 onSelect = { viewModel.selectTypeFilter(it) }
@@ -119,20 +119,12 @@ fun MissionScreen(
                     }
                 } else {
                     items(filtered, key = { it.mission.id }) { item ->
-                        MissionHeroCard(
+                        MissionCard(
                             item = item,
+                            onChallenge = { viewModel.startMission(item.mission.id) },
                             onClick = { navController.navigate("missionDetail/${item.mission.id}") },
-                            onToggleSaved = { viewModel.toggleSaved(item.mission.id) },
-                            onAction = {
-                                when (item.state) {
-                                    MissionState.NOT_STARTED -> viewModel.startMission(item.mission.id)
-                                    MissionState.IN_PROGRESS -> verify(item.mission.id, item.mission.type)
-                                    else -> Unit
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Dimens.screenPadding)
+                            onVerify = { verify(item.mission.id, item.mission.type) },
+                            onToggleSaved = { viewModel.toggleSaved(item.mission.id) }
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                     }

@@ -90,5 +90,8 @@ dependencies {
 
     // 카카오 로그인 (카카오맵과 같은 네이티브 앱 키 사용)
     implementation("com.kakao.sdk:v2-user:2.20.1")
+
+    // 이미지 로딩 (미션 히어로 카드 image_url)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 }
 

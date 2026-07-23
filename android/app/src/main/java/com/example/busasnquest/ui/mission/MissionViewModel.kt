@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.data.repository.MissionRepository
+import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.repository.MissionWithState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,10 +15,12 @@ import kotlinx.coroutines.launch
 import com.example.busasnquest.data.repository.OccupationStat
 
 data class MissionUiState(
-    val selectedTab: Int = 0,                              // 0 = 전체, 1 = 지역
+    val selectedTab: Int = 0,                              // 0 = 지역별, 1 = 종류별
     val allMissions: List<MissionWithState> = emptyList(),
     val districts: List<DistrictMissionProgress> = emptyList(),
-    val expandedDistrict: String? = null
+    val expandedDistrict: String? = null,                  // (구 UI 잔재 — 그리드에서는 selectedDistrict 사용)
+    val selectedDistrict: String? = null,                  // 그리드에서 탭한 구 (바텀시트 열림)
+    val typeFilter: MissionType? = null                    // 종류별 탭 필터 (null = 전체)
 )
 
 class MissionViewModel : ViewModel() {
@@ -25,7 +28,9 @@ class MissionViewModel : ViewModel() {
     private val _localState = MutableStateFlow(LocalState())
     private data class LocalState(
         val selectedTab: Int = 0,
-        val expandedDistrict: String? = null
+        val expandedDistrict: String? = null,
+        val selectedDistrict: String? = null,
+        val typeFilter: MissionType? = null
     )
 
     // 서버에서 미션을 불러오다 실패했을 때의 메시지 (null 이면 정상)
@@ -65,7 +70,9 @@ class MissionViewModel : ViewModel() {
                 selectedTab = local.selectedTab,
                 allMissions = missions,
                 districts = districts,
-                expandedDistrict = local.expandedDistrict
+                expandedDistrict = local.expandedDistrict,
+                selectedDistrict = local.selectedDistrict,
+                typeFilter = local.typeFilter
             )
         }.stateIn(
             scope = viewModelScope,
@@ -81,6 +88,23 @@ class MissionViewModel : ViewModel() {
     fun toggleDistrict(name: String) {
         _localState.value = _localState.value.copy(
             expandedDistrict = if (_localState.value.expandedDistrict == name) null else name
+        )
+    }
+
+    // 그리드에서 구 박스를 탭 → 바텀시트 열기
+    fun selectDistrict(name: String) {
+        _localState.value = _localState.value.copy(selectedDistrict = name)
+    }
+
+    // 바텀시트 닫기
+    fun dismissDistrict() {
+        _localState.value = _localState.value.copy(selectedDistrict = null)
+    }
+
+    // 종류별 탭 필터 (같은 칩 재탭 = 전체로 해제)
+    fun selectTypeFilter(type: MissionType?) {
+        _localState.value = _localState.value.copy(
+            typeFilter = if (_localState.value.typeFilter == type) null else type
         )
     }
 

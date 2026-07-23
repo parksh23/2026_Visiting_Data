@@ -44,6 +44,14 @@ data class OccupationStat(
 )
 
 
+// 부산 16개 구·군 전체 (15구 + 기장군) — 그리드 히트맵의 기준 목록
+val ALL_BUSAN_DISTRICTS = listOf(
+    "강서구", "북구", "금정구", "기장군",
+    "사상구", "부산진구", "동래구", "해운대구",
+    "사하구", "서구", "연제구", "수영구",
+    "중구", "동구", "남구", "영도구"
+)
+
 // 앱 전체에서 미션을 관리하는 단일 진실 공급원
 object MissionRepository {
 
@@ -207,26 +215,27 @@ object MissionRepository {
 
     // 구·군별 진행률
     // 서버 데이터가 있으면 서버 값을 사용하고,
-    // 아직 서버 데이터가 없으면 미션 목록 기준으로 직접 계산
+    // 아직 서버 데이터가 없으면 미션 목록 기준으로 직접 계산.
+    // 어느 쪽이든 부산 16개 구·군 전체로 확장해서 반환 (그리드 히트맵용 — 데이터 없는 구는 0/0)
     val districtProgress: StateFlow<List<DistrictMissionProgress>> =
         combine(
             _missions,
             _serverDistrictProgress
         ) { missionList, serverDistricts ->
 
-            if (serverDistricts != null) {
-                serverDistricts
-            } else {
-                missionList
-                    .groupBy { it.mission.district }
-                    .map { (district, missions) ->
-                        DistrictMissionProgress(
-                            name = district,
-                            completed = missions.count { it.state == MissionState.COMPLETED },
-                            total = missions.size
-                        )
-                    }
-                    .sortedByDescending { it.total }
+            val known = serverDistricts ?: missionList
+                .groupBy { it.mission.district }
+                .map { (district, missions) ->
+                    DistrictMissionProgress(
+                        name = district,
+                        completed = missions.count { it.state == MissionState.COMPLETED },
+                        total = missions.size
+                    )
+                }
+
+            val byName = known.associateBy { it.name }
+            ALL_BUSAN_DISTRICTS.map { name ->
+                byName[name] ?: DistrictMissionProgress(name = name, completed = 0, total = 0)
             }
         }.stateIn(
             scope = scope,
@@ -295,7 +304,8 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         current = progressCurrent,
         total = progressTotal,
         type = missionType.toMissionType(),
-        district = location.extractDistrict()
+        district = location.extractDistrict(),
+        imageUrl = imageUrl
     )
 }
 

@@ -15,7 +15,8 @@ data class OngoingMission(
     val type: MissionType = MissionType.CURRENT_LOCATION,
     val district: String = "",
     val lat: Double = 0.0,      // 위도 (지도 핀)
-    val lng: Double = 0.0       // 경도 (지도 핀)
+    val lng: Double = 0.0,      // 경도 (지도 핀)
+    val imageUrl: String? = null // 히어로 카드용 대표 사진 (null 이면 구별 그라데이션 폴백)
 )
 
 // 구·군별 진행 현황

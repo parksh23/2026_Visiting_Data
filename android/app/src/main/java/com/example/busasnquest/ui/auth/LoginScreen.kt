@@ -45,17 +45,29 @@ fun LoginScreen(
 
     var selectedTab by remember { mutableStateOf(0) }       // 0=Log in, 1=Sign up
     var email by remember { mutableStateOf("") }
+    var nickname by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var passwordConfirm by remember { mutableStateOf("") }
     var passwordConfirmVisible by remember { mutableStateOf(false) }
-
+    var infoMessage by remember { mutableStateOf<String?>(null) }
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
 
-    // 로그인 성공 시 메인으로 이동
+    // 로그인 성공 시 메인으로 이동, 회원가입 -> 로그인
     LaunchedEffect(uiState) {
-        if (uiState is LoginUiState.Success) onLoginSuccess()
+        when (uiState) {
+            is LoginUiState.Success -> onLoginSuccess()
+            is LoginUiState.SignupSuccess -> {
+                selectedTab = 0                 // 로그인 탭으로 전환
+                password = ""
+                passwordConfirm = ""
+                nickname = ""
+                infoMessage = "회원가입이 완료되었습니다. 로그인해주세요."
+                viewModel.resetState()          // 상태 초기화 (Idle)
+            }
+            else -> {}
+        }
     }
 
     Box(
@@ -95,7 +107,17 @@ fun LoginScreen(
             )
 
             Spacer(Modifier.height(18.dp))
-
+            // ── 닉네임 (회원가입 탭에서만 표시) ──
+            if (selectedTab == 1) {
+                FieldLabel("닉네임")
+                Spacer(Modifier.height(8.dp))
+                AuthTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    hint = "닉네임을 입력하세요"
+                )
+                Spacer(Modifier.height(18.dp))
+            }
             // ── 비밀번호 ──
             FieldLabel("비밀번호")
             Spacer(Modifier.height(8.dp))
@@ -156,6 +178,11 @@ fun LoginScreen(
                         .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
                 )
             }
+            // ── 회원가입 완료 안내 (로그인 탭에서만) ──
+            if (infoMessage != null && selectedTab == 0) {
+                Spacer(Modifier.height(10.dp))
+                Text(infoMessage!!, color = Indigo, fontSize = 13.sp)
+            }
 
             // ── 에러 메시지 ──
             if (errorMessage != null) {
@@ -169,7 +196,7 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (selectedTab == 0) viewModel.login(email, password)
-                    else viewModel.signup(email, password, passwordConfirm)
+                    else viewModel.signup(email, password, passwordConfirm,nickname)
                 },
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),

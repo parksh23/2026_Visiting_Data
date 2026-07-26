@@ -39,3 +39,31 @@ val CoralTint = Color(0xFFFDF0EF)   // 내 행/로그아웃 등 옅은 배경
 val SeaBlue = Color(0xFF0E7C86)     // 보조 강조 (바다)
 val SeaBlueBg = Color(0xFFE1F5EE)   // 바다블루 옅은 배경
 val SurfaceGray = Color(0xFFF7F7F7) // 통계 카드 등 섹션 배경
+
+// ── 점령률 히트맵 스케일 (미션 탭 구·군 그리드) ──
+// 점령률이 오를수록 코럴이 진해진다. 50% 초과부터는 흰 글자(대비 확보).
+val Occupancy0 = CoralTint                  // 0%
+val Occupancy25 = Color(0xFFF5C4B3)         // 1~25%
+val Occupancy50 = Color(0xFFF0997B)         // 26~50%
+val Occupancy75 = Coral                     // 51~75%
+val Occupancy100 = CoralDark                // 76~100%
+
+// 옅은 배경 위 텍스트 (같은 코럴 계열의 진한 톤)
+val OccupancyTextDark = Color(0xFF993C1D)
+val OccupancyTextDarker = Color(0xFF712B13)
+
+/** 점령률(0f~1f) → 박스 배경색 */
+fun occupancyColor(rate: Float): Color = when {
+    rate <= 0f -> Occupancy0
+    rate <= 0.25f -> Occupancy25
+    rate <= 0.50f -> Occupancy50
+    rate <= 0.75f -> Occupancy75
+    else -> Occupancy100
+}
+
+/** 점령률(0f~1f) → 박스 텍스트색 (50% 초과부터 흰색) */
+fun occupancyTextColor(rate: Float): Color = when {
+    rate <= 0.25f -> OccupancyTextDark
+    rate <= 0.50f -> OccupancyTextDarker
+    else -> Color.White
+}

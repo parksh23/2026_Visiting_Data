@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
 sealed interface LoginUiState {
     object Idle : LoginUiState           // 입력 대기
     object Loading : LoginUiState        // 로그인 시도 중
-    object Success : LoginUiState        // 로그인 성공 (메인으로 이동)
+    object Success : LoginUiState          // 로그인 성공 (메인으로 이동)
+    object SignupSuccess : LoginUiState    // ← 추가: 회원가입 성공 (자동 로그인 X)
     data class Error(val message: String) : LoginUiState
 }
 
@@ -71,13 +72,16 @@ class AuthViewModel(
      * 2) 통과하면 repository.signup 을 호출한다.
      * 성공 시 토큰을 저장해 가입과 동시에 자동 로그인 처리한다.
      */
-    fun signup(email: String, password: String, passwordConfirm: String) {
+    fun signup(email: String, password: String, passwordConfirm: String, nickname: String) {
         val trimmedEmail = email.trim()
+        val trimmedNickname = nickname.trim()
 
         // 클라이언트 1차 유효성 검사
         val validationError = when {
             trimmedEmail.isBlank() || !trimmedEmail.contains("@") ->
                 "올바른 이메일 형식을 입력해주세요."
+            trimmedNickname.isBlank() ->
+                "닉네임을 입력해주세요."
             password.length < 8 ->
                 "비밀번호는 8자 이상이어야 합니다."
             password != passwordConfirm ->
@@ -91,10 +95,10 @@ class AuthViewModel(
 
         _uiState.value = LoginUiState.Loading
         viewModelScope.launch {
-            repository.signup(trimmedEmail, password)
-                .onSuccess { token ->
-                    tokenStore.saveToken(token)   // 가입과 동시에 자동 로그인
-                    _uiState.value = LoginUiState.Success
+            repository.signup(trimmedEmail, password, trimmedNickname)
+                .onSuccess {
+                    // 자동 로그인하지 않고, 사용자가 직접 다시 로그인하도록 한다
+                    _uiState.value = LoginUiState.SignupSuccess
                 }
                 .onFailure { e ->
                     _uiState.value = LoginUiState.Error(e.message ?: "회원가입에 실패했습니다.")

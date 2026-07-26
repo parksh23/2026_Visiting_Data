@@ -75,6 +75,7 @@ data class KakaoLoginRequestDto(
 // 회원가입 요청 - 서버로 보낼 것
 data class SignupRequestDto(
     val email: String,
+    val nickname: String,
     val password: String
 )
 // 미션 인증 제출 요청 DTO

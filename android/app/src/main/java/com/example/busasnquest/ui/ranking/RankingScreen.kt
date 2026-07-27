@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.ui.components.ErrorView
-import com.example.busasnquest.ui.components.LoadingView
 import com.example.busasnquest.ui.components.ScreenHeader
+import com.example.busasnquest.ui.components.SkeletonBox
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.Dimens
@@ -66,7 +66,7 @@ fun RankingScreen(
 
     when (val s = state) {
         is RankingUiState.Loading -> {
-            LoadingView("랭킹을 불러오는 중...")
+            RankingSkeleton()
         }
 
         is RankingUiState.Error -> {
@@ -113,6 +113,63 @@ fun RankingScreen(
 
                 item {
                     Spacer(modifier = Modifier.height(120.dp))
+                }
+            }
+        }
+    }
+}
+
+/** 랭킹 로딩 스켈레톤: 세그먼트 pill + 포디움 원 3개 + 리스트 줄 5개 */
+@Composable
+private fun RankingSkeleton() {
+    Column(modifier = Modifier.fillMaxSize()) {
+        ScreenHeader(
+            title = "랭킹",
+            subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
+        )
+
+        Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
+            SkeletonBox(
+                Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                shape = RoundedCornerShape(999.dp)
+            )
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                SkeletonBox(Modifier.size(46.dp), shape = CircleShape)
+                Spacer(Modifier.width(20.dp))
+                SkeletonBox(Modifier.size(60.dp), shape = CircleShape)
+                Spacer(Modifier.width(20.dp))
+                SkeletonBox(Modifier.size(46.dp), shape = CircleShape)
+            }
+            Spacer(Modifier.height(24.dp))
+
+            repeat(5) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SkeletonBox(Modifier.size(30.dp), shape = CircleShape)
+                    Spacer(Modifier.width(12.dp))
+                    SkeletonBox(
+                        Modifier
+                            .weight(1f)
+                            .height(14.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    SkeletonBox(
+                        Modifier
+                            .width(52.dp)
+                            .height(14.dp)
+                    )
                 }
             }
         }

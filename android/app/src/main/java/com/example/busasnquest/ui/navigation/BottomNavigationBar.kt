@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,9 +58,8 @@ fun BottomNavigationBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(10.dp, RoundedCornerShape(28.dp))
-                .clip(RoundedCornerShape(28.dp))
-                .background(CardWhite)
+                // 떠 있는 탭바: 드롭섀도 + 상하 그라데이션 + 가장자리 하이라이트
+                .raisedSurface(RoundedCornerShape(28.dp), elevation = 10.dp)
                 .padding(horizontal = 6.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically

@@ -20,11 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -36,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.ui.theme.AppFontFamily
+import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.MapLandShadow
 import com.example.busasnquest.ui.theme.OccupancyTextDarker
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.occupancyColor
@@ -174,15 +178,50 @@ fun BusanMap(
                 close()
             }
 
-            // 1) 구 폴리곤: 채움 + 흰 테두리
+            // 1) 육지 전체 그림자 — 바다 위로 떠오른 느낌 (구 채움보다 먼저, 아래로 오프셋)
+            val shadowOffset = 5.dp.toPx()
+            BusanMapShapes.polygons.forEach { (_, parts) ->
+                parts.forEach { pts ->
+                    translate(top = shadowOffset) {
+                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.55f))
+                    }
+                }
+            }
+            // 그림자를 살짝 더 퍼뜨려 부드럽게
+            BusanMapShapes.polygons.forEach { (_, parts) ->
+                parts.forEach { pts ->
+                    translate(top = shadowOffset * 0.5f) {
+                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.35f))
+                    }
+                }
+            }
+
+            // 2) 구 폴리곤: 채움 + 경계선 + 윗면 하이라이트
             BusanMapShapes.polygons.forEach { (name, parts) ->
                 val color = animatedColors[name] ?: Color.LightGray
                 parts.forEach { pts ->
                     val path = buildPath(pts)
-                    drawPath(path, color = color)
-                    drawPath(path, color = Color.White, style = Stroke(width = 2.dp.toPx()))
+                    // 채움 (위가 살짝 밝은 그라데이션 — 빛이 위에서 오는 느낌)
+                    drawPath(
+                        path,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(lighten(color, 0.10f), color),
+                            startY = 0f,
+                            endY = size.height
+                        )
+                    )
+                    // 구 경계선
+                    drawPath(path, color = BgSoftBlue, style = Stroke(width = 2.dp.toPx()))
+                    // 윗면 하이라이트 — 살짝 위로 올린 밝은 선
+                    translate(top = -0.8f.dp.toPx()) {
+                        drawPath(
+                            path,
+                            color = Color.White.copy(alpha = 0.10f),
+                            style = Stroke(width = 1.2.dp.toPx())
+                        )
+                    }
                     if (name == selected) {
-                        drawPath(path, color = Color(0xFF4A1B0C), style = Stroke(width = 3.dp.toPx()))
+                        drawPath(path, color = Color(0xFFEDEBE8), style = Stroke(width = 2.5.dp.toPx()))
                     }
                 }
             }
@@ -221,10 +260,10 @@ fun BusanMap(
                         TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = labelColor)
                     )
                 } else if (name in inProgressSet) {
-                    // 진행 중 점: 흰 테두리 + 코럴 — 배경 농도와 무관하게 동일
+                    // 진행 중 점: 배경색 테두리 + 밝은 크림 — 다크 지도 위 포인트
                     val dotCenter = center.copy(y = center.y - 10.dp.toPx())
-                    drawCircle(Color.White, radius = 4.dp.toPx(), center = dotCenter)
-                    drawCircle(Color(0xFFCE504D), radius = 2.5.dp.toPx(), center = dotCenter)
+                    drawCircle(BgSoftBlue, radius = 4.dp.toPx(), center = dotCenter)
+                    drawCircle(Color(0xFFFDF0EF), radius = 2.5.dp.toPx(), center = dotCenter)
                 }
             }
         }
@@ -258,6 +297,14 @@ private fun rememberAnimatedMapColors(byName: Map<String, DistrictMissionProgres
     return colors
 }
 
+// 색을 흰색 쪽으로 fraction 만큼 밝게 (윗면 하이라이트용)
+private fun lighten(color: Color, fraction: Float): Color = Color(
+    red = color.red + (1f - color.red) * fraction,
+    green = color.green + (1f - color.green) * fraction,
+    blue = color.blue + (1f - color.blue) * fraction,
+    alpha = color.alpha
+)
+
 // 텍스트를 중심 좌표 기준으로 그리기
 // - 앱 공통 폰트(Pretendard, AppFontFamily) 적용 — Canvas drawText 는 테마를 상속 안 받아서 직접 지정
 // - 흰 글로우(그림자)로 배경 대비 확보 — 외곽선 방식과 달리 획이 꽉 찬 채로 또렷함
@@ -271,8 +318,9 @@ private fun DrawScope.drawCenteredText(
         text,
         style.copy(
             fontFamily = AppFontFamily,
+            // 다크 테마: 글로우도 배경색 계열로 (밝은 글자 주변을 어둡게 잡아줌)
             shadow = Shadow(
-                color = Color.White,
+                color = BgSoftBlue,
                 offset = Offset.Zero,
                 blurRadius = style.fontSize.toPx() * 0.35f
             )

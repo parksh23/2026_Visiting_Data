@@ -43,6 +43,10 @@ import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.example.busasnquest.R
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.TextMain
+import com.example.busasnquest.ui.theme.TextSub
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
@@ -170,10 +174,11 @@ fun MapScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
+                // 홈 탭 검색바(SearchPill)와 동일한 알약 스타일 (다크 표면 + 테두리 없음)
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("미션 장소 검색") },
+                    placeholder = { Text("미션 장소 검색", fontSize = 14.sp) },
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
@@ -183,15 +188,25 @@ fun MapScreen(
                             }
                         }
                     },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = CardWhite,
+                        unfocusedContainerColor = CardWhite,
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedTextColor = TextMain,
+                        unfocusedTextColor = TextMain,
+                        focusedPlaceholderColor = TextSub,
+                        unfocusedPlaceholderColor = TextSub,
+                        focusedLeadingIconColor = TextSub,
+                        unfocusedLeadingIconColor = TextSub,
+                        focusedTrailingIconColor = TextSub,
+                        unfocusedTrailingIconColor = TextSub,
+                        cursorColor = Coral
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(searchFocusRequester)
-                        .background(Color.White, RoundedCornerShape(14.dp))
                 )
 
                 // ── 검색 결과 드롭다운 ──
@@ -201,7 +216,7 @@ fun MapScreen(
                             .fillMaxWidth()
                             .padding(top = 6.dp)
                             .heightIn(max = 240.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = CardWhite)
                     ) {
                         LazyColumn {
                             items(searchResults) { item ->
@@ -241,7 +256,7 @@ fun MapScreen(
                         .navigationBarsPadding()
                         .padding(bottom = 100.dp, top = 16.dp)
                         .clickable { navController.navigate("missionDetail/${mission.id}") },
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {
                     Row(
                         modifier = Modifier

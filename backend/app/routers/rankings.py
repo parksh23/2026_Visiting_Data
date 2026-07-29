@@ -1,9 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database import get_db
-from models import RankingResponse, RankingItem, MyRankingItem
+from pydantic import BaseModel
+from typing import List
 
+from database import get_db
+
+# =========================================================
+# 1. 랭킹 API 응답을 위한 DTO (Pydantic 모델) 정의
+# (models.py에서 import 하던 것을 파일 내부로 옮김)
+# =========================================================
+class MyRankingItem(BaseModel):
+    RANK_NUM: int
+    NICKNAME: str
+    TOTAL_POINTS: int
+
+class RankingItem(BaseModel):
+    RANK_NUM: int
+    NICKNAME: str
+    TOTAL_POINTS: int
+    IS_ME: bool
+
+class RankingResponse(BaseModel):
+    MY_RANKING: MyRankingItem
+    RANKING_LIST: List[RankingItem]
+
+# =========================================================
+# 2. 라우터 설정 및 API 로직
+# =========================================================
 router = APIRouter(prefix="/api/v1/rankings", tags=["Rankings"])
 
 @router.get("", response_model=RankingResponse)
@@ -20,7 +44,7 @@ def get_rankings(
     """)
     top_50_rows = db.execute(top_50_query).fetchall()
 
-# 2. 내 랭킹 정보 조회 (고정값이 아닌, 안드로이드가 보낸 user_code를 사용!)
+    # 2. 내 랭킹 정보 조회 (고정값이 아닌, 안드로이드가 보낸 user_code를 사용!)
     my_ranking_query = text("""
         SELECT RANK_NUM, NICKNAME, TOTAL_POINTS
         FROM APP_RANKINGS

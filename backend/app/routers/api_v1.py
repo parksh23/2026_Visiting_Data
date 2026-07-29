@@ -5,6 +5,7 @@ from PIL import Image
 import google.generativeai as genai
 
 from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -12,7 +13,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-# 리더님의 프로젝트 구조에 맞게 임포트 (AppUser, Mission, UserMission 모두 필요)
 from models import AppUser, Mission, UserMission
 from auth_utils import (
     create_access_token,
@@ -24,10 +24,8 @@ from auth_utils import (
 # =========================================================
 # 0. Gemini API 초기화 (Render 환경변수 사용)
 # =========================================================
-# Render 대시보드의 [Environment] 탭에서 GEMINI_API_KEY 값을 설정해주시면 됩니다.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
 genai.configure(api_key=GEMINI_API_KEY)
-# 구글의 최신 무료/초경량/고속 모델 적용
 model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
@@ -115,8 +113,12 @@ class RankingResponse(BaseModel):
 # 6. Auth API
 # =========================================================
 @router.post("/auth/login", response_model=TokenResponse)
-def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(AppUser).filter(AppUser.email == req.email).first()
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    # OAuth2PasswordRequestForm의 username 필드로 email이 들어옵니다.
+    user = db.query(AppUser).filter(AppUser.email == form_data.username).first()
 
     if user is None:
         raise HTTPException(
@@ -130,7 +132,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
             detail="사용할 수 없는 계정입니다."
         )
 
-    if not verify_password(req.password, user.password_hash):
+    if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="이메일 또는 비밀번호가 올바르지 않습니다."
@@ -242,7 +244,7 @@ def get_missions(
     db: Session = Depends(get_db)
 ):
     user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-    
+
     results = db.query(Mission, UserMission.status)\
                 .outerjoin(UserMission, (Mission.mission_id == UserMission.mission_id) & (UserMission.user_id == user.user_code))\
                 .all()
@@ -270,7 +272,7 @@ def get_ongoing_missions(
     db: Session = Depends(get_db)
 ):
     user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-    
+
     results = db.query(Mission, UserMission.status)\
                 .join(UserMission, Mission.mission_id == UserMission.mission_id)\
                 .filter(UserMission.user_id == user.user_code)\
@@ -297,16 +299,14 @@ async def verify_mission(
     file: UploadFile = File(...),
     mission_id: int = Form(...),
     mission_type: str = Form(...),
-    target_text: str = Form(""), # 프론트에서 넘어올 판별 목표 (예: "광안리 해수욕장" 또는 "돼지국밥")
+    target_text: str = Form(""),
     current_user_email: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
     try:
-        # 1. 파일 읽기 (메모리상에서 바로 처리)
         image_bytes = await file.read()
         image = Image.open(io.BytesIO(image_bytes))
 
-        # 2. 미션 타입별 Gemini 프롬프트 분기
         if mission_type == "RECEIPT":
             prompt = f"""
             이 이미지는 영수증입니다. 다음 목표 정보가 포함되어 있는지 확인하세요: '{target_text}'
@@ -320,7 +320,6 @@ async def verify_mission(
             {{"is_success": true/false, "extracted_text": "판별 성공/실패 이유 1줄 요약"}}
             """
 
-        # 3. Gemini 2.5 Flash API 호출 (JSON 강제 반환 설정)
         response = model.generate_content(
             [prompt, image],
             generation_config=genai.GenerationConfig(
@@ -328,13 +327,10 @@ async def verify_mission(
                 temperature=0.1
             )
         )
-        
-        # 4. 결과 파싱
+
         result_data = json.loads(response.text)
         is_success = result_data.get("is_success", False)
         extracted_text = result_data.get("extracted_text", "")
-
-        # TODO: 인증 성공 시 DB(UserMission)의 상태를 'completed'로 업데이트하고 포인트(AppUser) 지급 로직 추가 가능
 
         return {
             "success": is_success,
@@ -357,7 +353,7 @@ def get_district_progress(
 
     total_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
                            .group_by(Mission.region_name).all()
-    
+
     completed_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
                                .join(UserMission, Mission.mission_id == UserMission.mission_id)\
                                .filter(UserMission.user_id == user.user_code)\
@@ -369,7 +365,7 @@ def get_district_progress(
     response = []
     for region, total in total_counts_query:
         completed = completed_dict.get(region, 0)
-        
+
         status = "locked"
         if completed == total and total > 0:
             status = "cleared"
@@ -394,26 +390,22 @@ def get_rankings(
     current_user_email: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
-    # AppUser 테이블에서 total_points 기준으로 내림차순 정렬하여 전체 조회
     all_users = db.query(AppUser).order_by(AppUser.total_points.desc()).all()
-    
+
     rankings_list = []
     my_rank_data = {"rank": 0, "topPercent": 0, "point": 0}
     total_users = len(all_users)
 
-    # 순회하면서 순위 계산 및 리스트 생성
     for idx, user in enumerate(all_users):
         current_rank = idx + 1
-        
-        # 요청한 사용자 본인의 랭킹 정보 기록
+
         if user.email == current_user_email:
             my_rank_data = {
                 "rank": current_rank,
                 "topPercent": int((current_rank / total_users) * 100) if total_users > 0 else 0,
                 "point": user.total_points
             }
-            
-        # 프론트에 내려줄 랭킹은 상위 100명까지만 제한
+
         if current_rank <= 100:
             rankings_list.append({
                 "rank": current_rank,

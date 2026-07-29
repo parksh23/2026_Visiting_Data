@@ -45,20 +45,18 @@ fun ScreenHeader(
             verticalAlignment = Alignment.Top
         ) {
 
-            // 제목 (강조 단어가 있으면 색을 다르게)
+            // 제목 — 디스플레이 헤딩(가로 80% 압축 콘덴스드)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     title,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = NavyMain
+                    style = displayStyle(28.sp),
+                    color = TextMain
                 )
                 if (highlight != null) {
                     Text(
                         highlight,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PointRed
+                        style = displayStyle(28.sp),
+                        color = Coral
                     )
                 }
             }
@@ -68,7 +66,8 @@ fun ScreenHeader(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        Text(subtitle, color = TextSub, fontSize = 13.sp)
+        // 부제 — 뮤트 그레이 + Medium
+        Text(subtitle, color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -90,7 +89,8 @@ fun PointPill() {
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(formatPoints(points), fontWeight = FontWeight.Bold, color = TextMain, fontSize = 14.sp)
+        // 숫자 — 액센트 폰트 (영문·숫자 전용)
+        Text(formatPoints(points), style = accentStyle(15.sp), color = TextMain)
     }
 }
 

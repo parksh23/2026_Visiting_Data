@@ -37,8 +37,8 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.repository.DistrictMissionProgress
-import com.example.busasnquest.ui.theme.AppFontFamily
 import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.DisplayFontFamily
 import com.example.busasnquest.ui.theme.MapLandShadow
 import com.example.busasnquest.ui.theme.OccupancyTextDarker
 import com.example.busasnquest.ui.theme.TextSub
@@ -317,7 +317,8 @@ private fun DrawScope.drawCenteredText(
     val layout = measurer.measure(
         text,
         style.copy(
-            fontFamily = AppFontFamily,
+            // 지도 라벨은 구 이름(한글)+% 라 디스플레이 폰트로 통일
+            fontFamily = DisplayFontFamily,
             // 다크 테마: 글로우도 배경색 계열로 (밝은 글자 주변을 어둡게 잡아줌)
             shadow = Shadow(
                 color = BgSoftBlue,

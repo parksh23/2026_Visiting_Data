@@ -53,6 +53,8 @@ import com.example.busasnquest.ui.theme.SeaBlue
 import com.example.busasnquest.ui.theme.SeaBlueBg
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.accentStyle
+import com.example.busasnquest.ui.theme.displayStyle
 import androidx.navigation.NavHostController
 
 @Composable
@@ -213,22 +215,23 @@ fun MyRankCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.Bottom) {
+                        // 순위 숫자 — 액센트 폰트
                         Text(
                             rankText,
                             color = Color.White,
-                            fontSize = 44.sp,
-                            fontWeight = FontWeight.Bold
+                            style = accentStyle(48.sp)
                         )
                         Text(
                             "위",
                             color = Color.White,
                             fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(bottom = 8.dp, start = 2.dp)
                         )
                     }
-                    Text(topPercent, color = Color.White.copy(0.7f), fontSize = 13.sp)
+                    Text(topPercent, color = Color.White.copy(0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(point, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(point, color = Color.White, style = accentStyle(17.sp))
                 }
             }
 

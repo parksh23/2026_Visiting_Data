@@ -134,31 +134,11 @@ private fun HomeHeader(points: Int) {
                         .height(44.dp)
                 )
                 Spacer(Modifier.width(10.dp))
+                // 워드마크 — 디스플레이 헤딩(콘덴스드), 강조 글자만 브랜드 액센트색
                 Row {
-                    Text(
-                        "부산 ",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMain,
-                        fontFamily = LogoFontFamily,
-                        letterSpacing = (-0.5).sp
-                    )
-                    Text(
-                        "땅",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Coral,
-                        fontFamily = LogoFontFamily,
-                        letterSpacing = (-0.5).sp
-                    )
-                    Text(
-                        "따먹기",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMain,
-                        fontFamily = LogoFontFamily,
-                        letterSpacing = (-0.5).sp
-                    )
+                    Text("부산 ", style = displayStyle(26.sp), color = TextMain)
+                    Text("땅", style = displayStyle(26.sp), color = Coral)
+                    Text("따먹기", style = displayStyle(26.sp), color = TextMain)
                 }
             }
             // 포인트 칩 + 알림 벨
@@ -410,12 +390,13 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
+        // 섹션 제목 — 디스플레이 헤딩
+        Text(title, style = displayStyle(20.sp), color = TextMain)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable { onSeeAll() }
         ) {
-            Text("전체보기", color = TextSub, fontSize = 13.sp)
+            Text("전체보기", color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(18.dp))
         }
     }

@@ -12,7 +12,9 @@ from database import Base, engine
 import models
 from routers import text_files
 from routers import api_v1
+from log_control import setup_logging
 
+setup_logging()
 
 app = FastAPI()
 
@@ -45,7 +47,7 @@ def read_root():
 # 로그 txt 저장 및 관리 설정
 # =========================
 
-BASE_DIR = Path(__file__).resolve().parents[1]
+BASE_DIR = Path(__file__).resolve().parent
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "server_signals.txt"
 

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -11,6 +12,7 @@ from database import Base, engine
 import models
 from routers import text_files
 from routers import api_v1
+from routers import rankings
 
 
 app = FastAPI()
@@ -29,6 +31,7 @@ Base.metadata.create_all(bind=engine)
 # 라우터 등록
 app.include_router(text_files.router)
 app.include_router(api_v1.router)
+app.include_router(rankings.router)
 
 
 # =========================
@@ -81,3 +84,27 @@ def receive_signal(signal: ServerSignal):
         "message": "신호 로그 저장 완료",
         "saved_to": str(LOG_FILE)
     }
+
+# =========================
+# 404 에러 해결을 위한 추가 라우터
+# =========================
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """브라우저의 자동 favicon 요청으로 인한 404 에러 방지용"""
+    return Response(content="", media_type="image/x-icon")
+
+@app.get("/logs")
+def read_logs():
+    """저장된 서버 신호 로그(txt)를 브라우저에서 확인할 수 있게 반환"""
+    if not LOG_FILE.exists():
+        return {"message": "아직 저장된 로그 파일이 없습니다.", "logs": []}
+
+    logs_list = []
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                logs_list.append(json.loads(line))
+
+    return {"total_logs": len(logs_list), "logs": logs_list}

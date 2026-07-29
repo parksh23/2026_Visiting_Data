@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException, status, Header
+from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -13,6 +14,13 @@ ALGORITHM = "HS256"
 
 # 토큰 만료 시간
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24시간
+
+
+# ==========================================
+# 🌟 추가된 부분: Swagger UI 자물쇠 버튼 활성화 및 토큰 자동 추출
+# tokenUrl에는 로그인 API의 실제 경로를 적어줍니다.
+# ==========================================
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 # 로그인/회원가입 성공 시 JWT를 생성하는 함수
@@ -34,25 +42,17 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
-# 인증이 필요한 API에서 사용할 함수
-# Authorization: Bearer <token> 헤더를 직접 읽어서 검증한다
-def get_current_user_email(
-    authorization: str | None = Header(default=None)
-):
+# ==========================================
+# 🌟 수정된 부분: Header 직접 참조 대신 Depends(oauth2_scheme) 사용
+# ==========================================
+def get_current_user_email(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="인증 정보가 올바르지 않습니다.",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    if authorization is None:
-        raise credentials_exception
-
-    if not authorization.startswith("Bearer "):
-        raise credentials_exception
-
-    token = authorization.replace("Bearer ", "", 1)
-
+    # OAuth2PasswordBearer가 "Bearer "를 자동으로 제거하고 순수 토큰 문자열만 token 변수에 담아줍니다.
     try:
         payload = jwt.decode(
             token,
@@ -69,6 +69,8 @@ def get_current_user_email(
 
     except JWTError:
         raise credentials_exception
+
+
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto"

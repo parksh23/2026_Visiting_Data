@@ -44,7 +44,6 @@ class SignupRequest(BaseModel):
 class KakaoLoginRequest(BaseModel):
     access_token: str
 
-# 🌟 수정됨: OAuth2 표준 규격에 맞춘 Token 응답 DTO
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -117,10 +116,10 @@ class RankingResponse(BaseModel):
 # =========================================================
 @router.post("/auth/login", response_model=TokenResponse)
 def login(
-    req: LoginRequest,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = db.query(AppUser).filter(AppUser.email == req.email).first()
+    user = db.query(AppUser).filter(AppUser.email == form_data.username).first()
 
     if user is None:
         raise HTTPException(
@@ -134,7 +133,7 @@ def login(
             detail="사용할 수 없는 계정입니다."
         )
 
-    if not verify_password(req.password, user.password_hash):
+    if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="이메일 또는 비밀번호가 올바르지 않습니다."

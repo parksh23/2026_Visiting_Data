@@ -1,38 +1,59 @@
+import math
 import os
-import io
-import json
-from PIL import Image
-import google.generativeai as genai
-
-from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form, Request
-from fastapi.security import OAuth2PasswordRequestForm  # Form 로그인 지원
-from pydantic import BaseModel
+import uuid
+from pathlib import Path
 from typing import List, Optional
 
+import httpx
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from database import get_db
-from models import AppUser, Mission, UserMission
 from auth_utils import (
     create_access_token,
     get_current_user_email,
     hash_password,
-    verify_password
+    verify_password,
 )
-
-# =========================================================
-# 0. Gemini API 초기화 (Render 환경변수 사용)
-# =========================================================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash-lite')
+from database import get_db
+from models import AppUser, District, Friendship, Mission, UserMission
 
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
 
-# =========================================================
-# 1. Auth DTO
-# =========================================================
+BUSAN_DISTRICTS = [
+    "강서구",
+    "북구",
+    "금정구",
+    "기장군",
+    "사상구",
+    "부산진구",
+    "동래구",
+    "해운대구",
+    "사하구",
+    "서구",
+    "연제구",
+    "수영구",
+    "중구",
+    "동구",
+    "남구",
+    "영도구",
+]
+MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -40,6 +61,7 @@ class LoginRequest(BaseModel):
 class SignupRequest(BaseModel):
     email: str
     password: str
+    nickname: str
 
 class KakaoLoginRequest(BaseModel):
     access_token: str
@@ -49,22 +71,20 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     token: Optional[str] = None  # 기존 안드로이드 앱 호환용
 
-# =========================================================
-# 2. User DTO
-# =========================================================
 class UserProfile(BaseModel):
     name: str
     points: str
     completed_missions: int
     saved_missions: int
 
-# =========================================================
-# 3. Mission DTO
-# =========================================================
+
 class MissionDto(BaseModel):
     mission_id: int
     title: str
+    district: str
     location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     reward_points: int
     progress_current: int
     progress_total: int
@@ -84,18 +104,14 @@ class MissionVerifyResponse(BaseModel):
     success: bool
     message: str
 
-# =========================================================
-# 4. District DTO
-# =========================================================
+
 class DistrictStatusDto(BaseModel):
     district_name: str
     completed_count: int
     total_count: int
     status: str
 
-# =========================================================
-# 5. Ranking DTO
-# =========================================================
+
 class MyRank(BaseModel):
     rank: int
     topPercent: int
@@ -111,356 +127,360 @@ class RankingResponse(BaseModel):
     myRank: MyRank
     rankings: List[RankingItem]
 
-# =========================================================
-# 6. Auth API
-# =========================================================
-@router.post("/auth/login", response_model=TokenResponse)
-async def login(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    content_type = request.headers.get("content-type", "")
 
-    email = None
-    password = None
-
-    # 1. 클라이언트(앱/웹)에서 JSON 형식으로 보낸 경우
-    if "application/json" in content_type:
-        try:
-            data = await request.json()
-            email = data.get("email")
-            password = data.get("password")
-        except Exception:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="잘못된 JSON 형식입니다.")
-
-    # 2. Swagger 자물쇠 버튼 등 Form 형식으로 보낸 경우
-    else:
-        form = await request.form()
-        # Swagger는 username 필드에, 혹시 모를 대비로 email 필드도 확인
-        email = form.get("username") or form.get("email")
-        password = form.get("password")
-
-    # 값 누락 검증
-    if not email or not password:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="이메일 또는 비밀번호가 전송되지 않았습니다."
-        )
-
-    # DB 검증 로직
-    user = db.query(AppUser).filter(AppUser.email == email).first()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다."
-        )
-
-    if user.account_status != "ACTIVE":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="사용할 수 없는 계정입니다."
-        )
-
-    if not verify_password(password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다."
-        )
-
-    # 토큰 발급
-    access_token = create_access_token(data={"sub": user.email})
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "token": access_token
-    }
+class UploadResponse(BaseModel):
+    url: str
 
 
-@router.post("/auth/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def signup(req: SignupRequest, db: Session = Depends(get_db)):
-    if "@" not in req.email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이메일 형식이 올바르지 않습니다."
-        )
-
-    if len(req.password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비밀번호는 8자 이상이어야 합니다."
-        )
-
-    if len(req.password.encode("utf-8")) > 72:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비밀번호는 72바이트 이하로 입력해주세요."
-        )
-
-    existing_user = db.query(AppUser).filter(AppUser.email == req.email).first()
-    if existing_user is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 가입된 이메일입니다."
-        )
-
-    user_codes = db.query(AppUser.user_code).all()
+def _next_user_code(db: Session) -> str:
     max_number = 0
-    for row in user_codes:
-        code = row[0]
-        if code is None:
-            continue
-        code = str(code)
-        if code.startswith("U"):
-            number_part = code[1:]
-            if number_part.isdigit():
-                max_number = max(max_number, int(number_part))
+    for (code,) in db.query(AppUser.user_code).all():
+        text = str(code or "")
+        if text.startswith("U") and text[1:].isdigit():
+            max_number = max(max_number, int(text[1:]))
+    return f"U{max_number + 1:03d}"
 
-    next_user_code = f"U{max_number + 1:03d}"
-    default_name = req.email.split("@")[0]
 
-    new_user = AppUser(
-        user_code=next_user_code,
-        login_id=req.email,
-        email=req.email,
-        password_hash=hash_password(req.password),
-        account_status="ACTIVE",
-        nickname=default_name,
-        level_no=1,
-        total_points=0,
-        completed_missions=0,
-        saved_missions=0,
-        conquered_districts=0
+def _get_user(db: Session, subject: str) -> AppUser:
+    user = (
+        db.query(AppUser)
+        .filter((AppUser.email == subject) | (AppUser.user_code == subject))
+        .first()
     )
+    if user is None:
+        raise HTTPException(status_code=401, detail="인증된 사용자를 찾을 수 없습니다.")
+    if user.account_status != "ACTIVE":
+        raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
+    return user
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
 
-    access_token = create_access_token(data={"sub": new_user.email})
+def _token_for(user: AppUser) -> str:
+    return create_access_token({"sub": user.user_code})
 
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
+    completed = mission.mission_id in completed_ids
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "token": access_token
+        "mission_id": mission.mission_id,
+        "title": mission.title,
+        "district": mission.district_name,
+        "location": mission.location,
+        "latitude": mission.latitude,
+        "longitude": mission.longitude,
+        "reward_points": mission.reward_points,
+        "progress_current": 1 if completed else 0,
+        "progress_total": 1,
+        "status": "completed" if completed else "ongoing",
+        "mission_type": mission.mission_type,
+        "image_url": mission.image_url,
     }
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(AppUser).filter(AppUser.email == req.email.strip().lower()).first()
+    if user is None or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+    if user.account_status != "ACTIVE":
+        raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
+    return {"token": _token_for(user)}
+
+
+@router.post("/auth/signup", response_model=TokenResponse, status_code=201)
+def signup(req: SignupRequest, db: Session = Depends(get_db)):
+    email = req.email.strip().lower()
+    if "@" not in email:
+        raise HTTPException(status_code=400, detail="이메일 형식이 올바르지 않습니다.")
+    password_bytes = req.password.encode("utf-8")
+    if len(req.password) < 8 or len(password_bytes) > 72:
+        raise HTTPException(
+            status_code=400, detail="비밀번호는 8자 이상, 72바이트 이하여야 합니다."
+        )
+    nickname = req.nickname.strip()
+    if not nickname:
+        raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
+    if db.query(AppUser).filter(AppUser.email == email).first():
+        raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다.")
+    if db.query(AppUser).filter(AppUser.nickname == nickname).first():
+        raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다.")
+
+    user = AppUser(
+        user_code=_next_user_code(db),
+        login_id=email,
+        email=email,
+        password_hash=hash_password(req.password),
+        nickname=nickname,
+        account_status="ACTIVE",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"token": _token_for(user)}
 
 
 @router.post("/auth/kakao", response_model=TokenResponse)
-def kakao_login(req: KakaoLoginRequest):
-    kakao_user_email = "kakao_user@example.com"
-    access_token = create_access_token(data={"sub": kakao_user_email})
+def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
+    try:
+        response = httpx.get(
+            "https://kapi.kakao.com/v2/user/me",
+            headers={"Authorization": f"Bearer {req.access_token}"},
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="카카오 인증 서버에 연결할 수 없습니다.") from exc
+    if response.status_code != 200:
+        raise HTTPException(status_code=401, detail="유효하지 않은 카카오 액세스 토큰입니다.")
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "token": access_token
-    }
+    profile = response.json()
+    kakao_id = str(profile.get("id") or "")
+    if not kakao_id:
+        raise HTTPException(status_code=401, detail="카카오 사용자 정보를 확인할 수 없습니다.")
+    account = profile.get("kakao_account") or {}
+    email = account.get("email")
+    nickname = (account.get("profile") or {}).get("nickname") or f"카카오사용자{kakao_id[-4:]}"
 
-# =========================================================
-# 7. User API
-# =========================================================
+    user = db.query(AppUser).filter(AppUser.kakao_id == kakao_id).first()
+    if user is None and email:
+        user = db.query(AppUser).filter(AppUser.email == email).first()
+    if user is None:
+        user = AppUser(
+            user_code=_next_user_code(db),
+            login_id=f"kakao:{kakao_id}",
+            email=email,
+            kakao_id=kakao_id,
+            nickname=nickname,
+            account_status="ACTIVE",
+        )
+        db.add(user)
+    elif not user.kakao_id:
+        user.kakao_id = kakao_id
+    db.commit()
+    db.refresh(user)
+    return {"token": _token_for(user)}
+
+
 @router.get("/users/me", response_model=UserProfile)
 def get_my_profile(
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
-    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="사용자를 찾을 수 없습니다."
-        )
-
+    user = _get_user(db, subject)
     return {
         "name": user.nickname,
         "points": f"{user.total_points:,}P",
         "completed_missions": user.completed_missions,
-        "saved_missions": user.saved_missions
+        "saved_missions": user.saved_missions,
     }
 
-# =========================================================
-# 8. Mission API
-# =========================================================
+
 @router.get("/missions", response_model=List[MissionDto])
 def get_missions(
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
-    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-
-    results = db.query(Mission, UserMission.status)\
-                .outerjoin(UserMission, (Mission.mission_id == UserMission.mission_id) & (UserMission.user_id == user.user_code))\
-                .all()
-
-    missions_response = []
-    for mission, status in results:
-        missions_response.append({
-            "mission_id": mission.mission_id,
-            "title": mission.mission_name,
-            "location": mission.region_name,
-            "reward_points": mission.base_score,
-            "progress_current": 1 if status == "completed" else 0,
-            "progress_total": 1,
-            "status": status or "locked",
-            "mission_type": mission.mission_type,
-            "image_url": mission.image_url
-        })
-
-    return missions_response
+    user = _get_user(db, subject)
+    completed_ids = {
+        mission_id
+        for (mission_id,) in db.query(UserMission.mission_id)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.status == "completed",
+        )
+        .all()
+    }
+    return [
+        _mission_dict(mission, completed_ids)
+        for mission in db.query(Mission).order_by(Mission.mission_id).all()
+    ]
 
 
 @router.get("/missions/ongoing", response_model=List[MissionDto])
 def get_ongoing_missions(
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
-    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-
-    results = db.query(Mission, UserMission.status)\
-                .join(UserMission, Mission.mission_id == UserMission.mission_id)\
-                .filter(UserMission.user_id == user.user_code)\
-                .filter(UserMission.status == "ongoing")\
-                .all()
-
     return [
-        {
-            "mission_id": mission.mission_id,
-            "title": mission.mission_name,
-            "location": mission.region_name,
-            "reward_points": mission.base_score,
-            "progress_current": 0,
-            "progress_total": 1,
-            "status": status,
-            "mission_type": mission.mission_type,
-            "image_url": mission.image_url
-        } for mission, status in results
+        mission
+        for mission in get_missions(subject, db)
+        if mission["status"] == "ongoing"
     ]
 
 
 @router.post("/missions/verify", response_model=MissionVerifyResponse)
-async def verify_mission(
-    file: UploadFile = File(...),
-    mission_id: int = Form(...),
-    mission_type: str = Form(...),
-    target_text: str = Form(""),
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
+def verify_mission(
+    req: MissionVerifyRequestDto,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
 ):
-    try:
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes))
+    user = _get_user(db, subject)
+    mission = db.query(Mission).filter(Mission.mission_id == req.mission_id).first()
+    if mission is None:
+        raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-        if mission_type == "RECEIPT":
-            prompt = f"""
-            이 이미지는 영수증입니다. 다음 목표 정보가 포함되어 있는지 확인하세요: '{target_text}'
-            반드시 아래 JSON 형식으로만 대답하세요.
-            {{"is_success": true/false, "extracted_text": "결제 금액, 상호명 등 추출된 핵심 정보"}}
-            """
-        else:
-            prompt = f"""
-            이 사진이 다음 미션 장소나 사물을 명확하게 보여주는지 판별하세요: '{target_text}'
-            반드시 아래 JSON 형식으로만 대답하세요.
-            {{"is_success": true/false, "extracted_text": "판별 성공/실패 이유 1줄 요약"}}
-            """
-
-        response = model.generate_content(
-            [prompt, image],
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.1
-            )
+    requested_type = req.mission_type.upper()
+    if requested_type not in MISSION_TYPES or requested_type != mission.mission_type:
+        return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
+    duplicate = (
+        db.query(UserMission)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.mission_id == mission.mission_id,
+            UserMission.status == "completed",
         )
+        .first()
+    )
+    if duplicate:
+        return {"success": False, "message": "이미 완료한 미션입니다."}
+    if requested_type == "PHOTO" and not req.photo_url:
+        return {"success": False, "message": "인증 사진을 먼저 업로드해 주세요."}
+    if requested_type == "RECEIPT" and not req.receipt_image_url:
+        return {"success": False, "message": "영수증 이미지를 먼저 업로드해 주세요."}
 
-        result_data = json.loads(response.text)
-        is_success = result_data.get("is_success", False)
-        extracted_text = result_data.get("extracted_text", "")
-
-        return {
-            "success": is_success,
-            "message": extracted_text if extracted_text else ("미션 성공!" if is_success else "사진이 미션 조건과 일치하지 않습니다.")
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 분석 중 오류가 발생했습니다: {str(e)}")
-
-
-# =========================================================
-# 9. District API
-# =========================================================
-@router.get("/districts/progress", response_model=List[DistrictStatusDto])
-def get_district_progress(
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
-):
-    user = db.query(AppUser).filter(AppUser.email == current_user_email).first()
-
-    total_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
-                           .group_by(Mission.region_name).all()
-
-    completed_counts_query = db.query(Mission.region_name, func.count(Mission.mission_id))\
-                               .join(UserMission, Mission.mission_id == UserMission.mission_id)\
-                               .filter(UserMission.user_id == user.user_code)\
-                               .filter(UserMission.status == "completed")\
-                               .group_by(Mission.region_name).all()
-
-    completed_dict = {region: count for region, count in completed_counts_query}
-
-    response = []
-    for region, total in total_counts_query:
-        completed = completed_dict.get(region, 0)
-
-        status = "locked"
-        if completed == total and total > 0:
-            status = "cleared"
-        elif completed > 0:
-            status = "ongoing"
-
-        response.append({
-            "district_name": region,
-            "completed_count": completed,
-            "total_count": total,
-            "status": status
-        })
-
-    return response
-
-# =========================================================
-# 10. Ranking API
-# =========================================================
-@router.get("/rankings", response_model=RankingResponse)
-def get_rankings(
-    type: str = Query("all"),
-    current_user_email: str = Depends(get_current_user_email),
-    db: Session = Depends(get_db)
-):
-    all_users = db.query(AppUser).order_by(AppUser.total_points.desc()).all()
-
-    rankings_list = []
-    my_rank_data = {"rank": 0, "topPercent": 0, "point": 0}
-    total_users = len(all_users)
-
-    for idx, user in enumerate(all_users):
-        current_rank = idx + 1
-
-        if user.email == current_user_email:
-            my_rank_data = {
-                "rank": current_rank,
-                "topPercent": int((current_rank / total_users) * 100) if total_users > 0 else 0,
-                "point": user.total_points
+    if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
+        if req.latitude is None or req.longitude is None:
+            return {"success": False, "message": "현재 위치 정보가 필요합니다."}
+        if mission.latitude is None or mission.longitude is None:
+            return {"success": False, "message": "미션 장소 좌표가 등록되지 않았습니다."}
+        distance = _haversine_m(
+            req.latitude, req.longitude, mission.latitude, mission.longitude
+        )
+        if distance > mission.radius_m:
+            return {
+                "success": False,
+                "message": f"미션 장소에서 허용 반경 {mission.radius_m}m 이상 떨어져 있어요.",
             }
 
-        if current_rank <= 100:
-            rankings_list.append({
-                "rank": current_rank,
-                "userId": user.user_code,
-                "name": user.nickname,
-                "score": user.total_points
-            })
-
+    db.add(
+        UserMission(
+            user_code=user.user_code,
+            mission_id=mission.mission_id,
+            status="completed",
+            photo_url=req.photo_url,
+            receipt_image_url=req.receipt_image_url,
+        )
+    )
+    user.total_points += mission.reward_points
+    user.completed_missions += 1
+    db.commit()
     return {
-        "myRank": my_rank_data,
-        "rankings": rankings_list
+        "success": True,
+        "message": f"미션 인증이 완료되어 {mission.reward_points}P가 적립됐습니다.",
     }
+
+
+@router.get("/districts/progress", response_model=List[DistrictStatusDto])
+def get_district_progress(
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+    totals = dict(
+        db.query(Mission.district_name, func.count(Mission.mission_id))
+        .group_by(Mission.district_name)
+        .all()
+    )
+    completed = dict(
+        db.query(Mission.district_name, func.count(UserMission.id))
+        .join(UserMission, UserMission.mission_id == Mission.mission_id)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.status == "completed",
+        )
+        .group_by(Mission.district_name)
+        .all()
+    )
+    result = []
+    for district in BUSAN_DISTRICTS:
+        total = int(totals.get(district, 0))
+        done = int(completed.get(district, 0))
+        state = "empty" if total == 0 else ("cleared" if done == total else "ongoing")
+        result.append(
+            {
+                "district_name": district,
+                "completed_count": done,
+                "total_count": total,
+                "status": state,
+            }
+        )
+    return result
+
+
+@router.get("/rankings", response_model=RankingResponse)
+def get_rankings(
+    type: str = Query("all", pattern="^(all|region|friend)$"),
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    query = db.query(AppUser).filter(AppUser.account_status == "ACTIVE")
+    if type == "region":
+        if not user.district_name:
+            ranked_users = []
+        else:
+            ranked_users = query.filter(
+                AppUser.district_name == user.district_name
+            ).all()
+    elif type == "friend":
+        friend_codes = [
+            friend_code
+            for (friend_code,) in db.query(Friendship.friend_user_code)
+            .filter(Friendship.user_code == user.user_code)
+            .all()
+        ]
+        ranked_users = query.filter(
+            AppUser.user_code.in_([user.user_code, *friend_codes])
+        ).all()
+    else:
+        ranked_users = query.all()
+
+    ranked_users.sort(key=lambda item: (-item.total_points, item.user_code))
+    all_users = query.all()
+    all_users.sort(key=lambda item: (-item.total_points, item.user_code))
+    my_rank = next(
+        (index for index, item in enumerate(all_users, 1) if item.user_code == user.user_code),
+        len(all_users) + 1,
+    )
+    top_percent = max(1, math.ceil(my_rank / max(len(all_users), 1) * 100))
+    return {
+        "myRank": {
+            "rank": my_rank,
+            "topPercent": top_percent,
+            "point": user.total_points,
+        },
+        "rankings": [
+            {
+                "rank": index,
+                "userId": item.user_code,
+                "name": item.nickname,
+                "score": item.total_points,
+            }
+            for index, item in enumerate(ranked_users, 1)
+        ],
+    }
+
+
+@router.post("/uploads", response_model=UploadResponse, status_code=201)
+async def upload_image(
+    request: Request,
+    file: UploadFile = File(...),
+    _: str = Depends(get_current_user_email),
+):
+    allowed = {"image/jpeg": ".jpg", "image/jpg": ".jpg"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="JPG 이미지만 업로드할 수 있습니다.")
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="이미지 크기는 5MB 이하여야 합니다.")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}{allowed[file.content_type]}"
+    (UPLOAD_DIR / filename).write_bytes(content)
+    return {"url": str(request.base_url).rstrip("/") + f"/uploads/{filename}"}

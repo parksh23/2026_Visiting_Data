@@ -11,5 +11,4 @@ python-multipart
 apscheduler
 python-jose
 passlib
-google-generativeai
-Pillow
+bcrypt==4.0.1

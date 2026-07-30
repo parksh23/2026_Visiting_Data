@@ -29,6 +29,12 @@ import com.example.busasnquest.ui.home.HomeViewModel
 import com.example.busasnquest.ui.theme.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.busasnquest.data.repository.DistrictMissionProgress
+import com.example.busasnquest.data.repository.OccupationStat
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import com.example.busasnquest.ui.components.clickableNoRipple
+import com.example.busasnquest.ui.components.InlineErrorBanner
 
 /**
  * 미션 탭 (리디자인 v2)
@@ -44,6 +50,7 @@ fun MissionScreen(
     homeViewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val occupation by viewModel.occupation.collectAsStateWithLifecycle()
     val loadError by viewModel.loadError.collectAsStateWithLifecycle()
 
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
@@ -60,10 +67,36 @@ fun MissionScreen(
     // 지도가 weight 로 남은 높이를 전부 쓰도록 LazyColumn 이 아닌 Column 구조
     Column(modifier = Modifier.fillMaxSize()) {
 
-        ScreenHeader(
-            title = "미션",
-            subtitle = "부산을 점령하고 포인트를 모아보세요!"
-        )
+            // 서버에서 미션을 못 불러온 경우 안내 배너 (로컬 데이터는 계속 표시)
+            loadError?.let { msg ->
+                InlineErrorBanner(message = msg, onRetry = viewModel::refreshFromServer)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            ProgressCard(
+                label = "전체 진행률",
+                percentText = "${(occupation.rate * 100).toInt()}%",
+                caption = "${occupation.completedMissions}/${occupation.totalMissions} 미션 완료",
+                progress = occupation.rate
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            SegmentedToggle(
+                options = listOf("전체", "지역"),
+                selectedIndex = uiState.selectedTab,
+                onSelect = { viewModel.selectTab(it) }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                if (uiState.selectedTab == 0) "전체 미션" else "지역별 미션",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMain,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
 
         // 서버에서 미션을 못 불러온 경우 안내 배너 (로컬 데이터는 계속 표시)
         loadError?.let { msg ->

@@ -18,6 +18,7 @@ from routers.api_v1 import (
     BUSAN_DISTRICTS,
     MissionVerifyRequestDto,
     SignupRequest,
+    UPLOAD_DIR,
     get_district_progress,
     get_missions,
     get_my_profile,
@@ -32,19 +33,32 @@ def _seed_minimum():
     db = SessionLocal()
     try:
         db.add_all([District(name=name) for name in BUSAN_DISTRICTS])
-        db.add(
-            Mission(
-                mission_id=1,
-                title="테스트 위치 미션",
-                district_name="중구",
-                location="중구 테스트동",
-                latitude=35.1,
-                longitude=129.03,
-                radius_m=300,
-                reward_points=100,
-                mission_type="CURRENT_LOCATION",
-                image_url="https://example.com/images/junggu.jpg",
-            )
+        db.add_all(
+            [
+                Mission(
+                    mission_id=1,
+                    title="테스트 위치 미션",
+                    district_name="중구",
+                    location="중구 테스트동",
+                    latitude=35.1,
+                    longitude=129.03,
+                    radius_m=300,
+                    reward_points=100,
+                    mission_type="CURRENT_LOCATION",
+                    image_url="https://example.com/images/junggu.jpg",
+                ),
+                Mission(
+                    mission_id=2,
+                    title="테스트 사진 미션",
+                    district_name="중구",
+                    location="중구 사진동",
+                    latitude=35.1,
+                    longitude=129.03,
+                    radius_m=300,
+                    reward_points=120,
+                    mission_type="PHOTO",
+                ),
+            ]
         )
         db.commit()
     finally:
@@ -82,7 +96,7 @@ def test_frontend_contract():
         ) == {
             "district_name": "중구",
             "completed_count": 0,
-            "total_count": 1,
+            "total_count": 2,
             "status": "ongoing",
         }
         assert {item["status"] for item in progress} <= {
@@ -150,9 +164,45 @@ def test_frontend_contract():
         )
         assert duplicate["success"] is False
 
+        local_uri = verify_mission(
+            MissionVerifyRequestDto(
+                mission_id=2,
+                mission_type="PHOTO",
+                photo_url="content://media/picker/photo/1",
+                latitude=35.1,
+                longitude=129.03,
+            ),
+            subject,
+            db,
+        )
+        assert local_uri == {
+            "success": False,
+            "message": "서버에 업로드된 인증 사진을 확인할 수 없습니다.",
+        }
+
+        upload_name = f"{'a' * 32}.jpg"
+        upload_path = UPLOAD_DIR / upload_name
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        upload_path.write_bytes(b"test-jpeg")
+        try:
+            uploaded_photo = verify_mission(
+                MissionVerifyRequestDto(
+                    mission_id=2,
+                    mission_type="PHOTO",
+                    photo_url=f"https://testserver/uploads/{upload_name}",
+                    latitude=35.1,
+                    longitude=129.03,
+                ),
+                subject,
+                db,
+            )
+            assert uploaded_photo["success"] is True
+        finally:
+            upload_path.unlink(missing_ok=True)
+
         profile = get_my_profile(subject, db)
         assert profile["name"] == "부산탐험가"
-        assert profile["points"] == "100P"
+        assert profile["points"] == "220P"
 
         try:
             signup(

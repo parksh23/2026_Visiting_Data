@@ -28,12 +28,13 @@ import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
 
-// 사진의 색감에 맞춘 로컬 색상
-private val LoginBg = Color(0xFFE9EAF8)
-private val Indigo = Color(0xFF6C7BE0)
-private val FieldBorder = Color(0xFFE2E4EF)
-private val LabelGray = Color(0xFF3A3F55)
-private val HintGray = Color(0xFFB6BAC9)
+// 다크 단일 테마에 맞춘 로컬 색상
+private val LoginBg = Color(0xFF1C1B19)      // 화면 배경 (앱 공통 차콜)
+private val Indigo = Color(0xFF8B9AF5)       // 포인트 (다크 대비 위해 밝힘)
+private val FieldBorder = Color(0xFF3A3934)  // 입력창 테두리
+private val LabelGray = Color(0xFFD8DEE9)    // 라벨
+private val HintGray = Color(0xFF6E6B64)     // 플레이스홀더
+private val LoginCard = Color(0xFF262521)    // 로그인 카드 표면
 
 @Composable
 fun LoginScreen(
@@ -45,17 +46,29 @@ fun LoginScreen(
 
     var selectedTab by remember { mutableStateOf(0) }       // 0=Log in, 1=Sign up
     var email by remember { mutableStateOf("") }
+    var nickname by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var passwordConfirm by remember { mutableStateOf("") }
     var passwordConfirmVisible by remember { mutableStateOf(false) }
-
+    var infoMessage by remember { mutableStateOf<String?>(null) }
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
 
-    // 로그인 성공 시 메인으로 이동
+    // 로그인 성공 시 메인으로 이동, 회원가입 -> 로그인
     LaunchedEffect(uiState) {
-        if (uiState is LoginUiState.Success) onLoginSuccess()
+        when (uiState) {
+            is LoginUiState.Success -> onLoginSuccess()
+            is LoginUiState.SignupSuccess -> {
+                selectedTab = 0                 // 로그인 탭으로 전환
+                password = ""
+                passwordConfirm = ""
+                nickname = ""
+                infoMessage = "회원가입이 완료되었습니다. 로그인해주세요."
+                viewModel.resetState()          // 상태 초기화 (Idle)
+            }
+            else -> {}
+        }
     }
 
     Box(
@@ -69,7 +82,7 @@ fun LoginScreen(
                 .padding(20.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
-                .background(Color.White)
+                .background(LoginCard)
                 .padding(horizontal = 24.dp, vertical = 28.dp)
         ) {
             // ── 탭 (Log in / Sign up) ──
@@ -95,7 +108,17 @@ fun LoginScreen(
             )
 
             Spacer(Modifier.height(18.dp))
-
+            // ── 닉네임 (회원가입 탭에서만 표시) ──
+            if (selectedTab == 1) {
+                FieldLabel("닉네임")
+                Spacer(Modifier.height(8.dp))
+                AuthTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    hint = "닉네임을 입력하세요"
+                )
+                Spacer(Modifier.height(18.dp))
+            }
             // ── 비밀번호 ──
             FieldLabel("비밀번호")
             Spacer(Modifier.height(8.dp))
@@ -156,6 +179,11 @@ fun LoginScreen(
                         .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
                 )
             }
+            // ── 회원가입 완료 안내 (로그인 탭에서만) ──
+            if (infoMessage != null && selectedTab == 0) {
+                Spacer(Modifier.height(10.dp))
+                Text(infoMessage!!, color = Indigo, fontSize = 13.sp)
+            }
 
             // ── 에러 메시지 ──
             if (errorMessage != null) {
@@ -169,7 +197,7 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (selectedTab == 0) viewModel.login(email, password)
-                    else viewModel.signup(email, password, passwordConfirm)
+                    else viewModel.signup(email, password, passwordConfirm,nickname)
                 },
                 enabled = !isLoading,
                 shape = RoundedCornerShape(14.dp),

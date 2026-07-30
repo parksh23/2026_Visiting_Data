@@ -36,7 +36,7 @@ interface AuthRepository {
     suspend fun loginWithKakao(kakaoAccessToken: String): Result<String>
 
     // 이메일/비밀번호로 회원가입 후 JWT 를 받는다
-    suspend fun signup(email: String, password: String): Result<String>
+    suspend fun signup(email: String, password: String, nickname: String): Result<String>
 }
 
 /**
@@ -61,7 +61,7 @@ class FakeAuthRepository : AuthRepository {
         return Result.success("fake-kakao-token-${System.currentTimeMillis()}")
     }
 
-    override suspend fun signup(email: String, password: String): Result<String> {
+    override suspend fun signup(email: String, password: String, nickname: String): Result<String> {
         delay(800)
         return Result.success("fake-signup-token-${System.currentTimeMillis()}")
     }
@@ -157,30 +157,21 @@ class RetrofitAuthRepository(
     *   "token": "test-jwt-token"
     * }
     */
-    override suspend fun signup(email: String, password: String): Result<String> {
+    override suspend fun signup(email: String, password: String, nickname: String): Result<String> {
         return try {
-            // Retrofit으로 회원가입 API 호출
             val response = api.signup(
                 SignupRequestDto(
                     email = email,
-                    password = password
+                    password = password,
+                    nickname = nickname        // ← 추가
                 )
             )
-
-            // 서버가 내려준 token 반환
             Result.success(response.token)
-
         } catch (e: HttpException) {
-            // 이메일 중복 409, 입력 오류 400 등이 여기로 들어옴
-            // 서버가 준 구체적 이유(detail)를 그대로 보여준다.
             Result.failure(Exception(e.serverDetail("이미 가입된 이메일이거나 입력이 올바르지 않습니다.")))
-
         } catch (e: IOException) {
-            // 서버 연결 실패
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
-
         } catch (e: Exception) {
-            // 기타 오류
             Result.failure(Exception("회원가입 중 오류가 발생했습니다."))
         }
     }

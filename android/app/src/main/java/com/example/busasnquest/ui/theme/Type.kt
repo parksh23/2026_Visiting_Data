@@ -5,6 +5,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextGeometricTransform
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.R
@@ -30,8 +32,57 @@ val AppFontFamily: FontFamily = FontFamily(
     Font(R.font.pretendard_bold,     FontWeight.Bold)
 )
 
+/**
+ * 디스플레이(헤딩) 전용 폰트 — 한글 굵은 콘덴스드.
+ * 워드마크·화면 제목·섹션 제목·카드 제목 등 "크게 보이는 글자"에만 사용.
+ * 단일 weight 폰트라 fontWeight 지정 불필요.
+ */
+val DisplayFontFamily: FontFamily = FontFamily(Font(R.font.black_han_sans))
+
+/**
+ * 영문·숫자 액센트 폰트.
+ * Anton 을 res/font/anton.ttf 로 추가하면 아래 한 줄만 바꾸면 된다:
+ *   val AccentFontFamily = FontFamily(Font(R.font.anton))
+ * (Anton 은 한글 글리프가 없으므로 절대 한글에 쓰지 말 것)
+ * 지금은 같은 콘덴스드 톤의 Black Han Sans 라틴 글리프로 대체.
+ */
+val AccentFontFamily: FontFamily = FontFamily(Font(R.font.black_han_sans))
+
 // 배민식 공통 자간(살짝 좁게) — 한글 가독성/밀도
 private val Tracking = (-0.02).em
+
+/**
+ * 디스플레이 헤딩 스타일 — 가로 80% 압축 + 좁은 자간으로 콘덴스드 느낌.
+ * 사용: Text("제목", style = displayStyle(24.sp), color = TextMain)
+ *
+ * @param size 글자 크기
+ * @param scaleX 가로 압축률 (0.75~0.85 사이에서 조절)
+ */
+fun displayStyle(
+    size: TextUnit,
+    scaleX: Float = 0.8f,
+    letterSpacing: TextUnit = (-1).sp
+): TextStyle = TextStyle(
+    fontFamily = DisplayFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = size,
+    letterSpacing = letterSpacing,
+    textGeometricTransform = TextGeometricTransform(scaleX = scaleX)
+)
+
+/**
+ * 영문·숫자 액센트 스타일 (통계 숫자, "MY"/"RECENT" 같은 마이크로 라벨).
+ * 한글에는 사용 금지.
+ */
+fun accentStyle(
+    size: TextUnit,
+    letterSpacing: TextUnit = 0.03.em
+): TextStyle = TextStyle(
+    fontFamily = AccentFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = size,
+    letterSpacing = letterSpacing
+)
 
 private fun TextStyle.brand(): TextStyle =
     copy(fontFamily = AppFontFamily, letterSpacing = Tracking)

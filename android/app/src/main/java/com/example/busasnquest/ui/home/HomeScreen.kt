@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.home
 
 import android.view.ViewGroup
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -33,6 +34,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.ui.res.painterResource
+import com.example.busasnquest.R
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
 import com.example.busasnquest.data.repository.OccupationStat
@@ -121,35 +124,21 @@ private fun HomeHeader(points: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 로고 락업 (깃발 + "부산 땅따먹기")
+            // 로고 락업 (조각난 땅 + 깃발 심볼 + "부산 땅따먹기")
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+                Image(
+                    painter = painterResource(id = R.drawable.ic_logo_symbol),
+                    contentDescription = "부산 땅따먹기",
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Coral),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Flag, contentDescription = null, tint = Color.White, modifier = Modifier.size(19.dp))
-                }
-                Spacer(Modifier.width(9.dp))
+                        .width(58.dp)
+                        .height(44.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                // 워드마크 — 디스플레이 헤딩(콘덴스드), 강조 글자만 브랜드 액센트색
                 Row {
-                    Text(
-                        "부산 ",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextMain,
-                        fontFamily = LogoFontFamily,
-                        letterSpacing = (-0.5).sp
-                    )
-                    Text(
-                        "땅따먹기",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Coral,
-                        fontFamily = LogoFontFamily,
-                        letterSpacing = (-0.5).sp
-                    )
+                    Text("부산 ", style = displayStyle(26.sp), color = TextMain)
+                    Text("땅", style = displayStyle(26.sp), color = Coral)
+                    Text("따먹기", style = displayStyle(26.sp), color = TextMain)
                 }
             }
             // 포인트 칩 + 알림 벨
@@ -188,8 +177,7 @@ private fun SearchPill(onClick: () -> Unit) {
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(CardWhite)
+            .raisedSurface(RoundedCornerShape(28.dp), elevation = 5.dp)
             .clickable { onClick() }
             .padding(horizontal = 20.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -280,12 +268,13 @@ private fun OngoingSummaryCard(
             .background(CoralTint)
             .padding(20.dp)
     ) {
-        Text("진행중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
+        // 크림색(CoralTint) 배경 위라 다크용 밝은 글자 대신 진한 갈색 사용
+        Text("진행중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A2E28))
         Spacer(Modifier.height(4.dp))
         Text(
             "미션을 선택하면\n자세한 정보를 확인할 수 있어요.",
             fontSize = 13.sp,
-            color = TextSub
+            color = Color(0xFF8C6F66)
         )
 
         Spacer(Modifier.height(16.dp))
@@ -362,7 +351,7 @@ private fun OngoingSummaryCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.TrackChanges, contentDescription = null, tint = Coral, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("전체 미션 진행률", fontSize = 13.sp, color = TextMain, modifier = Modifier.weight(1f))
+            Text("전체 미션 진행률", fontSize = 13.sp, color = Color(0xFF4A2E28), modifier = Modifier.weight(1f))
             Text("$percent%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Coral)
         }
         Spacer(Modifier.height(8.dp))
@@ -401,12 +390,13 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextMain)
+        // 섹션 제목 — 디스플레이 헤딩
+        Text(title, style = displayStyle(20.sp), color = TextMain)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable { onSeeAll() }
         ) {
-            Text("전체보기", color = TextSub, fontSize = 13.sp)
+            Text("전체보기", color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(18.dp))
         }
     }

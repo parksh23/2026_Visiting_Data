@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -206,11 +207,17 @@ private fun TypeFilterChips(
             val isSelected = selected == type
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (isSelected) Coral else CardWhite)
                     .then(
-                        if (isSelected) Modifier
-                        else Modifier.border(1.dp, DividerGray, RoundedCornerShape(999.dp))
+                        if (isSelected)
+                            Modifier
+                                .shadow(4.dp, RoundedCornerShape(999.dp), clip = false)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                                        listOf(Color(0xFFEF706C), Coral)
+                                    )
+                                )
+                        else Modifier.raisedSurface(RoundedCornerShape(999.dp), elevation = 3.dp)
                     )
                     .clickable { onSelect(type) }
                     .padding(horizontal = 16.dp, vertical = 8.dp)

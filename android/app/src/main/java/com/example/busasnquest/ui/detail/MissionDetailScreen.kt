@@ -118,7 +118,8 @@ fun MissionDetailScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            Text(mission.title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextMain)
+            // 상세 제목 — 디스플레이 헤딩
+            Text(mission.title, style = displayStyle(24.sp), color = TextMain)
             Spacer(modifier = Modifier.height(8.dp))
             Text(mission.region, color = TextSub, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(4.dp))

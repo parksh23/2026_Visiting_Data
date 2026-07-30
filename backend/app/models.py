@@ -58,6 +58,7 @@ class Mission(Base):
     region_name = Column("REGION_NAME", String(50), nullable=False)
     base_score = Column("BASE_SCORE", Integer, default=0)
     mission_type = Column("MISSION_TYPE", String(50), nullable=False)
+    image_url = Column("IMAGE_URL", String(255), nullable=True)
 
 
 # =========================

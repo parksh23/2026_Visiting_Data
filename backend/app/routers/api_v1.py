@@ -5,7 +5,7 @@ from PIL import Image
 import google.generativeai as genai
 
 from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form
-from fastapi.security import OAuth2PasswordRequestForm  # Form 로그인 지원
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -44,7 +44,6 @@ class SignupRequest(BaseModel):
 class KakaoLoginRequest(BaseModel):
     access_token: str
 
-# 🌟 수정됨: OAuth2 표준 규격에 맞춘 Token 응답 DTO
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -143,7 +142,6 @@ def login(
 
     access_token = create_access_token(data={"sub": user.email})
 
-    # 🌟 수정됨: 표준 규격 반환
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -213,7 +211,6 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
 
     access_token = create_access_token(data={"sub": new_user.email})
 
-    # 🌟 수정됨: 표준 규격 반환
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -225,8 +222,6 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
 def kakao_login(req: KakaoLoginRequest):
     kakao_user_email = "kakao_user@example.com"
     access_token = create_access_token(data={"sub": kakao_user_email})
-
-    # 🌟 수정됨: 표준 규격 반환
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -281,7 +276,7 @@ def get_missions(
             "progress_total": 1,
             "status": status or "locked",
             "mission_type": mission.mission_type,
-            "image_url": None
+            "image_url": mission.image_url
         })
 
     return missions_response
@@ -310,7 +305,7 @@ def get_ongoing_missions(
             "progress_total": 1,
             "status": status,
             "mission_type": mission.mission_type,
-            "image_url": None
+            "image_url": mission.image_url
         } for mission, status in results
     ]
 

@@ -79,14 +79,20 @@ class HomeViewModel : ViewModel() {
         }
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
-            // TODO(백엔드): 이미지 업로드 엔드포인트(presigned URL / multipart)가 정해지면
-            //  업로드 후 받은 실제 URL 로 교체. 지금은 기기 내 uri 문자열을 임시 전송.
+            val photoUrl = MissionRepository.uploadImage(context, uri)
+                .getOrElse { error ->
+                    MissionRepository.setError(
+                        id,
+                        error.message ?: "사진 업로드에 실패했습니다."
+                    )
+                    return@launch
+                }
             submitVerification(
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
                     missionType = MissionType.PHOTO_LOCATION.toServerType(),
-                    photoUrl = uri.toString(),
+                    photoUrl = photoUrl,
                     latitude = location.latitude,
                     longitude = location.longitude
                 )
@@ -120,17 +126,24 @@ class HomeViewModel : ViewModel() {
     }
 
     // RECEIPT: 영수증 촬영 완료 → receipt_image_url 전송
-    fun onReceiptCaptured(id: Int, success: Boolean, uri: Uri?) {
-        if (!success) return
+    fun onReceiptCaptured(id: Int, context: Context, success: Boolean, uri: Uri?) {
+        if (!success || uri == null) return
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
-            // TODO(백엔드): 사진과 동일하게 업로드 엔드포인트 확정 후 실제 URL 로 교체.
+            val receiptImageUrl = MissionRepository.uploadImage(context, uri)
+                .getOrElse { error ->
+                    MissionRepository.setError(
+                        id,
+                        error.message ?: "영수증 업로드에 실패했습니다."
+                    )
+                    return@launch
+                }
             submitVerification(
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
                     missionType = MissionType.RECEIPT.toServerType(),
-                    receiptImageUrl = uri?.toString()
+                    receiptImageUrl = receiptImageUrl
                 )
             )
         }

@@ -105,3 +105,7 @@ data class MissionVerifyResponseDto(
     val success: Boolean,
     val message: String
 )
+
+data class UploadResponseDto(
+    val url: String
+)

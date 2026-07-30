@@ -2,7 +2,10 @@ package com.example.busasnquest.data.remote
 
 import retrofit2.http.GET
 import retrofit2.http.Body
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 import retrofit2.http.POST
+import okhttp3.MultipartBody
 
 interface BusanQuestApi {
 
@@ -23,4 +26,10 @@ interface BusanQuestApi {
     suspend fun verifyMission(
         @Body request: MissionVerifyRequestDto
     ): MissionVerifyResponseDto
+
+    @Multipart
+    @POST("api/v1/uploads")
+    suspend fun uploadImage(
+        @Part file: MultipartBody.Part
+    ): UploadResponseDto
 }

@@ -1,8 +1,10 @@
 import math
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import (
@@ -188,6 +190,20 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
     }
 
 
+def _uploaded_image_exists(image_url: Optional[str]) -> bool:
+    if not image_url:
+        return False
+    parsed = urlparse(image_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+    if not parsed.path.startswith("/uploads/"):
+        return False
+    filename = Path(parsed.path).name
+    if not re.fullmatch(r"[0-9a-f]{32}\.jpg", filename):
+        return False
+    return (UPLOAD_DIR / filename).is_file()
+
+
 @router.post("/auth/login", response_model=TokenResponse)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(AppUser).filter(AppUser.email == req.email.strip().lower()).first()
@@ -340,10 +356,18 @@ def verify_mission(
     )
     if duplicate:
         return {"success": False, "message": "이미 완료한 미션입니다."}
-    if requested_type == "PHOTO" and not req.photo_url:
-        return {"success": False, "message": "인증 사진을 먼저 업로드해 주세요."}
-    if requested_type == "RECEIPT" and not req.receipt_image_url:
-        return {"success": False, "message": "영수증 이미지를 먼저 업로드해 주세요."}
+    if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
+        return {
+            "success": False,
+            "message": "서버에 업로드된 인증 사진을 확인할 수 없습니다.",
+        }
+    if requested_type == "RECEIPT" and not _uploaded_image_exists(
+        req.receipt_image_url
+    ):
+        return {
+            "success": False,
+            "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
+        }
 
     if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:

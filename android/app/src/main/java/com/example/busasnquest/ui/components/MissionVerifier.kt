@@ -47,7 +47,12 @@ fun rememberMissionVerifier(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         // 촬영한 영수증 이미지 uri 를 함께 넘겨 서버 인증에 사용
-        viewModel.onReceiptCaptured(activeId.value, success, pendingReceiptUri.value)
+        viewModel.onReceiptCaptured(
+            activeId.value,
+            context,
+            success,
+            pendingReceiptUri.value
+        )
     }
 
     val cameraPermission = rememberLauncherForActivityResult(

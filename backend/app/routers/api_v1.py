@@ -5,7 +5,7 @@ from PIL import Image
 import google.generativeai as genai
 
 from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm  # Form 로그인 지원
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -44,6 +44,7 @@ class SignupRequest(BaseModel):
 class KakaoLoginRequest(BaseModel):
     access_token: str
 
+# 🌟 수정됨: OAuth2 표준 규격에 맞춘 Token 응답 DTO
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -116,11 +117,10 @@ class RankingResponse(BaseModel):
 # =========================================================
 @router.post("/auth/login", response_model=TokenResponse)
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    req: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    # OAuth2PasswordRequestForm의 username 필드로 email이 들어옵니다.
-    user = db.query(AppUser).filter(AppUser.email == form_data.username).first()
+    user = db.query(AppUser).filter(AppUser.email == req.email).first()
 
     if user is None:
         raise HTTPException(
@@ -134,7 +134,7 @@ def login(
             detail="사용할 수 없는 계정입니다."
         )
 
-    if not verify_password(form_data.password, user.password_hash):
+    if not verify_password(req.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="이메일 또는 비밀번호가 올바르지 않습니다."
@@ -222,6 +222,7 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
 def kakao_login(req: KakaoLoginRequest):
     kakao_user_email = "kakao_user@example.com"
     access_token = create_access_token(data={"sub": kakao_user_email})
+
     return {
         "access_token": access_token,
         "token_type": "bearer",

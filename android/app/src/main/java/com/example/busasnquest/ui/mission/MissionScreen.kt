@@ -35,7 +35,6 @@ import com.example.busasnquest.data.repository.OccupationStat
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import com.example.busasnquest.ui.components.clickableNoRipple
-import com.example.busasnquest.ui.components.InlineErrorBanner
 
 /**
  * 미션 탭 (리디자인 v2)
@@ -51,7 +50,6 @@ fun MissionScreen(
     homeViewModel: HomeViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val occupation by viewModel.occupation.collectAsStateWithLifecycle()
     val loadError by viewModel.loadError.collectAsStateWithLifecycle()
 
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
@@ -73,23 +71,6 @@ fun MissionScreen(
                 InlineErrorBanner(message = msg, onRetry = viewModel::refreshFromServer)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            ProgressCard(
-                label = "전체 진행률",
-                percentText = "${(occupation.rate * 100).toInt()}%",
-                caption = "${occupation.completedMissions}/${occupation.totalMissions} 미션 완료",
-                progress = occupation.rate
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            SegmentedToggle(
-                options = listOf("전체", "지역"),
-                selectedIndex = uiState.selectedTab,
-                onSelect = { viewModel.selectTab(it) }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 if (uiState.selectedTab == 0) "전체 미션" else "지역별 미션",

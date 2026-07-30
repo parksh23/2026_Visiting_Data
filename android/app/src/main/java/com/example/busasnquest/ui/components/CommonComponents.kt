@@ -129,8 +129,8 @@ fun SegmentedToggle(
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardWhite)
+            // 트랙은 안으로 들어간 느낌
+            .sunkenSurface(RoundedCornerShape(16.dp))
             .padding(4.dp)
     ) {
         options.forEachIndexed { index, label ->
@@ -138,8 +138,18 @@ fun SegmentedToggle(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(if (selected) Coral else Color.Transparent)
+                    // 선택된 칸만 위로 떠오름
+                    .then(
+                        if (selected) Modifier
+                            .shadow(4.dp, RoundedCornerShape(13.dp), clip = false)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFFEF706C), Coral)
+                                )
+                            )
+                        else Modifier.clip(RoundedCornerShape(13.dp))
+                    )
                     .clickable { onSelect(index) }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center

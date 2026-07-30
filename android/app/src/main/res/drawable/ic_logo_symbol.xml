@@ -1,72 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  런처 아이콘 전경: 부산 땅따먹기 로고 심볼
-  (108x108 뷰포트의 안전영역 안에 맞춰 스케일)
+  부산 땅따먹기 로고 심볼
+  - 조각난 부산 땅 + 깃발
+  - 깃발이 꽂힌 중앙 조각이 가장 밝은 코럴(#E8635F = 100% 점령),
+    바깥으로 갈수록 어두워짐 (지도 히트맵 점령률 스케일과 동일)
+  - 조각 사이 간격은 배경색(#1C1B19) 스트로크
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
+    android:width="48dp"
+    android:height="36dp"
+    android:viewportWidth="400"
+    android:viewportHeight="300">
 
     <!-- 좌상단 조각 (미점령) -->
     <path
-        android:pathData="M24.0,63.19 L34.51,53.53 L44.16,52.97 L47.0,60.92 L36.78,68.87 L27.12,68.87 Z"
+        android:pathData="M105,150 L142,116 L176,114 L186,142 L150,170 L116,170 Z"
         android:fillColor="#5C3F38"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 상단 중앙 조각 -->
     <path
-        android:pathData="M47.0,60.92 L44.16,52.97 L55.52,50.13 L62.91,55.24 L61.2,62.05 Z"
+        android:pathData="M186,142 L176,114 L216,104 L242,122 L236,146 Z"
         android:fillColor="#8F5346"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 우상단 조각 (미점령) -->
     <path
-        android:pathData="M62.91,55.24 L74.27,52.4 L83.92,58.08 L79.38,63.76 L65.18,63.76 Z"
+        android:pathData="M242,122 L282,112 L316,132 L300,152 L250,152 Z"
         android:fillColor="#5C3F38"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 좌하단 조각 -->
     <path
-        android:pathData="M27.12,68.87 L36.78,68.87 L41.32,75.69 L36.78,83.64 L28.26,80.23 Z"
+        android:pathData="M116,170 L150,170 L166,194 L150,222 L120,210 Z"
         android:fillColor="#8F5346"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 중앙 조각 — 깃발이 꽂힌 곳 (완전 점령) -->
     <path
-        android:pathData="M36.78,68.87 L47.0,60.92 L61.2,62.05 L59.78,73.7 L49.84,83.64 L41.32,75.69 Z"
+        android:pathData="M150,170 L186,142 L236,146 L231,187 L196,222 L166,194 Z"
         android:fillColor="#E8635F"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 우하단 조각 -->
     <path
-        android:pathData="M61.2,62.05 L65.18,63.76 L79.38,63.76 L77.96,72.28 L66.88,78.81 L59.78,73.7 Z"
+        android:pathData="M236,146 L250,152 L300,152 L295,182 L256,205 L231,187 Z"
         android:fillColor="#C75B52"
         android:strokeColor="#1C1B19"
-        android:strokeWidth="1.42"
+        android:strokeWidth="5"
         android:strokeLineJoin="round" />
 
     <!-- 깃대 -->
     <path
-        android:pathData="M50.98,65.46 L50.98,26.84"
+        android:pathData="M200,158 L200,22"
         android:strokeColor="#EDEBE8"
-        android:strokeWidth="2.27"
+        android:strokeWidth="8"
         android:strokeLineCap="round" />
 
     <!-- 깃발 -->
     <path
-        android:pathData="M52.12,27.97 C64.04,24.0 68.59,33.09 81.08,28.54 C79.38,35.36 82.79,38.2 79.38,43.88 C67.45,47.85 63.48,39.33 52.12,43.31 Z"
+        android:pathData="M204,26 C246,12 262,44 306,28 C300,52 312,62 300,82 C258,96 244,66 204,80 Z"
         android:fillColor="#EDEBE8" />
 
 </vector>

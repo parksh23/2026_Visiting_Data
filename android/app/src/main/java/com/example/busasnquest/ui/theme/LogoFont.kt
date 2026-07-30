@@ -32,4 +32,5 @@ import com.example.busasnquest.R
 // ⚠️ 선택: Black Han Sans (임팩트/포스터 느낌)
 //    res/font/black_han_sans.ttf 를 넣어야 빌드됩니다.
 //    (파일이 없으면 R.font.black_han_sans 미해결로 빌드 에러가 나요)
-val LogoFontFamily: FontFamily = FontFamily(Font(R.font.black_han_sans))
+// black_han_sans 는 획이 너무 두꺼워 다크 배경에서 뭉개짐 → 앱 공통 Pretendard 로 통일
+val LogoFontFamily: FontFamily = AppFontFamily

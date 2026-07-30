@@ -45,6 +45,8 @@ import com.example.busasnquest.ui.theme.IconGreen
 import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.accentStyle
+import com.example.busasnquest.ui.theme.displayStyle
 
 /**
  * 미션 카드 (리스트형): 좌측 이미지 타일 + 제목/하트 + 위치 + 보상 + 상태별 버튼.
@@ -80,10 +82,10 @@ fun MissionCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Top) {
+                    // 카드 제목 — 디스플레이 헤딩
                     Text(
                         mission.title,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        style = displayStyle(18.sp),
                         color = TextMain,
                         modifier = Modifier.weight(1f)
                     )
@@ -121,10 +123,8 @@ fun MissionCard(
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        "+${mission.reward}P", fontWeight = FontWeight.Bold,
-                        color = Coral, fontSize = 14.sp
-                    )
+                    // 보상 숫자 — 액센트 폰트
+                    Text("+${mission.reward}P", style = accentStyle(15.sp), color = Coral)
                 }
             }
         }

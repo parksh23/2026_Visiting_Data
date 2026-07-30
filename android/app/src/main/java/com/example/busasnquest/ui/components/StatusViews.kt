@@ -24,7 +24,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColor
+import androidx.compose.runtime.getValue
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.SkeletonBase
+import com.example.busasnquest.ui.theme.SkeletonHighlight
 import com.example.busasnquest.ui.theme.TextSub
 
 /**
@@ -47,6 +51,30 @@ fun LoadingView(message: String? = null) {
             Text(message, color = TextSub, fontSize = 13.sp)
         }
     }
+}
+
+/**
+ * 스켈레톤 블록 — 로딩 중 콘텐츠 자리를 어두운 블록 + 맥동으로 표시.
+ * 크기·모양은 호출부의 modifier/shape 로 지정.
+ *
+ * 사용 예: SkeletonBox(Modifier.width(160.dp).height(16.dp))
+ */
+@Composable
+fun SkeletonBox(
+    modifier: Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(10.dp)
+) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton")
+    val color by transition.animateColor(
+        initialValue = SkeletonBase,
+        targetValue = SkeletonHighlight,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(600),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "skeletonColor"
+    )
+    Box(modifier.clip(shape).background(color))
 }
 
 /**

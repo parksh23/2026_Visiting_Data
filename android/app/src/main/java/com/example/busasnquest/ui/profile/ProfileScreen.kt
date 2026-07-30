@@ -154,7 +154,8 @@ fun ProfileSummaryCard(uiState: ProfileUiState) {
 
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiState.name, fontWeight = FontWeight.Bold, fontSize = 19.sp, color = TextMain)
+                    // 이름 — 디스플레이 헤딩
+                    Text(uiState.name, style = displayStyle(21.sp), color = TextMain)
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         Icons.Outlined.Edit,
@@ -194,9 +195,10 @@ fun ProfileStat(value: String, label: String, modifier: Modifier = Modifier) {
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(value, color = TextMain, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        // 통계 숫자 — 액센트 폰트
+        Text(value, color = TextMain, style = accentStyle(20.sp))
         Spacer(modifier = Modifier.height(4.dp))
-        Text(label, color = TextSub, fontSize = 12.sp)
+        Text(label, color = TextSub, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 

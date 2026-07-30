@@ -4,7 +4,7 @@ import json
 from PIL import Image
 import google.generativeai as genai
 
-from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, status, Query, Depends, UploadFile, File, Form, Request
 from fastapi.security import OAuth2PasswordRequestForm  # Form 로그인 지원
 from pydantic import BaseModel
 from typing import List, Optional
@@ -115,11 +115,40 @@ class RankingResponse(BaseModel):
 # 6. Auth API
 # =========================================================
 @router.post("/auth/login", response_model=TokenResponse)
-def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+async def login(
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    user = db.query(AppUser).filter(AppUser.email == form_data.username).first()
+    content_type = request.headers.get("content-type", "")
+
+    email = None
+    password = None
+
+    # 1. 클라이언트(앱/웹)에서 JSON 형식으로 보낸 경우
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+            email = data.get("email")
+            password = data.get("password")
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="잘못된 JSON 형식입니다.")
+
+    # 2. Swagger 자물쇠 버튼 등 Form 형식으로 보낸 경우
+    else:
+        form = await request.form()
+        # Swagger는 username 필드에, 혹시 모를 대비로 email 필드도 확인
+        email = form.get("username") or form.get("email")
+        password = form.get("password")
+
+    # 값 누락 검증
+    if not email or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="이메일 또는 비밀번호가 전송되지 않았습니다."
+        )
+
+    # DB 검증 로직
+    user = db.query(AppUser).filter(AppUser.email == email).first()
 
     if user is None:
         raise HTTPException(
@@ -133,12 +162,13 @@ def login(
             detail="사용할 수 없는 계정입니다."
         )
 
-    if not verify_password(form_data.password, user.password_hash):
+    if not verify_password(password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="이메일 또는 비밀번호가 올바르지 않습니다."
         )
 
+    # 토큰 발급
     access_token = create_access_token(data={"sub": user.email})
 
     return {

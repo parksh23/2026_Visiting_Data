@@ -26,7 +26,7 @@ from auth_utils import (
     verify_password,
 )
 from database import get_db
-from models import AppUser, District, Mission, UserMission
+from models import AppUser, District, Friendship, Mission, UserMission
 
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
 
@@ -61,6 +61,7 @@ class LoginRequest(BaseModel):
 class SignupRequest(BaseModel):
     email: str
     password: str
+    nickname: str
 
 
 class KakaoLoginRequest(BaseModel):
@@ -212,15 +213,20 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=400, detail="비밀번호는 8자 이상, 72바이트 이하여야 합니다."
         )
+    nickname = req.nickname.strip()
+    if not nickname:
+        raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
     if db.query(AppUser).filter(AppUser.email == email).first():
         raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다.")
+    if db.query(AppUser).filter(AppUser.nickname == nickname).first():
+        raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다.")
 
     user = AppUser(
         user_code=_next_user_code(db),
         login_id=email,
         email=email,
         password_hash=hash_password(req.password),
-        nickname=email.split("@")[0],
+        nickname=nickname,
         account_status="ACTIVE",
     )
     db.add(user)
@@ -428,7 +434,15 @@ def get_rankings(
                 AppUser.district_name == user.district_name
             ).all()
     elif type == "friend":
-        ranked_users = []
+        friend_codes = [
+            friend_code
+            for (friend_code,) in db.query(Friendship.friend_user_code)
+            .filter(Friendship.user_code == user.user_code)
+            .all()
+        ]
+        ranked_users = query.filter(
+            AppUser.user_code.in_([user.user_code, *friend_codes])
+        ).all()
     else:
         ranked_users = query.all()
 

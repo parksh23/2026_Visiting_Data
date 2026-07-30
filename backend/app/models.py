@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     DateTime,
     Float,
@@ -33,7 +34,12 @@ class AppUser(Base):
     kakao_id = Column("KAKAO_ID", String(100), nullable=True, unique=True, index=True)
     account_status = Column("ACCOUNT_STATUS", String(30), nullable=False, default="ACTIVE")
     nickname = Column("NICKNAME", String(100), nullable=False)
-    district_name = Column("DISTRICT_NAME", String(30), nullable=True)
+    district_name = Column(
+        "DISTRICT_NAME",
+        String(30),
+        ForeignKey("DISTRICTS.NAME"),
+        nullable=True,
+    )
     level_no = Column("LEVEL_NO", Integer, nullable=False, default=1)
     total_points = Column("TOTAL_POINTS", Integer, nullable=False, default=0)
     completed_missions = Column("COMPLETED_MISSIONS", Integer, nullable=False, default=0)
@@ -43,6 +49,15 @@ class AppUser(Base):
 
 class District(Base):
     __tablename__ = "DISTRICTS"
+    __table_args__ = (
+        CheckConstraint(
+            '"NAME" IN ('
+            "'강서구','금정구','기장군','남구','동구','동래구','부산진구','북구',"
+            "'사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'"
+            ")",
+            name="CK_DISTRICTS_BUSAN_NAME",
+        ),
+    )
 
     name = Column("NAME", String(30), primary_key=True)
 
@@ -81,3 +96,30 @@ class UserMission(Base):
     verified_at = Column("VERIFIED_AT", DateTime, nullable=False, default=datetime.utcnow)
     photo_url = Column("PHOTO_URL", String(1000), nullable=True)
     receipt_image_url = Column("RECEIPT_IMAGE_URL", String(1000), nullable=True)
+
+
+class Friendship(Base):
+    __tablename__ = "FRIENDSHIPS"
+    __table_args__ = (
+        UniqueConstraint("USER_CODE", "FRIEND_USER_CODE", name="UQ_FRIENDSHIP"),
+        CheckConstraint(
+            '"USER_CODE" <> "FRIEND_USER_CODE"',
+            name="CK_FRIENDSHIP_NOT_SELF",
+        ),
+    )
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    friend_user_code = Column(
+        "FRIEND_USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )

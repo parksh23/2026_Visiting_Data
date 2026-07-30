@@ -7,7 +7,7 @@
 
 from auth_utils import hash_password
 from database import Base, SessionLocal, engine
-from models import AppUser, District, Mission, UserMission
+from models import AppUser, District, Friendship, Mission, UserMission
 from routers.api_v1 import BUSAN_DISTRICTS
 
 
@@ -33,6 +33,10 @@ MISSION_SEEDS = [
     (19, "기장시장 영수증", "기장군", "기장군 기장읍", 35.2446, 129.2156, "RECEIPT", 150),
     (20, "대저생태공원 인증", "강서구", "강서구 대저동", 35.2124, 128.9838, "PHOTO", 120),
 ]
+
+MISSION_IMAGE_URL = (
+    "https://picsum.photos/seed/busan-quest-{mission_id}/1280/720"
+)
 
 
 def seed() -> None:
@@ -61,19 +65,31 @@ def seed() -> None:
 
         for row in MISSION_SEEDS:
             mission_id, title, district, location, lat, lng, kind, reward = row
-            if db.get(Mission, mission_id) is None:
+            mission = db.get(Mission, mission_id)
+            if mission is None:
+                mission = Mission(mission_id=mission_id)
+                db.add(mission)
+            mission.title = title
+            mission.district_name = district
+            mission.location = location
+            mission.latitude = lat
+            mission.longitude = lng
+            mission.radius_m = 300
+            mission.mission_type = kind
+            mission.reward_points = reward
+            mission.image_url = MISSION_IMAGE_URL.format(mission_id=mission_id)
+
+        for friend_code in ["U001", "U002", "U003"]:
+            exists = (
+                db.query(Friendship)
+                .filter_by(user_code="U006", friend_user_code=friend_code)
+                .first()
+            )
+            if not exists:
                 db.add(
-                    Mission(
-                        mission_id=mission_id,
-                        title=title,
-                        district_name=district,
-                        location=location,
-                        latitude=lat,
-                        longitude=lng,
-                        radius_m=300,
-                        mission_type=kind,
-                        reward_points=reward,
-                        image_url=None if mission_id == 1 else f"https://picsum.photos/seed/busan{mission_id}/1280/720",
+                    Friendship(
+                        user_code="U006",
+                        friend_user_code=friend_code,
                     )
                 )
         db.commit()

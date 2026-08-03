@@ -398,7 +398,8 @@ def verify_mission(
             status="completed",
         )
     )
-        reward = getattr(mission, "reward_points", 0)
+
+    reward = getattr(mission, "reward_points", 0)
     user.total_points += reward
     user.completed_missions += 1
     db.commit()

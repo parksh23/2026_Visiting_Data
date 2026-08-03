@@ -20,7 +20,6 @@ from fastapi import (
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from auth_utils import (
     create_access_token,
@@ -176,17 +175,17 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
     completed = mission.mission_id in completed_ids
     return {
         "mission_id": mission.mission_id,
-        "title": mission.title,
-        "district": mission.district_name,
-        "location": mission.location,
+        "title": getattr(mission, "title", ""),
+        "district": getattr(mission, "district_name", ""),
+        "location": getattr(mission, "location", ""), # DB에 없으면 빈 문자열
         "latitude": mission.latitude,
         "longitude": mission.longitude,
-        "reward_points": mission.reward_points,
+        "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": "completed" if completed else "ongoing",
         "mission_type": mission.mission_type,
-        "image_url": mission.image_url,
+        "image_url": getattr(mission, "image_url", None),
     }
 
 
@@ -211,7 +210,9 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
     if user.account_status != "ACTIVE":
         raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.post("/auth/signup", response_model=TokenResponse, status_code=201)
@@ -243,7 +244,9 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.post("/auth/kakao", response_model=TokenResponse)
@@ -284,7 +287,9 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
         user.kakao_id = kakao_id
     db.commit()
     db.refresh(user)
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.get("/users/me", response_model=UserProfile)
@@ -377,10 +382,13 @@ def verify_mission(
         distance = _haversine_m(
             req.latitude, req.longitude, mission.latitude, mission.longitude
         )
-        if distance > mission.radius_m:
+
+        mission_radius = getattr(mission, "radius_m", 300)
+
+        if distance > mission_radius:
             return {
                 "success": False,
-                "message": f"미션 장소에서 허용 반경 {mission.radius_m}m 이상 떨어져 있어요.",
+                "message": f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
             }
 
     db.add(
@@ -388,16 +396,15 @@ def verify_mission(
             user_code=user.user_code,
             mission_id=mission.mission_id,
             status="completed",
-            photo_url=req.photo_url,
-            receipt_image_url=req.receipt_image_url,
         )
     )
-    user.total_points += mission.reward_points
+        reward = getattr(mission, "reward_points", 0)
+    user.total_points += reward
     user.completed_missions += 1
     db.commit()
     return {
         "success": True,
-        "message": f"미션 인증이 완료되어 {mission.reward_points}P가 적립됐습니다.",
+        "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",
     }
 
 
@@ -407,18 +414,18 @@ def get_district_progress(
 ):
     user = _get_user(db, subject)
     totals = dict(
-        db.query(Mission.district_name, func.count(Mission.mission_id))
-        .group_by(Mission.district_name)
+        db.query(getattr(Mission, "district_name", Mission.mission_id), func.count(Mission.mission_id))
+        .group_by(getattr(Mission, "district_name", Mission.mission_id))
         .all()
     )
     completed = dict(
-        db.query(Mission.district_name, func.count(UserMission.id))
+        db.query(getattr(Mission, "district_name", Mission.mission_id), func.count(UserMission.id))
         .join(UserMission, UserMission.mission_id == Mission.mission_id)
         .filter(
             UserMission.user_code == user.user_code,
             UserMission.status == "completed",
         )
-        .group_by(Mission.district_name)
+        .group_by(getattr(Mission, "district_name", Mission.mission_id))
         .all()
     )
     result = []

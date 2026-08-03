@@ -1,7 +1,8 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -11,6 +12,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", str(60 * 24 * 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+security = HTTPBearer()
 
 def create_access_token(data: dict) -> str:
     payload = data.copy()
@@ -20,16 +22,15 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user_email(authorization: str | None = Header(default=None)) -> str:
+def get_current_user_email(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="로그인이 필요하거나 인증 정보가 만료되었습니다.",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if not authorization or not authorization.startswith("Bearer "):
-        raise credentials_exception
 
-    token = authorization.removeprefix("Bearer ").strip()
+    token = credentials.credentials
+
     try:
         subject = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]).get("sub")
         if not subject:

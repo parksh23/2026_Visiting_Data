@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -16,10 +16,21 @@ import models
 from routers import text_files
 from routers import api_v1
 from log_control import setup_logging
+from scheduler import shutdown_scheduler, start_scheduler
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def start_background_jobs():
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_background_jobs():
+    shutdown_scheduler()
 
 app.add_middleware(
     CORSMiddleware,

@@ -33,7 +33,7 @@ class AppUser(Base):
     email = Column("EMAIL", String(100), nullable=True, unique=True, index=True)
     password_hash = Column("PASSWORD_HASH", String(255), nullable=True)
     account_status = Column("ACCOUNT_STATUS", String(20), nullable=False, default="ACTIVE")
-    nickname = Column("NICKNAME", String(50), nullable=False)
+    nickname = Column("NICKNAME", String(50), nullable=False, unique=True)
     level_no = Column("LEVEL_NO", Integer, nullable=False, default=1)
     total_points = Column("TOTAL_POINTS", Integer, nullable=False, default=0)
     completed_missions = Column("COMPLETED_MISSIONS", Integer, nullable=False, default=0)
@@ -69,6 +69,7 @@ class Mission(Base):
 
     mission_id = Column("MISSION_ID", Integer, primary_key=True)
     mission_type = Column("MISSION_TYPE", String(50), nullable=False)
+    mission_category = Column("MISSION_CATEGORY", String(50), nullable=True)
     district_name = Column(
         "REGION_NAME", String(50), ForeignKey("DISTRICTS.NAME"), nullable=False, index=True
     )

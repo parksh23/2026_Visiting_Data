@@ -314,7 +314,7 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
 private fun String.toMissionType(): MissionType {
     return when (this.uppercase()) {
         "CURRENT_LOCATION" -> MissionType.CURRENT_LOCATION
-        "PHOTO", "PHOTO_LOCATION" -> MissionType.PHOTO_LOCATION
+        "PHOTO", "PHOTO_LOCATION", "IMAGE" -> MissionType.PHOTO_LOCATION
         "RECEIPT" -> MissionType.RECEIPT
         else -> MissionType.CURRENT_LOCATION
     }

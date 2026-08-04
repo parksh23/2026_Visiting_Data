@@ -191,11 +191,15 @@ object MissionRepository {
         withContext(Dispatchers.IO) {
             try {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(uri)?.use {
-                    BitmapFactory.decodeStream(it, null, options)
-                } ?: return@withContext Result.failure(
-                    IllegalArgumentException("선택한 사진을 열 수 없습니다.")
-                )
+                // ⚠️ inJustDecodeBounds=true 이면 decodeStream 은 항상 null 을 반환한다.
+                // 따라서 "열기 성공" 여부는 decodeStream 결과가 아니라
+                // openInputStream 자체가 null 인지로 판단해야 한다.
+                (context.contentResolver.openInputStream(uri)
+                    ?: return@withContext Result.failure(
+                        IllegalArgumentException("선택한 사진을 열 수 없습니다.")
+                    )).use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
 
                 if (options.outWidth <= 0 || options.outHeight <= 0) {
                     return@withContext Result.failure(

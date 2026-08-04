@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Context
+import android.util.Log
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
@@ -349,7 +350,11 @@ private fun startKakaoLogin(
     // 카카오 계정(웹) 로그인 콜백
     val accountCallback: (OAuthToken?, Throwable?) -> Unit = { token, error ->
         when {
-            error != null -> onError("카카오 로그인에 실패했습니다.")
+            error != null -> {
+                // 실제 카카오 에러(KOE006=키해시 미등록 등)를 Logcat 에 남긴다
+                Log.e("KAKAO_LOGIN", "계정 로그인 실패: ${error.message}", error)
+                onError("카카오 로그인에 실패했습니다.")
+            }
             token != null -> onToken(token.accessToken)
         }
     }
@@ -357,6 +362,7 @@ private fun startKakaoLogin(
     if (UserApiClient.instance.isKakaoTalkLoginAvailable(context)) {
         UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
             if (error != null) {
+                Log.e("KAKAO_LOGIN", "카카오톡 로그인 실패: ${error.message}", error)
                 // 사용자가 직접 취소한 경우엔 계정 로그인으로 넘어가지 않는다
                 if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
                     onError("로그인이 취소되었습니다.")

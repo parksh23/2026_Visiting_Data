@@ -355,6 +355,11 @@ def verify_mission(
     requested_type = req.mission_type.upper()
     db_mission_type = "IMAGE" if mission.mission_type == "PHOTO" else mission.mission_type
 
+    # ==========================================
+    # [추가할 부분] 서버 로그에 값 출력해보기
+    print(f"👉 [디버그] 앱이 요청한 타입: {requested_type} / DB에 저장된 타입: {db_mission_type}")
+    # ==========================================
+
     if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
 

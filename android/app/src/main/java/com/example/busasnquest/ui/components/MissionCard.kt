@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage                    // Coil (build.gradle에 이미 추가됨)
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionWithState
+import com.example.busasnquest.ui.mission.missionTypeLabel
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.CoralTint
@@ -102,7 +103,7 @@ fun MissionCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 위치핀 + 지역
+                // 위치핀 + 지역 · 인증방식
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Filled.LocationOn,
@@ -111,7 +112,11 @@ fun MissionCard(
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text(mission.region, color = TextSub, fontSize = 12.sp)
+                    // 지역명이 비어있는 서버 미션이 있어 인증방식을 함께 표시
+                    val infoText = listOf(mission.region, missionTypeLabel(mission.type))
+                        .filter { it.isNotBlank() }
+                        .joinToString(" · ")
+                    Text(infoText, color = TextSub, fontSize = 12.sp)
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))

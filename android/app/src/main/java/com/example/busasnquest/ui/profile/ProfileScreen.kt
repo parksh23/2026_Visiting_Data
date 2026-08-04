@@ -11,10 +11,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +46,17 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val editState by viewModel.editState.collectAsStateWithLifecycle()
+
+    // 닉네임 편집 다이얼로그
+    if (editState.visible) {
+        NicknameEditDialog(
+            currentName = uiState.name,
+            state = editState,
+            onDismiss = { viewModel.dismissNicknameEditor() },
+            onConfirm = { viewModel.submitNickname(it) }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -52,7 +69,7 @@ fun ProfileScreen(
             subtitle = "나의 활동과 정보를 확인하세요!"
         )
 
-        ProfileSummaryCard(uiState = uiState)
+        ProfileSummaryCard(uiState = uiState, onEditName = { viewModel.openNicknameEditor() })
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -122,7 +139,7 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileSummaryCard(uiState: ProfileUiState) {
+fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .padding(horizontal = Dimens.screenPadding)
@@ -161,7 +178,9 @@ fun ProfileSummaryCard(uiState: ProfileUiState) {
                         Icons.Outlined.Edit,
                         contentDescription = "이름 편집",
                         tint = TextSub,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clickable { onEditName() }
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -231,6 +250,48 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
 
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSub)
     }
+}
+
+@Composable
+private fun NicknameEditDialog(
+    currentName: String,
+    state: NicknameEditState,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var input by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = { if (!state.loading) onDismiss() },
+        title = { Text("닉네임 수정", color = TextMain, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    singleLine = true,
+                    enabled = !state.loading,
+                    label = { Text("새 닉네임") },
+                    supportingText = { Text("2~12자, 다른 사용자와 겹칠 수 없어요") }
+                )
+                if (state.error != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(state.error, color = PointRed, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(input) }, enabled = !state.loading) {
+                Text(if (state.loading) "확인 중..." else "저장", color = Coral, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.loading) {
+                Text("취소", color = TextSub)
+            }
+        },
+        containerColor = CardWhite
+    )
 }
 
 @Composable

@@ -9,11 +9,10 @@ enum class MissionType {
 
 /**
  * 인증 제출 시 서버에 보내는 mission_type 문자열.
- * 규격서 4-2 의 예시("PHOTO", "CURRENT_LOCATION")에 맞춤.
- * ⚠️ PHOTO_LOCATION → "PHOTO" 매핑이 맞는지 백엔드와 확인 필요.
+ * 백엔드가 미션을 내려줄 때 사진 미션을 "IMAGE" 로 주므로, 제출 방향도 "IMAGE" 로 맞춘다.
  */
 fun MissionType.toServerType(): String = when (this) {
-    MissionType.PHOTO_LOCATION -> "PHOTO"
+    MissionType.PHOTO_LOCATION -> "IMAGE"
     MissionType.CURRENT_LOCATION -> "CURRENT_LOCATION"
     MissionType.RECEIPT -> "RECEIPT"
 }

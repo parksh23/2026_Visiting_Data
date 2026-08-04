@@ -31,6 +31,7 @@ import coil.compose.AsyncImage
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.mission.missionTypeLabel
+import com.example.busasnquest.ui.theme.BgSoftBlue
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.Dimens
@@ -104,7 +105,7 @@ fun MissionHeroCard(
                     missionTypeLabel(mission.type),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextMain
+                    color = BgSoftBlue   // 흰 pill 위 → 어두운 차콜 글자 (다크 테마의 TextMain은 밝아서 안 보였음)
                 )
             }
 

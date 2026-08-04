@@ -37,24 +37,40 @@ data class RecommendMission(
 
 class HomeViewModel : ViewModel() {
 
-    // 추천 미션 (지금은 샘플 데이터 → 이후 API GET /api/v1/missions 연동)
+    // 추천 미션 — 실제 미션 목록에서 몇 개를 뽑아 보여준다.
+    // 카드에 실제 mission.id 를 담아, 클릭 시 해당 미션 상세로 이동할 수 있게 한다.
     val recommendedMissions: StateFlow<List<RecommendMission>> =
-        MutableStateFlow(
-            listOf(
-                RecommendMission(101, "광안리 카페 방문", "수영구 카페 방문 인증", 200, "0.5km", RecommendBadge.POPULAR),
-                RecommendMission(102, "민락수변공원 산책", "수영구 공원 산책 인증", 150, "0.7km", RecommendBadge.NEW),
-                RecommendMission(103, "해운대 맛집 방문", "해운대구 맛집 방문 인증", 250, "1.2km", RecommendBadge.RECOMMEND)
+        MissionRepository.missions
+            .map { list ->
+                val badges = listOf(
+                    RecommendBadge.POPULAR, RecommendBadge.NEW, RecommendBadge.RECOMMEND
+                )
+                list.take(6).mapIndexed { index, item ->
+                    val m = item.mission
+                    RecommendMission(
+                        id = m.id,
+                        title = m.title,
+                        subtitle = m.region.ifBlank { m.district }.ifBlank { missionTypeLabel(m.type) },
+                        reward = m.reward,
+                        distanceText = "",
+                        badge = badges[index % badges.size]
+                    )
+                }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
             )
-        ).asStateFlow()
 
-    // Repository의 전체 미션 중 "진행 중(IN_PROGRESS)·인증 중·완료"만 걸러서 홈에 보여줌
+    // Repository의 전체 미션 중 "진행 중(IN_PROGRESS)·인증 중"만 걸러서 홈에 보여줌
+    // 완료(COMPLETED)된 미션은 진행중 목록에서 제외 → 완료하면 사라진다
     val homeMissions: StateFlow<List<MissionWithState>> =
         MissionRepository.missions
             .map { list ->
                 list.filter {
                     it.state == MissionState.IN_PROGRESS ||
-                            it.state == MissionState.VERIFYING ||
-                            it.state == MissionState.COMPLETED
+                            it.state == MissionState.VERIFYING
                 }
             }
             .stateIn(

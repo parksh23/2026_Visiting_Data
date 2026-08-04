@@ -191,11 +191,15 @@ object MissionRepository {
         withContext(Dispatchers.IO) {
             try {
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(uri)?.use {
-                    BitmapFactory.decodeStream(it, null, options)
-                } ?: return@withContext Result.failure(
-                    IllegalArgumentException("선택한 사진을 열 수 없습니다.")
-                )
+                // ⚠️ inJustDecodeBounds=true 이면 decodeStream 은 항상 null 을 반환한다.
+                // 따라서 "열기 성공" 여부는 decodeStream 결과가 아니라
+                // openInputStream 자체가 null 인지로 판단해야 한다.
+                (context.contentResolver.openInputStream(uri)
+                    ?: return@withContext Result.failure(
+                        IllegalArgumentException("선택한 사진을 열 수 없습니다.")
+                    )).use { stream ->
+                    BitmapFactory.decodeStream(stream, null, options)
+                }
 
                 if (options.outWidth <= 0 || options.outHeight <= 0) {
                     return@withContext Result.failure(
@@ -381,15 +385,17 @@ object MissionRepository {
 
 // 서버에서 받은 MissionDto를 앱 화면에서 쓰는 OngoingMission으로 변환
 private fun MissionDto.toOngoingMission(): OngoingMission {
+    // 서버가 주는 district 를 우선 사용하고, 비어 있으면 location 첫 단어로 폴백
+    val resolvedDistrict = district.ifBlank { location.extractDistrict() }
     return OngoingMission(
         id = missionId,
         title = title,
-        region = location,
+        region = location.ifBlank { resolvedDistrict },  // location 비면 구 이름이라도 표시
         reward = rewardPoints,
         current = progressCurrent,
         total = progressTotal,
         type = missionType.toMissionType(),
-        district = location.extractDistrict(),
+        district = resolvedDistrict,
         imageUrl = imageUrl
     )
 }
@@ -399,7 +405,7 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
 private fun String.toMissionType(): MissionType {
     return when (this.uppercase()) {
         "CURRENT_LOCATION" -> MissionType.CURRENT_LOCATION
-        "PHOTO", "PHOTO_LOCATION" -> MissionType.PHOTO_LOCATION
+        "PHOTO", "PHOTO_LOCATION", "IMAGE" -> MissionType.PHOTO_LOCATION
         "RECEIPT" -> MissionType.RECEIPT
         else -> MissionType.CURRENT_LOCATION
     }

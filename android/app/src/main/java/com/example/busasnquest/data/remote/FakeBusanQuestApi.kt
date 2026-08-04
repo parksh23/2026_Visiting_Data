@@ -1,6 +1,7 @@
 package com.example.busasnquest.data.remote
 
 import kotlinx.coroutines.delay
+import okhttp3.MultipartBody
 
 // 실제 서버가 아니라 테스트용 가짜 API
 // BusanQuestApi 인터페이스를 구현하기 때문에,
@@ -38,13 +39,18 @@ class FakeBusanQuestApi : BusanQuestApi {
         return emptyList()
     }
     override suspend fun verifyMission(
-    request: MissionVerifyRequestDto
+        request: MissionVerifyRequestDto
     ): MissionVerifyResponseDto {
         delay(1000)
 
-    return MissionVerifyResponseDto(
-        success = true,
-        message = "미션 인증이 제출되었습니다."
+        return MissionVerifyResponseDto(
+            success = true,
+            message = "미션 인증이 제출되었습니다."
         )
+    }
+
+    override suspend fun uploadImage(file: MultipartBody.Part): UploadResponseDto {
+        delay(1000)
+        return UploadResponseDto("https://example.com/uploads/fake.jpg")
     }
 }

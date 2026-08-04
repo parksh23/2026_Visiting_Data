@@ -1,5 +1,9 @@
 package com.example.busasnquest.data.repository
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
@@ -18,6 +22,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import com.example.busasnquest.data.remote.MissionVerifyRequestDto
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 // 미션 하나 + 그 미션의 상태
 data class MissionWithState(
@@ -54,6 +63,8 @@ val ALL_BUSAN_DISTRICTS = listOf(
 
 // 앱 전체에서 미션을 관리하는 단일 진실 공급원
 object MissionRepository {
+    private const val MAX_IMAGE_DIMENSION = 2048
+    private const val MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
     // StateFlow를 stateIn으로 만들 때 필요한 CoroutineScope
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -170,6 +181,80 @@ object MissionRepository {
         } catch (e: Exception) {
             Result.failure(Exception("인증 처리 중 오류가 발생했습니다."))
         }
+    }
+
+    /**
+     * Photo Picker/카메라의 content:// URI를 서버가 접근 가능한 HTTP URL로 변환한다.
+     * 서버 업로드 규격에 맞춰 이미지를 최대 2048px JPEG로 변환하고 5MB 이하로 압축한다.
+     */
+    suspend fun uploadImage(context: Context, uri: Uri): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it, null, options)
+                } ?: return@withContext Result.failure(
+                    IllegalArgumentException("선택한 사진을 열 수 없습니다.")
+                )
+
+                if (options.outWidth <= 0 || options.outHeight <= 0) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("지원하지 않는 이미지 형식입니다.")
+                    )
+                }
+
+                var sampleSize = 1
+                while (
+                    options.outWidth / sampleSize > MAX_IMAGE_DIMENSION ||
+                    options.outHeight / sampleSize > MAX_IMAGE_DIMENSION
+                ) {
+                    sampleSize *= 2
+                }
+
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                }
+                val bitmap = context.contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it, null, decodeOptions)
+                } ?: return@withContext Result.failure(
+                    IllegalArgumentException("선택한 사진을 처리할 수 없습니다.")
+                )
+
+                val bytes = bitmap.toJpegBytes()
+                bitmap.recycle()
+                if (bytes.size > MAX_UPLOAD_BYTES) {
+                    return@withContext Result.failure(
+                        IllegalArgumentException("사진을 5MB 이하로 줄이지 못했습니다.")
+                    )
+                }
+
+                val requestBody = bytes.toRequestBody("image/jpeg".toMediaType())
+                val part = MultipartBody.Part.createFormData(
+                    "file",
+                    "mission-${System.currentTimeMillis()}.jpg",
+                    requestBody
+                )
+                Result.success(RetrofitInstance.api.uploadImage(part).url)
+            } catch (e: retrofit2.HttpException) {
+                Result.failure(Exception("사진 업로드에 실패했습니다. (${e.code()})"))
+            } catch (e: java.io.IOException) {
+                Result.failure(Exception("사진 업로드 중 네트워크 연결을 확인해주세요."))
+            } catch (e: Exception) {
+                Result.failure(Exception(e.message ?: "사진을 처리하지 못했습니다."))
+            }
+        }
+
+    private fun Bitmap.toJpegBytes(): ByteArray {
+        var quality = 90
+        var bytes: ByteArray
+        do {
+            bytes = ByteArrayOutputStream().use { output ->
+                compress(Bitmap.CompressFormat.JPEG, quality, output)
+                output.toByteArray()
+            }
+            quality -= 10
+        } while (bytes.size > MAX_UPLOAD_BYTES && quality >= 50)
+        return bytes
     }
 
 

@@ -108,7 +108,7 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             recommended.forEach { rec ->
-                RecommendCard(rec) { navController.navigate("mission") }
+                RecommendCard(rec) { navController.navigate("missionDetail/${rec.id}") }
             }
         }
 

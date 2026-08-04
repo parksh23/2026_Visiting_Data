@@ -53,4 +53,15 @@ class FakeBusanQuestApi : BusanQuestApi {
         delay(1000)
         return UploadResponseDto("https://example.com/uploads/fake.jpg")
     }
+
+    // 테스트용 닉네임 변경 — 입력한 닉네임을 그대로 반영해 돌려준다
+    override suspend fun updateNickname(request: UpdateNicknameRequestDto): UserProfileDto {
+        delay(500)
+        return UserProfileDto(
+            name = request.nickname,
+            points = "9,999P",
+            completedMissions = 42,
+            savedMissions = 7
+        )
+    }
 }

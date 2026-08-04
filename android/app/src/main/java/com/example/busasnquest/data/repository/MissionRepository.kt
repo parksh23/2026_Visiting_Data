@@ -385,15 +385,17 @@ object MissionRepository {
 
 // 서버에서 받은 MissionDto를 앱 화면에서 쓰는 OngoingMission으로 변환
 private fun MissionDto.toOngoingMission(): OngoingMission {
+    // 서버가 주는 district 를 우선 사용하고, 비어 있으면 location 첫 단어로 폴백
+    val resolvedDistrict = district.ifBlank { location.extractDistrict() }
     return OngoingMission(
         id = missionId,
         title = title,
-        region = location,
+        region = location.ifBlank { resolvedDistrict },  // location 비면 구 이름이라도 표시
         reward = rewardPoints,
         current = progressCurrent,
         total = progressTotal,
         type = missionType.toMissionType(),
-        district = location.extractDistrict(),
+        district = resolvedDistrict,
         imageUrl = imageUrl
     )
 }

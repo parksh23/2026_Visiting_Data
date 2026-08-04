@@ -20,7 +20,11 @@ data class MissionDto(
     val missionId: Int,
 
     val title: String,
-    val location: String,
+
+    // 서버가 내려주는 구 이름 (예: "영도구") — 지역별 매칭에 사용
+    val district: String = "",
+
+    val location: String = "",
 
     @SerializedName("reward_points")
     val rewardPoints: Int,

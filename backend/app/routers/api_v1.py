@@ -50,7 +50,8 @@ BUSAN_DISTRICTS = [
     "남구",
     "영도구",
 ]
-MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+
+MISSION_TYPES = {"IMAGE", "CURRENT_LOCATION", "RECEIPT"}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 
@@ -183,8 +184,8 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
         "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
-        "status": "completed" if completed else "ongoing",
-        "mission_type": mission.mission_type,
+        "status": "completed" if completed else "not_started",
+        "mission_type": "IMAGE" if mission.mission_type == "PHOTO" else mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
     }
 
@@ -268,6 +269,10 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="카카오 사용자 정보를 확인할 수 없습니다.")
     account = profile.get("kakao_account") or {}
     email = account.get("email")
+
+    if not email:
+        email = f"kakao_{kakao_id}@dummy.com"
+
     nickname = (account.get("profile") or {}).get("nickname") or f"카카오사용자{kakao_id[-4:]}"
 
     user = db.query(AppUser).filter(AppUser.kakao_id == kakao_id).first()
@@ -332,7 +337,7 @@ def get_ongoing_missions(
     return [
         mission
         for mission in get_missions(subject, db)
-        if mission["status"] == "ongoing"
+        if mission["status"] == "not_started"
     ]
 
 
@@ -348,8 +353,11 @@ def verify_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     requested_type = req.mission_type.upper()
-    if requested_type not in MISSION_TYPES or requested_type != mission.mission_type:
+    db_mission_type = "IMAGE" if mission.mission_type == "PHOTO" else mission.mission_type
+
+    if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
+
     duplicate = (
         db.query(UserMission)
         .filter(
@@ -361,7 +369,8 @@ def verify_mission(
     )
     if duplicate:
         return {"success": False, "message": "이미 완료한 미션입니다."}
-    if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
+
+    if requested_type == "IMAGE" and not _uploaded_image_exists(req.photo_url):
         return {
             "success": False,
             "message": "서버에 업로드된 인증 사진을 확인할 수 없습니다.",
@@ -374,7 +383,7 @@ def verify_mission(
             "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
         }
 
-    if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
+    if requested_type in {"IMAGE", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return {"success": False, "message": "현재 위치 정보가 필요합니다."}
         if mission.latitude is None or mission.longitude is None:

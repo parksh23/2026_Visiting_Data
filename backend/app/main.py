@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
@@ -14,10 +15,22 @@ from database import Base, engine
 import models
 from routers import text_files
 from routers import api_v1
+from log_control import setup_logging
+from scheduler import shutdown_scheduler, start_scheduler
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 app = FastAPI()
+
+
+@app.on_event("startup")
+def start_background_jobs():
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_background_jobs():
+    shutdown_scheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,7 +72,7 @@ def read_root():
 
 
 # =========================
-# 로그 txt 저장 설정
+# 로그 txt 저장 및 관리 설정
 # =========================
 
 LOG_DIR = BASE_DIR / "logs"
@@ -98,3 +111,32 @@ def receive_signal(signal: ServerSignal):
         "message": "신호 로그 저장 완료",
         "saved_to": str(LOG_FILE)
     }
+
+
+# =========================
+# 로그 조회 API
+# =========================
+
+@app.get("/admin/logs/server", response_class=PlainTextResponse)
+def view_server_logs():
+    """
+    log_control.py에서 기록하는 서버 전체 로그(server_logs.txt)를 조회합니다.
+    """
+    server_log_file = LOG_DIR / "server_logs.txt"
+    if not server_log_file.exists():
+        raise HTTPException(status_code=404, detail="서버 로그 파일이 존재하지 않습니다.")
+
+    with open(server_log_file, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/admin/logs/signal", response_class=PlainTextResponse)
+def view_signal_logs():
+    """
+    클라이언트에서 보내는 신호 로그(server_signals.txt)를 조회합니다.
+    """
+    if not LOG_FILE.exists():
+        raise HTTPException(status_code=404, detail="신호 로그 파일이 존재하지 않습니다.")
+
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        return f.read()

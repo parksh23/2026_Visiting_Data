@@ -1,3 +1,4 @@
+import hmac
 import math
 import os
 import re
@@ -11,6 +12,7 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -29,6 +31,7 @@ from auth_utils import (
 )
 from database import get_db
 from models import AppUser, District, Friendship, Mission, UserMission
+from tourism_scoring import refresh_tourism_scores
 
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
 
@@ -59,20 +62,18 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-
 class SignupRequest(BaseModel):
     email: str
     password: str
     nickname: str
 
-
 class KakaoLoginRequest(BaseModel):
     access_token: str
 
-
 class TokenResponse(BaseModel):
-    token: str
-
+    access_token: str
+    token_type: str = "bearer"
+    token: Optional[str] = None  # 기존 안드로이드 앱 호환용
 
 class UserProfile(BaseModel):
     name: str
@@ -95,7 +96,6 @@ class MissionDto(BaseModel):
     mission_type: str
     image_url: Optional[str] = None
 
-
 class MissionVerifyRequestDto(BaseModel):
     mission_id: int
     mission_type: str
@@ -103,7 +103,6 @@ class MissionVerifyRequestDto(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     receipt_image_url: Optional[str] = None
-
 
 class MissionVerifyResponse(BaseModel):
     success: bool
@@ -122,13 +121,11 @@ class MyRank(BaseModel):
     topPercent: int
     point: int
 
-
 class RankingItem(BaseModel):
     rank: int
     userId: str
     name: str
     score: int
-
 
 class RankingResponse(BaseModel):
     myRank: MyRank
@@ -137,6 +134,10 @@ class RankingResponse(BaseModel):
 
 class UploadResponse(BaseModel):
     url: str
+
+
+class TourismRefreshRequest(BaseModel):
+    base_ym: Optional[str] = None
 
 
 def _next_user_code(db: Session) -> str:
@@ -181,17 +182,17 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
     completed = mission.mission_id in completed_ids
     return {
         "mission_id": mission.mission_id,
-        "title": mission.title,
-        "district": mission.district_name,
-        "location": mission.location,
+        "title": getattr(mission, "title", ""),
+        "district": getattr(mission, "district_name", ""),
+        "location": getattr(mission, "location", ""), # DB에 없으면 빈 문자열
         "latitude": mission.latitude,
         "longitude": mission.longitude,
-        "reward_points": mission.reward_points,
+        "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": "completed" if completed else "ongoing",
         "mission_type": mission.mission_type,
-        "image_url": mission.image_url,
+        "image_url": getattr(mission, "image_url", None),
     }
 
 
@@ -216,7 +217,9 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
     if user.account_status != "ACTIVE":
         raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.post("/auth/signup", response_model=TokenResponse, status_code=201)
@@ -248,7 +251,9 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.post("/auth/kakao", response_model=TokenResponse)
@@ -289,7 +294,9 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
         user.kakao_id = kakao_id
     db.commit()
     db.refresh(user)
-    return {"token": _token_for(user)}
+
+    token = _token_for(user)
+    return {"access_token": token, "token_type": "bearer", "token": token}
 
 
 @router.get("/users/me", response_model=UserProfile)
@@ -382,28 +389,58 @@ def verify_mission(
         distance = _haversine_m(
             req.latitude, req.longitude, mission.latitude, mission.longitude
         )
-        if distance > mission.radius_m:
+
+        mission_radius = getattr(mission, "radius_m", 300)
+
+        if distance > mission_radius:
             return {
                 "success": False,
-                "message": f"미션 장소에서 허용 반경 {mission.radius_m}m 이상 떨어져 있어요.",
+                "message": f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
             }
 
+    reward = getattr(mission, "reward_points", 0)
     db.add(
         UserMission(
             user_code=user.user_code,
             mission_id=mission.mission_id,
             status="completed",
-            photo_url=req.photo_url,
-            receipt_image_url=req.receipt_image_url,
         )
     )
-    user.total_points += mission.reward_points
+
+    user.total_points += reward
     user.completed_missions += 1
     db.commit()
     return {
         "success": True,
-        "message": f"미션 인증이 완료되어 {mission.reward_points}P가 적립됐습니다.",
+        "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",
     }
+
+
+@router.post("/admin/tourism-scores/refresh")
+def refresh_tourism_scores_endpoint(
+    req: TourismRefreshRequest,
+    x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
+    db: Session = Depends(get_db),
+):
+    configured_key = os.getenv("TOURISM_ADMIN_KEY")
+    if not configured_key:
+        raise HTTPException(
+            status_code=503,
+            detail="관광지수 관리자 API가 설정되지 않았습니다.",
+        )
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, configured_key):
+        raise HTTPException(status_code=403, detail="관리자 인증에 실패했습니다.")
+    try:
+        return refresh_tourism_scores(db, req.base_ym)
+    except (RuntimeError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=502,
+            detail="관광지수 갱신에 실패해 기존 점수를 유지합니다.",
+        ) from exc
 
 
 @router.get("/districts/progress", response_model=List[DistrictStatusDto])
@@ -412,18 +449,18 @@ def get_district_progress(
 ):
     user = _get_user(db, subject)
     totals = dict(
-        db.query(Mission.district_name, func.count(Mission.mission_id))
-        .group_by(Mission.district_name)
+        db.query(getattr(Mission, "district_name", Mission.mission_id), func.count(Mission.mission_id))
+        .group_by(getattr(Mission, "district_name", Mission.mission_id))
         .all()
     )
     completed = dict(
-        db.query(Mission.district_name, func.count(UserMission.id))
+        db.query(getattr(Mission, "district_name", Mission.mission_id), func.count(UserMission.id))
         .join(UserMission, UserMission.mission_id == Mission.mission_id)
         .filter(
             UserMission.user_code == user.user_code,
             UserMission.status == "completed",
         )
-        .group_by(Mission.district_name)
+        .group_by(getattr(Mission, "district_name", Mission.mission_id))
         .all()
     )
     result = []

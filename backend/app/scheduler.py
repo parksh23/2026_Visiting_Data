@@ -1,5 +1,13 @@
+import logging
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
 from database import SessionLocal
+from tourism_scoring import refresh_tourism_scores
+
+logger = logging.getLogger(__name__)
+scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 
 def update_rankings_job():
     db = SessionLocal()
@@ -26,3 +34,34 @@ def update_rankings_job():
         print(f"❌ [배치] 랭킹 업데이트 실패: {e}")
     finally:
         db.close()
+
+
+def refresh_tourism_scores_job():
+    db = SessionLocal()
+    try:
+        result = refresh_tourism_scores(db)
+        logger.info("관광지수 점수 월별 갱신 성공: %s", result)
+    except Exception:
+        db.rollback()
+        logger.exception("관광지수 점수 월별 갱신 실패; 기존 점수를 유지합니다.")
+    finally:
+        db.close()
+
+
+def start_scheduler():
+    if scheduler.running:
+        return
+    scheduler.add_job(
+        refresh_tourism_scores_job,
+        CronTrigger(day=1, hour=3, minute=0, timezone="Asia/Seoul"),
+        id="monthly-tourism-score-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.start()
+
+
+def shutdown_scheduler():
+    if scheduler.running:
+        scheduler.shutdown(wait=False)

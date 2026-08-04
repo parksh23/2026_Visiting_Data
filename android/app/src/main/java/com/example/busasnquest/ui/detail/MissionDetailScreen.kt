@@ -18,9 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -102,7 +104,7 @@ fun MissionDetailScreen(
             }
         }
 
-        // 미션 이미지 자리표시자
+        // 미션 이미지 (전체미션 카드와 동일하게 mission.imageUrl 연동, 없으면 자리표시자)
         Box(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
@@ -112,7 +114,16 @@ fun MissionDetailScreen(
                 .background(Brush.verticalGradient(listOf(Color(0xFFCFE0F2), Color(0xFFB7D0EA)))),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.Image, contentDescription = null, tint = Color.White.copy(0.8f), modifier = Modifier.size(56.dp))
+            if (mission.imageUrl != null) {
+                AsyncImage(
+                    model = mission.imageUrl,
+                    contentDescription = mission.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(Icons.Filled.Image, contentDescription = null, tint = Color.White.copy(0.8f), modifier = Modifier.size(56.dp))
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))

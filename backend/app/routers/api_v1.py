@@ -51,6 +51,7 @@ BUSAN_DISTRICTS = [
     "영도구",
 ]
 
+# 수정: PHOTO -> IMAGE로 변경
 MISSION_TYPES = {"IMAGE", "CURRENT_LOCATION", "RECEIPT"}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
@@ -174,6 +175,14 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
     completed = mission.mission_id in completed_ids
+
+    # 수정: DB에 저장된 타입 호환 처리 (앱에서 요구하는 명칭으로 변환)
+    mapped_type = mission.mission_type
+    if mapped_type == "PHOTO":
+        mapped_type = "IMAGE"
+    elif mapped_type == "LOCATION":
+        mapped_type = "CURRENT_LOCATION"
+
     return {
         "mission_id": mission.mission_id,
         "title": getattr(mission, "title", ""),
@@ -184,8 +193,9 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
         "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
+        # 수정: 진행되지 않은 미션의 기본 상태를 ongoing -> not_started로 변경
         "status": "completed" if completed else "not_started",
-        "mission_type": "IMAGE" if mission.mission_type == "PHOTO" else mission.mission_type,
+        "mission_type": mapped_type,
         "image_url": getattr(mission, "image_url", None),
     }
 
@@ -268,11 +278,9 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     if not kakao_id:
         raise HTTPException(status_code=401, detail="카카오 사용자 정보를 확인할 수 없습니다.")
     account = profile.get("kakao_account") or {}
+
+    # 원본 그대로 유지 (이메일 강제 주입 로직 제거됨)
     email = account.get("email")
-
-    if not email:
-        email = f"kakao_{kakao_id}@dummy.com"
-
     nickname = (account.get("profile") or {}).get("nickname") or f"카카오사용자{kakao_id[-4:]}"
 
     user = db.query(AppUser).filter(AppUser.kakao_id == kakao_id).first()
@@ -334,6 +342,7 @@ def get_missions(
 def get_ongoing_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
+    # 수정: 변경된 상태값('not_started')에 맞춰 필터링
     return [
         mission
         for mission in get_missions(subject, db)
@@ -353,12 +362,13 @@ def verify_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     requested_type = req.mission_type.upper()
-    db_mission_type = "IMAGE" if mission.mission_type == "PHOTO" else mission.mission_type
 
-    # ==========================================
-    # [추가할 부분] 서버 로그에 값 출력해보기
-    print(f"👉 [디버그] 앱이 요청한 타입: {requested_type} / DB에 저장된 타입: {db_mission_type}")
-    # ==========================================
+    # 수정: DB 데이터 매핑 강화 (PHOTO->IMAGE, LOCATION->CURRENT_LOCATION)
+    db_mission_type = mission.mission_type
+    if db_mission_type == "PHOTO":
+        db_mission_type = "IMAGE"
+    elif db_mission_type == "LOCATION":
+        db_mission_type = "CURRENT_LOCATION"
 
     if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
@@ -375,6 +385,7 @@ def verify_mission(
     if duplicate:
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
+    # 수정: PHOTO에서 IMAGE로 조건 변경
     if requested_type == "IMAGE" and not _uploaded_image_exists(req.photo_url):
         return {
             "success": False,
@@ -388,6 +399,7 @@ def verify_mission(
             "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
         }
 
+    # 수정: PHOTO에서 IMAGE로 조건 변경
     if requested_type in {"IMAGE", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return {"success": False, "message": "현재 위치 정보가 필요합니다."}

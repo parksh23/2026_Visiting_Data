@@ -63,14 +63,14 @@ class HomeViewModel : ViewModel() {
                 initialValue = emptyList()
             )
 
-    // Repository의 전체 미션 중 "진행 중(IN_PROGRESS)·인증 중·완료"만 걸러서 홈에 보여줌
+    // Repository의 전체 미션 중 "진행 중(IN_PROGRESS)·인증 중"만 걸러서 홈에 보여줌
+    // 완료(COMPLETED)된 미션은 진행중 목록에서 제외 → 완료하면 사라진다
     val homeMissions: StateFlow<List<MissionWithState>> =
         MissionRepository.missions
             .map { list ->
                 list.filter {
                     it.state == MissionState.IN_PROGRESS ||
-                            it.state == MissionState.VERIFYING ||
-                            it.state == MissionState.COMPLETED
+                            it.state == MissionState.VERIFYING
                 }
             }
             .stateIn(

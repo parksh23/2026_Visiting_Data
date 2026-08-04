@@ -22,6 +22,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.ui.theme.*
 
+/**
+ * 앱 공통 포인트 뱃지 — 코럴 원형 'P'.
+ * 홈 헤더·미션 보상·프로필 통계 등 포인트가 보이는 모든 곳에서 동일하게 사용해 통일.
+ */
+@Composable
+fun PointBadge(
+    size: androidx.compose.ui.unit.Dp = 17.dp,
+    fontSize: androidx.compose.ui.unit.TextUnit = 9.sp
+) {
+    Box(
+        modifier = Modifier.size(size).clip(CircleShape).background(Coral),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("P", color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold)
+    }
+}
+
 @Composable
 fun SectionTitle(text: String) {
     Text(
@@ -130,7 +147,8 @@ fun SegmentedToggle(
             .padding(horizontal = 20.dp)
             .fillMaxWidth()
             // 트랙은 안으로 들어간 느낌
-            .sunkenSurface(RoundedCornerShape(16.dp))
+            .sunkenSurface(RoundedCornerShape(28.dp))
+            .border(1.5.dp, InkBorder, RoundedCornerShape(28.dp))
             .padding(4.dp)
     ) {
         options.forEachIndexed { index, label ->
@@ -141,14 +159,10 @@ fun SegmentedToggle(
                     // 선택된 칸만 위로 떠오름
                     .then(
                         if (selected) Modifier
-                            .shadow(4.dp, RoundedCornerShape(13.dp), clip = false)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(Color(0xFFEF706C), Coral)
-                                )
-                            )
-                        else Modifier.clip(RoundedCornerShape(13.dp))
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Coral)
+                            .border(1.5.dp, InkBorderStrong, RoundedCornerShape(24.dp))
+                        else Modifier.clip(RoundedCornerShape(24.dp))
                     )
                     .clickable { onSelect(index) }
                     .padding(vertical = 12.dp),
@@ -156,7 +170,7 @@ fun SegmentedToggle(
             ) {
                 Text(
                     label,
-                    color = if (selected) Color.White else TextSub,
+                    color = if (selected) Color(0xFF4A1B0C) else TextSub,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 15.sp
                 )

@@ -2,6 +2,7 @@ package com.example.busasnquest.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -43,6 +45,7 @@ import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.IconGreen
+import com.example.busasnquest.ui.theme.InkBorder
 import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
@@ -63,12 +66,13 @@ fun MissionCard(
 ) {
     val mission = item.mission
 
-    Column(
+    Box(modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth()) {
+        Column(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(CardWhite)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .padding(16.dp)
     ) {
@@ -123,13 +127,11 @@ fun MissionCard(
 
                 // 보상
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.Star, contentDescription = null, tint = Coral,
-                        modifier = Modifier.size(15.dp)
-                    )
+                    // 보상 — 공통 포인트 뱃지로 통일
+                    PointBadge(size = 16.dp, fontSize = 9.sp)
                     Spacer(modifier = Modifier.width(4.dp))
                     // 보상 숫자 — 액센트 폰트
-                    Text("+${mission.reward}P", style = accentStyle(15.sp), color = Coral)
+                    Text("+${mission.reward}", style = accentStyle(15.sp), color = Coral)
                 }
             }
         }
@@ -166,6 +168,25 @@ fun MissionCard(
                 }
             }
         }
+        }
+
+        // 완료 미션: 손그림 톤 "완료" 고무도장 오버프린트
+        if (item.state == MissionState.COMPLETED) {
+            CompletedStamp(modifier = Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+/** 완료 도장 — 코럴 잉크, 살짝 기울어진 스탬프. */
+@Composable
+private fun CompletedStamp(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .rotate(-12f)
+            .border(3.dp, Coral.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Text("완료", style = displayStyle(22.sp), color = Coral.copy(alpha = 0.9f))
     }
 }
 

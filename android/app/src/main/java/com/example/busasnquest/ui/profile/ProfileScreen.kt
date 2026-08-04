@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -80,6 +81,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
+                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
         ) {
             profileMenuItems.forEachIndexed { index, item ->
                 MenuRow(item) {
@@ -106,6 +108,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
+                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
         ) {
             settingItems.forEachIndexed { index, item ->
                 SettingRow(item)
@@ -127,6 +130,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CoralTint)
+                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
                 .clickable { onLogout() }
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
@@ -144,9 +148,9 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
         modifier = Modifier
             .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CardWhite)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusHero))
             .padding(24.dp)
     ) {
 
@@ -198,7 +202,7 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ProfileStat("%,d".format(uiState.points) + "P", "보유 포인트", Modifier.weight(1f))
+            ProfileStat("%,d".format(uiState.points), "보유 포인트", Modifier.weight(1f), leadingPoint = true)
             ProfileStat(uiState.completedCount.toString(), "완료 미션", Modifier.weight(1f))
             ProfileStat(uiState.savedCount.toString(), "찜한 미션", Modifier.weight(1f))
         }
@@ -206,16 +210,30 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
 }
 
 @Composable
-fun ProfileStat(value: String, label: String, modifier: Modifier = Modifier) {
+fun ProfileStat(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    leadingPoint: Boolean = false
+) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(SurfaceGray)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(14.dp))
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 통계 숫자 — 액센트 폰트
-        Text(value, color = TextMain, style = accentStyle(20.sp))
+        // 통계 숫자 — 액센트 폰트 (포인트 통계는 공통 P 뱃지 표시)
+        if (leadingPoint) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(value, color = TextMain, style = accentStyle(20.sp))
+            }
+        } else {
+            Text(value, color = TextMain, style = accentStyle(20.sp))
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(label, color = TextSub, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
@@ -237,7 +255,12 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
                 .background(item.bg),
             contentAlignment = Alignment.Center
         ) {
-            Icon(item.icon, contentDescription = null, tint = item.tint, modifier = Modifier.size(22.dp))
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = item.icon),
+                contentDescription = null,
+                tint = item.tint,
+                modifier = Modifier.size(22.dp)
+            )
         }
 
         Spacer(modifier = Modifier.width(16.dp))

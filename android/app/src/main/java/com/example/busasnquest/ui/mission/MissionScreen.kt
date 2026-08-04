@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -72,13 +73,11 @@ fun MissionScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            Text(
-                if (uiState.selectedTab == 0) "전체 미션" else "지역별 미션",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextMain,
-                modifier = Modifier.padding(horizontal = 20.dp)
+            SectionTitle(
+                if (uiState.selectedTab == 0) "전체 미션" else "지역별 미션"
             )
+
+            Spacer(modifier = Modifier.height(14.dp))
 
         // 서버에서 미션을 못 불러온 경우 안내 배너 (로컬 데이터는 계속 표시)
         loadError?.let { msg ->
@@ -164,6 +163,23 @@ fun MissionScreen(
     }
 }
 
+/** 섹션 제목 — 손글씨(둥근미소) + 코럴 형광펜 밑줄. */
+@Composable
+private fun SectionTitle(text: String) {
+    val underlineWidth = (text.count { it != ' ' } * 22).dp
+    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 2.dp, bottom = 3.dp)
+                .width(underlineWidth)
+                .height(9.dp)
+                .background(Coral.copy(alpha = 0.45f), RoundedCornerShape(2.dp))
+        )
+        Text(text, style = displayStyle(22.sp), color = TextMain)
+    }
+}
+
 /** 종류별 탭의 인증 방식 필터 칩 (전체 / 사진 / 위치 / 영수증). */
 @Composable
 private fun TypeFilterChips(
@@ -191,14 +207,10 @@ private fun TypeFilterChips(
                     .then(
                         if (isSelected)
                             Modifier
-                                .shadow(4.dp, RoundedCornerShape(999.dp), clip = false)
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(
-                                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        listOf(Color(0xFFEF706C), Coral)
-                                    )
-                                )
-                        else Modifier.raisedSurface(RoundedCornerShape(999.dp), elevation = 3.dp)
+                                .background(Coral)
+                                .border(1.5.dp, InkBorderStrong, RoundedCornerShape(999.dp))
+                        else Modifier.raisedSurface(RoundedCornerShape(999.dp))
                     )
                     .clickable { onSelect(type) }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -207,7 +219,7 @@ private fun TypeFilterChips(
                     label,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) Color.White else TextSub
+                    color = if (isSelected) Color(0xFF4A1B0C) else TextSub
                 )
             }
         }

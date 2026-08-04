@@ -33,11 +33,20 @@ val AppFontFamily: FontFamily = FontFamily(
 )
 
 /**
- * 디스플레이(헤딩) 전용 폰트 — 한글 굵은 콘덴스드.
- * 워드마크·화면 제목·섹션 제목·카드 제목 등 "크게 보이는 글자"에만 사용.
- * 단일 weight 폰트라 fontWeight 지정 불필요.
+ * 손글씨(학교안심 둥근미소) 폰트 — R/B 2 weight.
+ * 일러스트 톤에 맞춰 "제목류" 디스플레이 폰트로 사용한다.
  */
-val DisplayFontFamily: FontFamily = FontFamily(Font(R.font.black_han_sans))
+val HandFontFamily: FontFamily = FontFamily(
+    Font(R.font.hakgyoansim_dunggeunmiso,      FontWeight.Normal),
+    Font(R.font.hakgyoansim_dunggeunmiso_bold, FontWeight.Bold)
+)
+
+/**
+ * 디스플레이(헤딩) 전용 폰트.
+ * 리뉴얼: 손글씨(둥근미소)로 교체 → 워드마크·화면 제목·섹션 제목·카드 제목 등
+ * displayStyle()을 쓰는 "큰 글자"가 전부 손글씨로 전환된다. (숫자는 accentStyle 유지)
+ */
+val DisplayFontFamily: FontFamily = HandFontFamily
 
 /**
  * 영문·숫자 액센트 폰트.
@@ -60,11 +69,11 @@ private val Tracking = (-0.02).em
  */
 fun displayStyle(
     size: TextUnit,
-    scaleX: Float = 0.8f,
-    letterSpacing: TextUnit = (-1).sp
+    scaleX: Float = 0.94f,          // 손글씨는 과압축 방지 (기존 0.8 → 0.94)
+    letterSpacing: TextUnit = 0.sp  // 손글씨는 자간 0
 ): TextStyle = TextStyle(
     fontFamily = DisplayFontFamily,
-    fontWeight = FontWeight.Normal,
+    fontWeight = FontWeight.Bold,   // 둥근미소 Bold 사용
     fontSize = size,
     letterSpacing = letterSpacing,
     textGeometricTransform = TextGeometricTransform(scaleX = scaleX)

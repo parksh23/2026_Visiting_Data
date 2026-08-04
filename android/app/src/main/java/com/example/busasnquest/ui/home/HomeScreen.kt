@@ -3,6 +3,7 @@ package com.example.busasnquest.ui.home
 import android.view.ViewGroup
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -141,24 +142,11 @@ private fun HomeHeader(points: Int) {
                     Text("따먹기", style = displayStyle(26.sp), color = TextMain)
                 }
             }
-            // 포인트 칩 + 알림 벨
+            // 포인트 — 다른 탭과 동일: P 뱃지 + 액센트 숫자 (크림 알약 제거)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(CoralTint)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.size(17.dp).clip(CircleShape).background(Coral),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("P", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(5.dp))
-                    Text("%,d".format(points), color = Coral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
+                com.example.busasnquest.ui.components.PointBadge(size = 17.dp, fontSize = 9.sp)
+                Spacer(Modifier.width(5.dp))
+                Text("%,d".format(points), color = Coral, style = accentStyle(15.sp))
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -196,6 +184,7 @@ private fun HomeMiniMap(onOpenMap: () -> Unit) {
             .height(170.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(SurfaceGray)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(18.dp))
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -266,6 +255,7 @@ private fun OngoingSummaryCard(
             .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CoralTint)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusHero))
             .padding(20.dp)
     ) {
         // 크림색(CoralTint) 배경 위라 다크용 밝은 글자 대신 진한 갈색 사용
@@ -415,6 +405,7 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
             .width(160.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(CardWhite)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(18.dp))
             .clickable { onClick() }
             .padding(bottom = 14.dp)
     ) {
@@ -446,12 +437,21 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
         }
 
         Spacer(Modifier.height(10.dp))
-        Text(rec.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
+        Text(
+            rec.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
         Spacer(Modifier.height(3.dp))
-        Text(rec.subtitle, fontSize = 12.sp, color = TextSub, maxLines = 1)
+        Text(
+            rec.subtitle, fontSize = 12.sp, color = TextSub, maxLines = 1,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
 
         Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             PointsChip(rec.reward)
             Spacer(Modifier.weight(1f))
             Text(rec.distanceText, fontSize = 12.sp, color = TextSub)
@@ -462,17 +462,9 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
 @Composable
 private fun PointsChip(points: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(Coral),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("P", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        }
+        com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
         Spacer(Modifier.width(5.dp))
-        Text("$points", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Coral)
+        Text("$points", color = Coral, style = accentStyle(14.sp))
     }
 }
 

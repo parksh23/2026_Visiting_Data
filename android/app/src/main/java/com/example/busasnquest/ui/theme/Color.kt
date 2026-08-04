@@ -46,6 +46,11 @@ val SeaBlue = Color(0xFF2FA7B3)     // 보조 강조 (다크 대비 위해 약�
 val SeaBlueBg = Color(0xFF20332F)   // 바다블루 어두운 틴트
 val SurfaceGray = Color(0xFF2E2D29) // 카드 안 블록(통계 타일 등)
 
+// ── 잉크 아웃라인 (일러스트 톤 플랫 테두리) ──
+// 부드러운 그림자 대신 표면 경계를 그리는 "펜 라인" 색.
+val InkBorder = Color(0xFFCFCBC2)        // 기본 잉크 라인 (밝은 웜 그레이)
+val InkBorderStrong = Color(0xFFEDEBE8)  // 강조 카드용 굵은 잉크 라인
+
 // ── 스켈레톤 로딩 ──
 val SkeletonBase = Color(0xFF211F1C)      // 블록 기본
 val SkeletonHighlight = Color(0xFF2B2925) // 맥동 시 밝아지는 값

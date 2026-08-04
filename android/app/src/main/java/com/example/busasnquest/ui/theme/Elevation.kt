@@ -26,18 +26,13 @@ fun Modifier.raisedSurface(
     elevation: androidx.compose.ui.unit.Dp = 6.dp,
     top: Color = RaisedTop,
     bottom: Color = RaisedBottom,
-    borderColor: Color = RaisedBorder
+    borderColor: Color = InkBorder
 ): Modifier = this
-    .shadow(
-        elevation = elevation,
-        shape = shape,
-        clip = false,
-        ambientColor = Color.Black,
-        spotColor = Color.Black
-    )
+    // 리뉴얼: 부드러운 그림자 + 그라데이션 제거 → 납작한 플랫 표면 + 잉크 아웃라인.
+    // (파라미터 시그니처는 호출부 호환을 위해 유지, 내부에서 gradient/shadow 미사용)
     .clip(shape)
-    .background(Brush.verticalGradient(listOf(top, bottom)))
-    .border(1.dp, borderColor, shape)
+    .background(CardWhite)
+    .border(1.5.dp, borderColor, shape)
 
 /**
  * 눌린(선택된) 상태 — 반대로 안으로 들어간 느낌.

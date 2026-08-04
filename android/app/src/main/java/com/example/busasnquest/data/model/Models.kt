@@ -35,11 +35,11 @@ data class RankEntry(
     val isMe: Boolean = false
 )
 
-// 내 정보 - 메뉴 카드
+// 내 정보 - 메뉴 카드 (icon: 손그림 drawable 리소스 id)
 data class MenuItem(
     val title: String,
     val subtitle: String,
-    val icon: ImageVector,
+    @androidx.annotation.DrawableRes val icon: Int,
     val tint: Color,
     val bg: Color
 )

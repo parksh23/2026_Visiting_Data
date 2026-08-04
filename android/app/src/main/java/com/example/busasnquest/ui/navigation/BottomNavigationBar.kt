@@ -22,14 +22,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.busasnquest.R
 import com.example.busasnquest.ui.theme.*
 
 @Composable
@@ -64,19 +64,19 @@ fun BottomNavigationBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BottomItem("홈", Icons.Filled.Home, Icons.Outlined.Home,
+            BottomItem("홈", R.drawable.ic_nav_home,
                 currentRoute == "home") { navigateTab("home") }
 
-            BottomItem("미션", Icons.Filled.Flag, Icons.Outlined.Flag,
+            BottomItem("미션", R.drawable.ic_nav_flag,
                 currentRoute == "mission") { navigateTab("mission") }
 
-            BottomItem("지도", Icons.Filled.Map, Icons.Outlined.Map,
+            BottomItem("지도", R.drawable.ic_nav_map,
                 currentRoute?.startsWith("map") == true) { navigateTab("map/부산") }
 
-            BottomItem("랭킹", Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents,
+            BottomItem("랭킹", R.drawable.ic_nav_trophy,
                 currentRoute == "ranking") { navigateTab("ranking") }
 
-            BottomItem("내 정보", Icons.Filled.Person, Icons.Outlined.Person,
+            BottomItem("내 정보", R.drawable.ic_nav_person,
                 currentRoute == "profile") { navigateTab("profile") }
         }
     }
@@ -85,8 +85,7 @@ fun BottomNavigationBar(
 @Composable
 private fun BottomItem(
     title: String,
-    selectedIcon: ImageVector,
-    unselectedIcon: ImageVector,
+    iconRes: Int,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -106,7 +105,7 @@ private fun BottomItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                if (selected) selectedIcon else unselectedIcon,
+                painter = painterResource(id = iconRes),
                 contentDescription = title,
                 tint = if (selected) Coral else TextSub,
                 modifier = Modifier.size(24.dp)

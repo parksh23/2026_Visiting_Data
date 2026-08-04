@@ -45,6 +45,8 @@ import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.InkBorder
+import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.kakao.vectormap.label.LabelOptions
@@ -192,8 +194,8 @@ fun MapScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardWhite,
                         unfocusedContainerColor = CardWhite,
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
+                        focusedBorderColor = InkBorderStrong,
+                        unfocusedBorderColor = InkBorder,
                         focusedTextColor = TextMain,
                         unfocusedTextColor = TextMain,
                         focusedPlaceholderColor = TextSub,

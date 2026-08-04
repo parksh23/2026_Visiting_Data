@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.ranking
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +47,8 @@ import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.CoralTint
+import com.example.busasnquest.ui.theme.InkBorder
+import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.MedalBronze
 import com.example.busasnquest.ui.theme.MedalGold
 import com.example.busasnquest.ui.theme.MedalSilver
@@ -190,9 +193,9 @@ fun MyRankCard(
         modifier = Modifier
             .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(Coral)
+            .border(1.5.dp, InkBorderStrong, RoundedCornerShape(Dimens.radiusHero))
             .padding(24.dp)
     ) {
         Column {
@@ -243,6 +246,7 @@ fun MyRankCard(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(CoralDark)
+                    .border(1.5.dp, InkBorder, RoundedCornerShape(14.dp))
                     .padding(4.dp)
             ) {
                 val tabs = listOf("전체 랭킹", "지역 랭킹")
@@ -286,6 +290,7 @@ fun RankingRow(entry: RankEntry) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(if (entry.isMe) CoralTint else CardWhite)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -432,6 +437,7 @@ fun DistrictRankRow(district: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
+            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,

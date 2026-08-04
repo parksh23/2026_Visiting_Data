@@ -74,7 +74,7 @@ class Mission(Base):
     )
     title = Column("MISSION_NAME", String(200), nullable=False)
     difficulty = Column("DIFFICULTY", String(20), nullable=True)
-    reward_points = Column("BASE_SCORE", Integer, nullable=False, default=0)
+    reward_points = Column("REWARD_POINTS", Integer, nullable=False, default=0)
     image_url = Column("IMAGE_URL", String(500), nullable=True)
     latitude = Column("LATITUDE", Float, nullable=True)
     longitude = Column("LONGITUDE", Float, nullable=True)

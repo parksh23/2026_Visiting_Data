@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -17,6 +18,8 @@ from fastapi import (
     UploadFile,
     status,
 )
+from PIL import Image
+import google.generativeai as genai
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -30,28 +33,21 @@ from auth_utils import (
 from database import get_db
 from models import AppUser, District, Friendship, Mission, UserMission
 
+# =========================================================
+# 0. Gemini API 초기화
+# =========================================================
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
+
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
 
 BUSAN_DISTRICTS = [
-    "강서구",
-    "북구",
-    "금정구",
-    "기장군",
-    "사상구",
-    "부산진구",
-    "동래구",
-    "해운대구",
-    "사하구",
-    "서구",
-    "연제구",
-    "수영구",
-    "중구",
-    "동구",
-    "남구",
-    "영도구",
+    "강서구", "북구", "금정구", "기장군", "사상구", "부산진구",
+    "동래구", "해운대구", "사하구", "서구", "연제구", "수영구",
+    "중구", "동구", "남구", "영도구",
 ]
 
-# 수정: PHOTO -> IMAGE로 변경
 MISSION_TYPES = {"IMAGE", "CURRENT_LOCATION", "RECEIPT"}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
@@ -72,7 +68,7 @@ class KakaoLoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    token: Optional[str] = None  # 기존 안드로이드 앱 호환용
+    token: Optional[str] = None
 
 class UserProfile(BaseModel):
     name: str
@@ -102,6 +98,7 @@ class MissionVerifyRequestDto(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     receipt_image_url: Optional[str] = None
+    target_text: Optional[str] = ""  # 🌟 AI 판별을 위한 목표 텍스트 필드 추가
 
 class MissionVerifyResponse(BaseModel):
     success: bool
@@ -176,7 +173,6 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
     completed = mission.mission_id in completed_ids
 
-    # 수정: DB에 저장된 타입 호환 처리 (앱에서 요구하는 명칭으로 변환)
     mapped_type = mission.mission_type
     if mapped_type == "PHOTO":
         mapped_type = "IMAGE"
@@ -187,13 +183,12 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
         "mission_id": mission.mission_id,
         "title": getattr(mission, "title", ""),
         "district": getattr(mission, "district_name", ""),
-        "location": getattr(mission, "location", ""), # DB에 없으면 빈 문자열
+        "location": getattr(mission, "location", ""),
         "latitude": mission.latitude,
         "longitude": mission.longitude,
         "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
-        # 수정: 진행되지 않은 미션의 기본 상태를 ongoing -> not_started로 변경
         "status": "completed" if completed else "not_started",
         "mission_type": mapped_type,
         "image_url": getattr(mission, "image_url", None),
@@ -279,7 +274,6 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="카카오 사용자 정보를 확인할 수 없습니다.")
     account = profile.get("kakao_account") or {}
 
-    # 원본 그대로 유지 (이메일 강제 주입 로직 제거됨)
     email = account.get("email")
     nickname = (account.get("profile") or {}).get("nickname") or f"카카오사용자{kakao_id[-4:]}"
 
@@ -342,7 +336,6 @@ def get_missions(
 def get_ongoing_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
-    # 수정: 변경된 상태값('not_started')에 맞춰 필터링
     return [
         mission
         for mission in get_missions(subject, db)
@@ -363,7 +356,6 @@ def verify_mission(
 
     requested_type = req.mission_type.upper()
 
-    # 수정: DB 데이터 매핑 강화 (PHOTO->IMAGE, LOCATION->CURRENT_LOCATION)
     db_mission_type = mission.mission_type
     if db_mission_type == "PHOTO":
         db_mission_type = "IMAGE"
@@ -385,7 +377,6 @@ def verify_mission(
     if duplicate:
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
-    # 수정: PHOTO에서 IMAGE로 조건 변경
     if requested_type == "IMAGE" and not _uploaded_image_exists(req.photo_url):
         return {
             "success": False,
@@ -399,7 +390,7 @@ def verify_mission(
             "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
         }
 
-    # 수정: PHOTO에서 IMAGE로 조건 변경
+    # 위치(GPS) 검증
     if requested_type in {"IMAGE", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return {"success": False, "message": "현재 위치 정보가 필요합니다."}
@@ -417,6 +408,67 @@ def verify_mission(
                 "message": f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
             }
 
+    # 🌟 [신규 추가] AI 이미지 판별 로직 복구
+    ai_extracted_text = ""
+    if requested_type in {"IMAGE", "RECEIPT"}:
+        # 1. URL에서 파일명 추출하여 로컬 경로 찾기
+        target_url = req.photo_url if requested_type == "IMAGE" else req.receipt_image_url
+        filename = Path(urlparse(target_url).path).name
+        local_image_path = UPLOAD_DIR / filename
+
+        try:
+            # 2. 로컬에 저장된 이미지 열기
+            image = Image.open(local_image_path)
+            
+            # 3. DB에서 미션 타이틀 가져오기 (프론트 데이터 의존 X)
+            mission_title = getattr(mission, "title", "알 수 없는 미션")
+
+            # 4. 프롬프트 구성 (미션 타이틀을 기준으로 성공 여부 판별)
+            if requested_type == "RECEIPT":
+                prompt = f"""
+                당신은 영수증 인증 심사관입니다.
+                유저가 수행한 미션의 제목은 '{mission_title}' 입니다.
+                제출된 이미지가 영수증이 맞는지, 그리고 영수증의 상호명이나 결제 내역이 미션 제목('{mission_title}')을 성공적으로 완수했음을 증명하는지 확인하세요.
+                반드시 아래 JSON 형식으로만 대답하세요.
+                {{"is_success": true/false, "extracted_text": "승인/거절 이유와 결제 금액 등 핵심 정보 1줄 요약"}}
+                """
+            else:
+                prompt = f"""
+                당신은 미션 인증 심사관입니다.
+                유저가 수행한 미션의 제목은 '{mission_title}' 입니다.
+                제출된 사진이 미션 제목('{mission_title}')이 요구하는 장소, 사물, 혹은 상황을 명확하게 보여주고 미션을 성공적으로 완수했는지 객관적으로 판별하세요.
+                반드시 아래 JSON 형식으로만 대답하세요.
+                {{"is_success": true/false, "extracted_text": "판별 성공/실패 이유 1줄 요약"}}
+                """
+
+            # 5. Gemini 호출
+            response = gemini_model.generate_content(
+                [prompt, image],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1
+                )
+            )
+            
+            # ... (이하 결과 파싱 로직은 동일) ...
+            
+            result_data = json.loads(response.text)
+            is_success = result_data.get("is_success", False)
+            ai_extracted_text = result_data.get("extracted_text", "")
+
+            # 6. AI 판별 실패 시 즉시 리턴
+            if not is_success:
+                return {
+                    "success": False,
+                    "message": ai_extracted_text if ai_extracted_text else "사진이 미션 조건과 일치하지 않습니다."
+                }
+                
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=502, detail="AI 응답을 해석할 수 없습니다.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+
+    # 모든 검증(GPS & AI) 통과 시 완료 처리
     db.add(
         UserMission(
             user_code=user.user_code,
@@ -429,9 +481,13 @@ def verify_mission(
     user.total_points += reward
     user.completed_missions += 1
     db.commit()
+    
+    # AI 추출 메시지가 있으면 포함하고, 없으면 기본 메시지 반환
+    final_message = ai_extracted_text if ai_extracted_text else f"미션 인증이 완료되어 {reward}P가 적립됐습니다."
+    
     return {
         "success": True,
-        "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",
+        "message": final_message,
     }
 
 

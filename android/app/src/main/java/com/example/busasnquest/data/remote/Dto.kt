@@ -113,3 +113,8 @@ data class MissionVerifyResponseDto(
 data class UploadResponseDto(
     val url: String
 )
+
+// 닉네임 변경 요청 DTO (앱 → 백엔드)
+data class UpdateNicknameRequestDto(
+    val nickname: String
+)

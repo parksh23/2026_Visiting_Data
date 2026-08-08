@@ -1,3 +1,4 @@
+import json
 import hmac
 import math
 import os
@@ -19,6 +20,8 @@ from fastapi import (
     UploadFile,
     status,
 )
+from PIL import Image
+import google.generativeai as genai
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +36,10 @@ from auth_utils import (
 from database import get_db
 from models import AppUser, District, Friendship, Mission, UserMission
 from tourism_scoring import refresh_tourism_scores
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 router = APIRouter(prefix="/api/v1", tags=["api_v1"])
 
@@ -100,6 +107,7 @@ class MissionDto(BaseModel):
     status: str
     mission_type: str
     image_url: Optional[str] = None
+    target_text: Optional[str] = ""  # 🌟 AI 판별을 위한 목표 텍스트 필드 추가
 
 class MissionVerifyRequestDto(BaseModel):
     mission_id: int
@@ -449,6 +457,65 @@ def verify_mission(
                 "success": False,
                 "message": f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
             }
+
+    ai_extracted_text = ""
+    if requested_type in {"PHOTO", "RECEIPT"}:
+        # 1. URL에서 파일명 추출하여 로컬 경로 찾기
+        target_url = req.photo_url if requested_type == "PHOTO" else req.receipt_image_url
+        filename = Path(urlparse(target_url).path).name
+        local_image_path = UPLOAD_DIR / filename
+
+        try:
+            # 2. 로컬에 저장된 이미지 열기
+            image = Image.open(local_image_path)
+
+            # 3. DB에서 미션 타이틀 가져오기 (프론트 데이터 의존 X)
+            mission_title = getattr(mission, "title", "알 수 없는 미션")
+
+            # 4. 프롬프트 구성 (미션 타이틀을 기준으로 성공 여부 판별)
+            if requested_type == "RECEIPT":
+                prompt = f"""
+                당신은 영수증 인증 심사관입니다.
+                유저가 수행한 미션의 제목은 '{mission_title}' 입니다.
+                제출된 이미지가 영수증이 맞는지, 그리고 영수증의 상호명이나 결제 내역이 미션 제목('{mission_title}')을 성공적으로 완수했음을 증명하는지 확인하세요.
+                반드시 아래 JSON 형식으로만 대답하세요.
+                {{"is_success": true/false, "extracted_text": "승인/거절 이유와 결제 금액 등 핵심 정보 1줄 요약"}}
+                """
+            else:
+                prompt = f"""
+                당신은 미션 인증 심사관입니다.
+                유저가 수행한 미션의 제목은 '{mission_title}' 입니다.
+                제출된 사진이 미션 제목('{mission_title}')이 요구하는 장소, 사물, 혹은 상황을 명확하게 보여주고 미션을 성공적으로 완수했는지 객관적으로 판별하세요.
+                반드시 아래 JSON 형식으로만 대답하세요.
+                {{"is_success": true/false, "extracted_text": "판별 성공/실패 이유 1줄 요약"}}
+                """
+
+            # 5. Gemini 호출
+            response = gemini_model.generate_content(
+                [prompt, image],
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1
+                )
+            )
+
+            # ... (이하 결과 파싱 로직은 동일) ...
+
+            result_data = json.loads(response.text)
+            is_success = result_data.get("is_success", False)
+            ai_extracted_text = result_data.get("extracted_text", "")
+
+            # 6. AI 판별 실패 시 즉시 리턴
+            if not is_success:
+                return {
+                    "success": False,
+                    "message": ai_extracted_text if ai_extracted_text else "사진이 미션 조건과 일치하지 않습니다."
+                }
+
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=502, detail="AI 응답을 해석할 수 없습니다.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"AI 분석 중 오류가 발생했습니다: {str(e)}")
 
     reward = getattr(mission, "reward_points", 0)
     db.add(

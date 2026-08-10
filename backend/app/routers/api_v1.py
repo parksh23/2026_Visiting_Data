@@ -81,7 +81,7 @@ class KakaoLoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    token: Optional[str] = None  # 기존 안드로이드 앱 호환용
+    token: Optional[str] = None
 
 class UserProfile(BaseModel):
     name: str
@@ -107,7 +107,7 @@ class MissionDto(BaseModel):
     status: str
     mission_type: str
     image_url: Optional[str] = None
-    target_text: Optional[str] = ""  # 🌟 AI 판별을 위한 목표 텍스트 필드 추가
+    target_text: Optional[str] = ""
 
 class MissionVerifyRequestDto(BaseModel):
     mission_id: int
@@ -215,7 +215,7 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
         "mission_id": mission.mission_id,
         "title": getattr(mission, "title", ""),
         "district": getattr(mission, "district_name", ""),
-        "location": getattr(mission, "location", ""), # DB에 없으면 빈 문자열
+        "location": getattr(mission, "location", ""),
         "latitude": mission.latitude,
         "longitude": mission.longitude,
         "reward_points": getattr(mission, "reward_points", 0),
@@ -460,19 +460,14 @@ def verify_mission(
 
     ai_extracted_text = ""
     if requested_type in {"PHOTO", "RECEIPT"}:
-        # 1. URL에서 파일명 추출하여 로컬 경로 찾기
         target_url = req.photo_url if requested_type == "PHOTO" else req.receipt_image_url
         filename = Path(urlparse(target_url).path).name
         local_image_path = UPLOAD_DIR / filename
 
         try:
-            # 2. 로컬에 저장된 이미지 열기
             image = Image.open(local_image_path)
-
-            # 3. DB에서 미션 타이틀 가져오기 (프론트 데이터 의존 X)
             mission_title = getattr(mission, "title", "알 수 없는 미션")
 
-            # 4. 프롬프트 구성 (미션 타이틀을 기준으로 성공 여부 판별)
             if requested_type == "RECEIPT":
                 prompt = f"""
                 당신은 영수증 인증 심사관입니다.
@@ -490,7 +485,6 @@ def verify_mission(
                 {{"is_success": true/false, "extracted_text": "판별 성공/실패 이유 1줄 요약"}}
                 """
 
-            # 5. Gemini 호출
             response = gemini_model.generate_content(
                 [prompt, image],
                 generation_config=genai.GenerationConfig(
@@ -499,13 +493,10 @@ def verify_mission(
                 )
             )
 
-            # ... (이하 결과 파싱 로직은 동일) ...
-
             result_data = json.loads(response.text)
             is_success = result_data.get("is_success", False)
             ai_extracted_text = result_data.get("extracted_text", "")
 
-            # 6. AI 판별 실패 시 즉시 리턴
             if not is_success:
                 return {
                     "success": False,
@@ -601,54 +592,112 @@ def get_district_progress(
 @router.get("/rankings", response_model=RankingResponse)
 def get_rankings(
     type: str = Query("all", pattern="^(all|region|friend)$"),
+    district: Optional[str] = Query(None, description="지역 랭킹 조회 시 타겟 지역구"),
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db),
 ):
     user = _get_user(db, subject)
     query = db.query(AppUser).filter(AppUser.account_status == "ACTIVE")
-    if type == "region":
-        if not user.district_name:
-            ranked_users = []
-        else:
-            ranked_users = query.filter(
-                AppUser.district_name == user.district_name
-            ).all()
-    elif type == "friend":
-        friend_codes = [
-            friend_code
-            for (friend_code,) in db.query(Friendship.friend_user_code)
-            .filter(Friendship.user_code == user.user_code)
-            .all()
-        ]
-        ranked_users = query.filter(
-            AppUser.user_code.in_([user.user_code, *friend_codes])
-        ).all()
-    else:
-        ranked_users = query.all()
 
-    ranked_users.sort(key=lambda item: (-item.total_points, item.user_code))
-    all_users = query.all()
-    all_users.sort(key=lambda item: (-item.total_points, item.user_code))
-    my_rank = next(
-        (index for index, item in enumerate(all_users, 1) if item.user_code == user.user_code),
-        len(all_users) + 1,
-    )
-    top_percent = max(1, math.ceil(my_rank / max(len(all_users), 1) * 100))
+    def _apply_tie_ranks(data_list: List[dict]) -> List[dict]:
+        current_rank = 1
+        for i, item in enumerate(data_list):
+            if i > 0 and item["score"] < data_list[i - 1]["score"]:
+                current_rank = i + 1
+            item["rank"] = current_rank
+        return data_list
+
+    if type == "region":
+        target_district = district or user.district_name
+        if not target_district:
+            return {"myRank": {"rank": 0, "topPercent": 0, "point": 0}, "rankings": []}
+
+        mission_counts = (
+            db.query(
+                UserMission.user_code,
+                func.count(UserMission.mission_id).label("mission_count")
+            )
+            .join(Mission, UserMission.mission_id == Mission.mission_id)
+            .filter(
+                UserMission.status == "completed",
+                Mission.district_name == target_district
+            )
+            .group_by(UserMission.user_code)
+            .subquery()
+        )
+
+        users_with_counts = (
+            db.query(AppUser, func.coalesce(mission_counts.c.mission_count, 0).label("count"))
+            .outerjoin(mission_counts, AppUser.user_code == mission_counts.c.user_code)
+            .filter(AppUser.account_status == "ACTIVE")
+            .all()
+        )
+
+        raw_data = [
+            {
+                "userId": u.user_code,
+                "name": u.nickname,
+                "score": count,
+                "_tie_score": u.total_points
+            }
+            for u, count in users_with_counts
+        ]
+        raw_data.sort(key=lambda x: (-x["score"], -x["_tie_score"], x["userId"]))
+
+        ranked_data = _apply_tie_ranks(raw_data)
+        all_ranked_data = ranked_data
+
+    else:
+        if type == "friend":
+            friend_codes = [
+                f_code
+                for (f_code,) in db.query(Friendship.friend_user_code)
+                .filter(Friendship.user_code == user.user_code)
+                .all()
+            ]
+            ranked_users = query.filter(AppUser.user_code.in_([user.user_code, *friend_codes])).all()
+        else:
+            ranked_users = query.all()
+
+        raw_data = [
+            {"userId": u.user_code, "name": u.nickname, "score": u.total_points}
+            for u in ranked_users
+        ]
+        raw_data.sort(key=lambda x: (-x["score"], x["userId"]))
+
+        ranked_data = _apply_tie_ranks(raw_data)
+
+        all_users = query.all()
+        all_raw_data = [
+            {"userId": u.user_code, "name": u.nickname, "score": u.total_points}
+            for u in all_users
+        ]
+        all_raw_data.sort(key=lambda x: (-x["score"], x["userId"]))
+
+        all_ranked_data = _apply_tie_ranks(all_raw_data)
+
+    my_item = next((r for r in all_ranked_data if r["userId"] == user.user_code), None)
+    my_rank = my_item["rank"] if my_item else len(all_ranked_data) + 1
+    my_score = my_item["score"] if my_item else 0
+    top_percent = max(1, math.ceil(my_rank / max(len(all_ranked_data), 1) * 100))
+
+    final_rankings = [
+        {
+            "rank": r["rank"],
+            "userId": r["userId"],
+            "name": r["name"],
+            "score": r["score"],
+        }
+        for r in ranked_data
+    ]
+
     return {
         "myRank": {
             "rank": my_rank,
             "topPercent": top_percent,
-            "point": user.total_points,
+            "point": my_score,
         },
-        "rankings": [
-            {
-                "rank": index,
-                "userId": item.user_code,
-                "name": item.nickname,
-                "score": item.total_points,
-            }
-            for index, item in enumerate(ranked_users, 1)
-        ],
+        "rankings": final_rankings
     }
 
 

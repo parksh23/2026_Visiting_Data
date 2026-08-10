@@ -499,8 +499,6 @@ def verify_mission(
                 )
             )
 
-            # ... (이하 결과 파싱 로직은 동일) ...
-
             result_data = json.loads(response.text)
             is_success = result_data.get("is_success", False)
             ai_extracted_text = result_data.get("extracted_text", "")
@@ -601,55 +599,114 @@ def get_district_progress(
 @router.get("/rankings", response_model=RankingResponse)
 def get_rankings(
     type: str = Query("all", pattern="^(all|region|friend)$"),
+    district: Optional[str] = Query(None, description="지역 랭킹 조회 시 타겟 지역구"),
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db),
 ):
     user = _get_user(db, subject)
     query = db.query(AppUser).filter(AppUser.account_status == "ACTIVE")
-    if type == "region":
-        if not user.district_name:
-            ranked_users = []
-        else:
-            ranked_users = query.filter(
-                AppUser.district_name == user.district_name
-            ).all()
-    elif type == "friend":
-        friend_codes = [
-            friend_code
-            for (friend_code,) in db.query(Friendship.friend_user_code)
-            .filter(Friendship.user_code == user.user_code)
-            .all()
-        ]
-        ranked_users = query.filter(
-            AppUser.user_code.in_([user.user_code, *friend_codes])
-        ).all()
-    else:
-        ranked_users = query.all()
 
-    ranked_users.sort(key=lambda item: (-item.total_points, item.user_code))
-    all_users = query.all()
-    all_users.sort(key=lambda item: (-item.total_points, item.user_code))
-    my_rank = next(
-        (index for index, item in enumerate(all_users, 1) if item.user_code == user.user_code),
-        len(all_users) + 1,
-    )
-    top_percent = max(1, math.ceil(my_rank / max(len(all_users), 1) * 100))
-    return {
-        "myRank": {
-            "rank": my_rank,
-            "topPercent": top_percent,
-            "point": user.total_points,
-        },
-        "rankings": [
-            {
-                "rank": index,
-                "userId": item.user_code,
-                "name": item.nickname,
-                "score": item.total_points,
-            }
-            for index, item in enumerate(ranked_users, 1)
-        ],
-    }
+    if type == "region":
+        # 요청된 지역구가 없으면 유저의 기본 지역구로 대체
+        target_district = district or user.district_name
+        if not target_district:
+            return {"myRank": {"rank": 0, "topPercent": 0, "point": 0}, "rankings": []}
+
+        # 1. 타겟 지역구의 완료된 미션 개수를 유저별로 카운트하는 서브쿼리
+        mission_counts = (
+            db.query(
+                UserMission.user_code,
+                func.count(UserMission.mission_id).label("mission_count")
+            )
+            .join(Mission, UserMission.mission_id == Mission.mission_id)
+            .filter(
+                UserMission.status == "completed",
+                Mission.district_name == target_district
+            )
+            .group_by(UserMission.user_code)
+            .subquery()
+        )
+
+        # 2. 전체 활성 유저와 미션 개수(없으면 0)를 조인
+        users_with_counts = (
+            db.query(AppUser, func.coalesce(mission_counts.c.mission_count, 0).label("count"))
+            .outerjoin(mission_counts, AppUser.user_code == mission_counts.c.user_code)
+            .filter(AppUser.account_status == "ACTIVE")
+            .all()
+        )
+
+        # 3. 미션 완료 개수(내림차순) -> 총 포인트(내림차순) -> 유저 코드(오름차순) 순으로 정렬
+        users_with_counts.sort(key=lambda item: (-item.count, -item[0].total_points, item[0].user_code))
+
+        # 내 랭킹 정보 계산
+        my_item = next((item for item in users_with_counts if item[0].user_code == user.user_code), None)
+        my_rank = next(
+            (index for index, item in enumerate(users_with_counts, 1) if item[0].user_code == user.user_code),
+            len(users_with_counts) + 1,
+        )
+        top_percent = max(1, math.ceil(my_rank / max(len(users_with_counts), 1) * 100))
+        my_score = my_item.count if my_item else 0
+
+        return {
+            "myRank": {
+                "rank": my_rank,
+                "topPercent": top_percent,
+                "point": my_score, # 여기서는 포인트 대신 미션 완료 개수를 보여줍니다.
+            },
+            "rankings": [
+                {
+                    "rank": index,
+                    "userId": item[0].user_code,
+                    "name": item[0].nickname,
+                    "score": item.count, # 포인트가 아닌 미션 완료 개수 반환
+                }
+                for index, item in enumerate(users_with_counts, 1)
+            ],
+        }
+
+    else:
+        # 기존 로직 (all, friend) 유지
+        if type == "friend":
+            friend_codes = [
+                friend_code
+                for (friend_code,) in db.query(Friendship.friend_user_code)
+                .filter(Friendship.user_code == user.user_code)
+                .all()
+            ]
+            ranked_users = query.filter(
+                AppUser.user_code.in_([user.user_code, *friend_codes])
+            ).all()
+        else:
+            ranked_users = query.all()
+
+        ranked_users.sort(key=lambda item: (-item.total_points, item.user_code))
+
+        # 전체 랭킹을 구하기 위해 다시 한번 정렬 (my_rank용)
+        all_users = query.all()
+        all_users.sort(key=lambda item: (-item.total_points, item.user_code))
+
+        my_rank = next(
+            (index for index, item in enumerate(all_users, 1) if item.user_code == user.user_code),
+            len(all_users) + 1,
+        )
+        top_percent = max(1, math.ceil(my_rank / max(len(all_users), 1) * 100))
+
+        return {
+            "myRank": {
+                "rank": my_rank,
+                "topPercent": top_percent,
+                "point": user.total_points,
+            },
+            "rankings": [
+                {
+                    "rank": index,
+                    "userId": item.user_code,
+                    "name": item.nickname,
+                    "score": item.total_points,
+                }
+                for index, item in enumerate(ranked_users, 1)
+            ],
+        }
 
 
 @router.post("/uploads", response_model=UploadResponse, status_code=201)

@@ -33,9 +33,59 @@ data class NicknameEditState(
 
 class ProfileViewModel : ViewModel() {
 
+    // ── 찜한 미션 ──
+
+    // 찜 목록 로딩/오류 상태
+    private val _savedLoading = MutableStateFlow(false)
+    val savedLoading: StateFlow<Boolean> = _savedLoading.asStateFlow()
+
+    private val _savedError = MutableStateFlow<String?>(null)
+    val savedError: StateFlow<String?> = _savedError.asStateFlow()
+
+    // ⚠️ init 은 위 프로퍼티들보다 뒤에 있어야 한다 (초기화 순서 — 위에 두면 null 참조)
     init {
-        // 화면 진입 시 서버에서 실제 닉네임을 불러온다
+        // 화면 진입 시 서버에서 실제 닉네임/통계와 찜 목록을 불러온다
         viewModelScope.launch { UserRepository.refreshProfile() }
+        refreshSavedMissions()
+    }
+
+    // 찜 요청 중인 미션 id (중복 클릭 방지)
+    val savePending: StateFlow<Set<Int>> = MissionRepository.savedPending
+
+    fun clearSavedError() {
+        _savedError.value = null
+    }
+
+    // GET /api/v1/missions/saved
+    fun refreshSavedMissions() {
+        viewModelScope.launch {
+            _savedLoading.value = true
+            try {
+                MissionRepository.refreshSavedMissionsFromServer()
+                _savedError.value = null
+            } catch (e: retrofit2.HttpException) {
+                _savedError.value = when (e.code()) {
+                    401 -> "로그인이 필요해요. 다시 로그인해주세요."
+                    403 -> "이용이 제한된 계정이에요."
+                    else -> "찜한 미션을 불러오지 못했어요. (${e.code()})"
+                }
+            } catch (e: java.io.IOException) {
+                _savedError.value = "네트워크 연결을 확인해주세요."
+            } catch (e: Exception) {
+                _savedError.value = "찜한 미션을 불러오는 중 오류가 발생했어요."
+            } finally {
+                _savedLoading.value = false
+            }
+        }
+    }
+
+    // DELETE /api/v1/missions/{id}/saved → 성공하면 목록에서 즉시 제거된다
+    fun unsaveMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.setSavedOnServer(id, saved = false)
+                .onSuccess { UserRepository.refreshProfile() }   // 찜 개수 재동기화
+                .onFailure { e -> _savedError.value = e.message }
+        }
     }
 
     // ── 닉네임 편집 ──
@@ -76,21 +126,27 @@ class ProfileViewModel : ViewModel() {
         }
     }
 
+    // 서버 통계 (users/me). 아직 못 불러왔으면 null → 로컬 계산값으로 폴백.
+    private val serverCounts =
+        combine(UserRepository.completedCount, UserRepository.savedCount) { c, s -> c to s }
+
     val uiState: StateFlow<ProfileUiState> =
         combine(
             UserRepository.points,
             UserRepository.name,
-            MissionRepository.missions
-        ) { points, name, missions ->
+            MissionRepository.missions,
+            MissionRepository.savedMissions,
+            serverCounts
+        ) { points, name, missions, savedMissions, counts ->
+            val (serverCompleted, serverSaved) = counts
             val completed = missions.filter { it.state == MissionState.COMPLETED }
-            val saved = missions.filter { it.saved }
             ProfileUiState(
                 name = name.ifBlank { "부산갈매기" },   // 아직 못 불러왔으면 기본값
                 points = points,
-                completedCount = completed.size,
+                completedCount = serverCompleted ?: completed.size,
                 completedMissions = completed,
-                savedCount = saved.size,
-                savedMissions = saved
+                savedCount = serverSaved ?: savedMissions.size,
+                savedMissions = savedMissions          // GET /api/v1/missions/saved (최근순)
             )
         }.stateIn(
             scope = viewModelScope,

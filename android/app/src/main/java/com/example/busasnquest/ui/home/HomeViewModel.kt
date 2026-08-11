@@ -10,7 +10,7 @@ import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.data.repository.UserRepository
 import com.example.busasnquest.util.getCurrentLocation
-import com.example.busasnquest.util.readPhotoLocation
+import com.example.busasnquest.util.readImageLocation
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,18 +84,40 @@ class HomeViewModel : ViewModel() {
     // 보유 포인트 (홈 헤더 칩용)
     val points: StateFlow<Int> = UserRepository.points
 
+    // ── 미션 찜 ──
+
+    // 찜 요청 중인 미션 id (하트 중복 클릭 방지)
+    val savePending: StateFlow<Set<Int>> = MissionRepository.savedPending
+
+    // 찜 처리 실패 메시지
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError: StateFlow<String?> = _saveError.asStateFlow()
+
+    fun clearSaveError() {
+        _saveError.value = null
+    }
+
+    // POST/DELETE /api/v1/missions/{id}/saved → 응답의 is_saved 로 화면 갱신
+    fun toggleSaved(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.toggleSavedOnServer(id)
+                .onSuccess { UserRepository.refreshProfile() }   // 마이페이지 찜 개수 동기화
+                .onFailure { e -> _saveError.value = e.message }
+        }
+    }
+
     // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
 
-    // PHOTO: 사진을 골랐을 때 → 사진 GPS 확인 후 photo_url + 좌표 전송
-    fun onPhotoPicked(id: Int, context: Context, uri: Uri) {
-        val location = readPhotoLocation(context, uri)
+    // IMAGE: 사진을 골랐을 때 → 사진 GPS 확인 후 image + 좌표 전송
+    fun onImagePicked(id: Int, context: Context, uri: Uri) {
+        val location = readImageLocation(context, uri)
         if (location == null) {
             MissionRepository.setError(id, "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
             return
         }
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
-            val photoUrl = MissionRepository.uploadImage(context, uri)
+            val imageUrl = MissionRepository.uploadImage(context, uri)
                 .getOrElse { error ->
                     MissionRepository.setError(
                         id,
@@ -107,8 +129,8 @@ class HomeViewModel : ViewModel() {
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
-                    missionType = MissionType.PHOTO_LOCATION.toServerType(),
-                    photoUrl = photoUrl,
+                    missionType = MissionType.IMAGE_LOCATION.toServerType(),
+                    imageUrl = imageUrl,
                     latitude = location.latitude,
                     longitude = location.longitude
                 )

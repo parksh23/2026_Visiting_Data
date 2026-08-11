@@ -2,7 +2,6 @@ package com.example.busasnquest.ui.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,8 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,16 +69,16 @@ fun ProfileScreen(
 
         ProfileSummaryCard(uiState = uiState, onEditName = { viewModel.openNicknameEditor() })
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Dimens.sectionGap))
 
         // 메뉴 카드 (미션 내역 / 찜한 미션 / 사진 관리)
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Dimens.screenPadding)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
-                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
+                .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
         ) {
             profileMenuItems.forEachIndexed { index, item ->
                 MenuRow(item) {
@@ -93,52 +90,52 @@ fun ProfileScreen(
                 if (index != profileMenuItems.lastIndex) {
                     HorizontalDivider(
                         color = DividerGray,
-                        modifier = Modifier.padding(horizontal = 18.dp)
+                        modifier = Modifier.padding(horizontal = Dimens.cardPadding)
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
         // 설정 리스트
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Dimens.screenPadding)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CardWhite)
-                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
+                .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
         ) {
             settingItems.forEachIndexed { index, item ->
                 SettingRow(item)
                 if (index != settingItems.lastIndex) {
                     HorizontalDivider(
                         color = DividerGray,
-                        modifier = Modifier.padding(horizontal = 18.dp)
+                        modifier = Modifier.padding(horizontal = Dimens.cardPadding)
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
         // 로그아웃
         Box(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Dimens.screenPadding)
                 .fillMaxWidth()
+                .pressable(onClick = onLogout)
                 .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(CoralTint)
-                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
-                .clickable { onLogout() }
+                .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
             Text("로그아웃", color = CoralDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
-        Spacer(modifier = Modifier.height(120.dp))
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
@@ -150,8 +147,8 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CardWhite)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusHero))
-            .padding(24.dp)
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusHero))
+            .padding(Dimens.cardPadding + 6.dp)
     ) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -178,14 +175,20 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
                     // 이름 — 디스플레이 헤딩
                     Text(uiState.name, style = displayStyle(21.sp), color = TextMain)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        Icons.Outlined.Edit,
-                        contentDescription = "이름 편집",
-                        tint = TextSub,
+                    // 18dp 아이콘 단독 클릭은 터치 타깃이 작다 → 36dp 박스로 확대
+                    Box(
                         modifier = Modifier
-                            .size(18.dp)
-                            .clickable { onEditName() }
-                    )
+                            .size(36.dp)
+                            .pressable(scaleDown = 0.86f, onClick = onEditName),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Outlined.Edit,
+                            contentDescription = "이름 편집",
+                            tint = TextSub,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(uiState.intro, color = TextSub, fontSize = 13.sp)
@@ -193,9 +196,9 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Dimens.gapBlock))
         HorizontalDivider(color = DividerGray)
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
         // 통계 3개 (서페이스 카드)
         Row(
@@ -218,9 +221,9 @@ fun ProfileStat(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(Dimens.radiusButton))
             .background(SurfaceGray)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(14.dp))
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusButton))
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -244,14 +247,15 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(18.dp),
+            // 카드 안 행이라 scale 대신 배경 하이라이트로 반응 (구분선과 어긋나지 않게)
+            .pressableRow(onClick = onClick)
+            .padding(Dimens.cardPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(Dimens.radiusChip))
                 .background(item.bg),
             contentAlignment = Alignment.Center
         ) {
@@ -318,12 +322,12 @@ private fun NicknameEditDialog(
 }
 
 @Composable
-fun SettingRow(item: SettingItem) {
+fun SettingRow(item: SettingItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .pressableRow(onClick = onClick)
+            .padding(horizontal = Dimens.cardPadding, vertical = Dimens.gapBlock),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(item.icon, contentDescription = null, tint = SeaBlue, modifier = Modifier.size(22.dp))

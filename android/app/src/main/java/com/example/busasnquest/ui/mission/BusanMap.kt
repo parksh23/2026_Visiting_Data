@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.CoralTint
+import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.DisplayFontFamily
 import com.example.busasnquest.ui.theme.MapLandShadow
 import com.example.busasnquest.ui.theme.TextSub

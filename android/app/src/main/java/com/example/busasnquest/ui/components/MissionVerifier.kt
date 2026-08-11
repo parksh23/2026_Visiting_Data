@@ -38,10 +38,10 @@ fun rememberMissionVerifier(
     // 영수증 인증 방식(촬영/갤러리) 선택 다이얼로그 표시 여부
     val showReceiptChooser = remember { mutableStateOf(false) }
 
-    val photoPicker = rememberLauncherForActivityResult(
+    val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) viewModel.onPhotoPicked(activeId.value, context, uri)
+        if (uri != null) viewModel.onImagePicked(activeId.value, context, uri)
     }
 
     // 영수증: 갤러리에서 이미지 선택 (GPS 불필요 → 영수증 처리로 바로 전달)
@@ -124,7 +124,7 @@ fun rememberMissionVerifier(
     return { id, type ->
         activeId.value = id
         when (type) {
-            MissionType.PHOTO_LOCATION -> photoPicker.launch(
+            MissionType.IMAGE_LOCATION -> imagePicker.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
             )
             MissionType.CURRENT_LOCATION -> {

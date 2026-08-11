@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 // ═══════════════════════════════════════════════════
 //  라이트 단일 테마 — "웜 페이퍼 + 코럴 잉크"
@@ -40,6 +41,72 @@ val CoralInk = Color(0xFF4A1B0C)     // 코럴 채움 위에 얹는 진한 글�
 // 보조 강조 — 부산의 바다. 흰 배경 대비 4.7:1이라 글자·아이콘에도 쓸 수 있다.
 val SeaBlue = Color(0xFF17808B)
 val SeaBlueBg = Color(0xFFE3F1F1)    // 바다블루 연한 틴트 배경
+
+// ── 크림(CoralTint) 표면 위 전경색 ──
+// 다크 테마의 밝은 글자색을 크림 카드 위에 그대로 쓰면 읽히지 않으므로,
+// 화면마다 헥사를 박아 넣는 대신 여기서 시맨틱 이름으로 관리한다.
+val OnCoralTint = Color(0xFF4A2E28)      // 크림 위 제목/본문 (대비 ≈ 11:1)
+val OnCoralTintSub = Color(0xFF7A5C53)   // 크림 위 보조 텍스트 (대비 ≈ 6:1, 기존 8C6F66 대비 강화)
+val CoralTrack = Color(0xFFF0DEDE)       // 크림 위 진행바 트랙
+val OnMedalGold = Color(0xFF5A4300)      // 골드 배지 위 글자
+
+/**
+ * 코럴 표면 위 잉크 글자 (선택된 세그먼트/칩 등).
+ * 기존 0xFF4A1B0C 는 코럴(#E8635F) 위 대비 4.27:1 로 AA 미달이라 5.2:1 로 깊게 조정.
+ */
+val OnCoral = Color(0xFF33110A)
+
+/**
+ * 채워진 색 위에 얹을 글자색을 자동으로 고른다 — 흰색 vs 잉크 중 **대비가 큰 쪽**.
+ *
+ * 이 앱의 채움색(코럴·민트·골드·실버·브론즈·씨블루)은 전부 중간 밝기라
+ * 관행대로 흰 글자를 얹으면 대부분 AA(4.5:1)에 미달한다. 예: 흰색 on 코럴 = 3.29:1.
+ * 같은 색에 잉크 글자를 얹으면 5.21:1 로 통과한다.
+ *
+ * 채움색이 바뀌어도 글자색이 따라오므로, 호출부에서 색을 손으로 짝지을 필요가 없다.
+ *   Text(label, color = onFilled(badgeBg))
+ */
+fun onFilled(background: Color): Color {
+    val l = background.luminance()
+    val vsWhite = 1.05f / (l + 0.05f)
+    val vsInk = (l + 0.05f) / (OnCoral.luminance() + 0.05f)
+    return if (vsInk >= vsWhite) OnCoral else Color.White
+}
+
+// ── 경고/에러 인라인 배너 (크림 배경 + 벽돌색 글자, 대비 ≈ 6.3:1) ──
+val WarnTint = CoralTint
+val OnWarnTint = Color(0xFF993C1D)
+
+// ── 미션 상세 히어로 (하늘/바다 톤) ──
+val DetailHeroTop = Color(0xFFCFE0F2)
+val DetailHeroBottom = Color(0xFFB7D0EA)
+
+// ── 카카오 로그인 브랜드 색 (브랜드 규정값이라 임의 변경 금지) ──
+val KakaoYellow = Color(0xFFFEE500)
+val OnKakaoYellow = Color(0xFF191919)
+
+/**
+ * 진행률 스펙트럼 바 색상 (0% → 100%).
+ * 흰 배경이 아니라 코럴 카드 위에 얹히므로 채도를 낮추지 말 것.
+ */
+val SpectrumBar = listOf(
+    Color(0xFFFF5A5A),
+    Color(0xFFFF9800),
+    Color(0xFFF4D03F),
+    Color(0xFF8BC34A),
+    Color(0xFF4FC3F7)
+)
+
+/**
+ * 미션 이미지가 없을 때 쓰는 폴백 그라데이션 (부산 바다·하늘·노을·해안 4종).
+ * district 해시로 고르므로 같은 구는 항상 같은 색이 나온다.
+ */
+val MissionFallbackGradients = listOf(
+    listOf(Color(0xFF5A9BBF), Color(0xFF2C5F7C)), // 바다
+    listOf(Color(0xFF7FB8D4), Color(0xFF3A7CA5)), // 하늘
+    listOf(Color(0xFFE8B4A0), Color(0xFFB5651D)), // 노을
+    listOf(Color(0xFF9FE1CB), Color(0xFF0E7C86))  // 해안
+)
 
 val PointOrange = Color(0xFFB25F08)  // 포인트/보상 강조 (흰 배경 4.6:1 — 글자·아이콘·채움 모두 안전)
 val PointRed = Color(0xFFCC3B3B)     // 에러 텍스트 (흰 배경 대비 4.9:1)

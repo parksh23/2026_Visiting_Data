@@ -1,8 +1,9 @@
 package com.example.busasnquest.ui.detail
 
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,7 +37,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,7 +57,22 @@ fun MissionDetailScreen(
 ) {
     // Repository에서 이 미션을 실시간으로 가져옴
     val missions by MissionRepository.missions.collectAsStateWithLifecycle()
+    val savedMissions by MissionRepository.savedMissions.collectAsStateWithLifecycle()
+    // 전체 목록에 없으면(찜 목록에서 바로 들어온 경우) 찜 목록에서 찾는다
     val item = missions.firstOrNull { it.mission.id == missionId }
+        ?: savedMissions.firstOrNull { it.mission.id == missionId }
+
+    // 찜 요청 중 / 실패 메시지
+    val savePending by viewModel.savePending.collectAsStateWithLifecycle()
+    val saveError by viewModel.saveError.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(saveError) {
+        saveError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSaveError()
+        }
+    }
 
     // 인증 헬퍼 (사진/위치/영수증 런처를 다 담고 있음)
     val verify = rememberMissionVerifier(viewModel)
@@ -69,7 +85,9 @@ fun MissionDetailScreen(
     }
 
     val mission = item.mission
+    val isSavePending = savePending.contains(mission.id)
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -89,17 +107,27 @@ fun MissionDetailScreen(
 
             Spacer(modifier = Modifier.weight(1f))   // 가운데 공간 밀어내기
 
-            IconButton(onClick = { MissionRepository.toggleSaved(mission.id) }) {
+            // ⚠️ 기존에는 IconButton 과 Icon 양쪽에 토글이 걸려 한 번 누르면 두 번 토글돼
+            //    찜이 안 되는 것처럼 보였다 → 클릭 주체를 하나로 통일한다.
+            val heartTint by animateColorAsState(
+                targetValue = if (item.saved) Coral else TextSub,
+                animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                label = "detailHeart"
+            )
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    // 요청 중에는 잠금 → 연속 클릭으로 중복 요청이 나가지 않는다
+                    .pressable(enabled = !isSavePending, scaleDown = 0.86f) {
+                        viewModel.toggleSaved(mission.id)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = "찜하기",
-                    tint = if (item.saved) PointRed else TextSub,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { MissionRepository.toggleSaved(mission.id) }
+                    contentDescription = if (item.saved) "찜 해제" else "찜하기",
+                    tint = if (isSavePending) heartTint.copy(alpha = 0.4f) else heartTint,
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
@@ -107,11 +135,11 @@ fun MissionDetailScreen(
         // 미션 이미지 (전체미션 카드와 동일하게 mission.imageUrl 연동, 없으면 자리표시자)
         Box(
             modifier = Modifier
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Dimens.screenPadding)
                 .fillMaxWidth()
                 .height(180.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFFCFE0F2), Color(0xFFB7D0EA)))),
+                .clip(RoundedCornerShape(Dimens.radiusHero))
+                .background(Brush.verticalGradient(listOf(DetailHeroTop, DetailHeroBottom))),
             contentAlignment = Alignment.Center
         ) {
             if (mission.imageUrl != null) {
@@ -128,7 +156,7 @@ fun MissionDetailScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
             // 상세 제목 — 디스플레이 헤딩
             Text(mission.title, style = displayStyle(24.sp), color = TextMain)
             Spacer(modifier = Modifier.height(8.dp))
@@ -136,7 +164,7 @@ fun MissionDetailScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(missionTypeLabelDetail(mission.type), color = IconBlue, fontSize = 13.sp)
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
             // 보상
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -151,9 +179,9 @@ fun MissionDetailScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(Dimens.radiusButton))
                     .background(CardWhite)
-                    .padding(16.dp)
+                    .padding(Dimens.gapBlock)
             ) {
                 Text(missionGuide(mission.type), color = TextSub, fontSize = 13.sp)
             }
@@ -198,23 +226,30 @@ fun MissionDetailScreen(
             }
         }
     }
+
+        // 찜 실패 안내 (401/404/500 등)
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
 }
 
 // 상세 화면용 라벨/안내 (홈의 것과 이름 겹치지 않게 Detail 붙임)
 fun missionTypeLabelDetail(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION   -> "📷 사진 위치 인증"
+    MissionType.IMAGE_LOCATION   -> "📷 사진 위치 인증"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치 인증"
     MissionType.RECEIPT          -> "🧾 결제 영수증 인증"
 }
 
 fun missionGuide(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION   -> "이 미션은 사진의 위치정보로 인증합니다. 미션 장소에서 위치 기록을 켜고 촬영한 사진을 올려주세요."
+    MissionType.IMAGE_LOCATION   -> "이 미션은 사진의 위치정보로 인증합니다. 미션 장소에서 위치 기록을 켜고 촬영한 사진을 올려주세요."
     MissionType.CURRENT_LOCATION -> "이 미션은 현재 위치로 인증합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요."
     MissionType.RECEIPT          -> "이 미션은 결제 영수증으로 인증합니다. 해당 장소에서 결제 후 영수증을 촬영해주세요."
 }
 
 fun verifyButtonLabelDetail(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION   -> "📷 사진 올려서 인증하기"
+    MissionType.IMAGE_LOCATION   -> "📷 사진 올려서 인증하기"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치로 인증하기"
     MissionType.RECEIPT          -> "🧾 영수증 올려서 인증하기"
 }

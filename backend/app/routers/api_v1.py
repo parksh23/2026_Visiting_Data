@@ -34,7 +34,7 @@ from auth_utils import (
     verify_password,
 )
 from database import get_db
-from models import AppUser, District, Friendship, Mission, SavedMission, UserMission
+from models import AppUser, District, Friendship, Mission, UserMission
 from tourism_scoring import refresh_tourism_scores
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
@@ -159,6 +159,15 @@ class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
 
 
+def _get_saved_list(saved_missions_val) -> List[str]:
+    if saved_missions_val is None:
+        return []
+    val_str = str(saved_missions_val).strip()
+    if not val_str or val_str == "0":
+        return []
+    return [mid.strip() for mid in val_str.split(",") if mid.strip()]
+
+
 def _next_user_code(db: Session) -> str:
     max_number = 0
     for (code,) in db.query(AppUser.user_code).all():
@@ -186,11 +195,12 @@ def _token_for(user: AppUser) -> str:
 
 
 def _profile_dict(user: AppUser) -> dict:
+    saved_list = _get_saved_list(user.saved_missions)
     return {
         "name": user.nickname,
         "points": f"{user.total_points:,}P",
         "completed_missions": user.completed_missions,
-        "saved_missions": user.saved_missions,
+        "saved_missions": len(saved_list),
     }
 
 
@@ -395,12 +405,8 @@ def get_missions(
         )
         .all()
     }
-    saved_ids = {
-        mission_id
-        for (mission_id,) in db.query(SavedMission.mission_id)
-        .filter(SavedMission.user_code == user.user_code)
-        .all()
-    }
+    saved_ids = {int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()}
+
     return [
         _mission_dict(mission, completed_ids, saved_ids)
         for mission in db.query(Mission).order_by(Mission.mission_id).all()
@@ -432,19 +438,22 @@ def get_saved_missions(
         )
         .all()
     }
-    saved_ids = {
-        mission_id
-        for (mission_id,) in db.query(SavedMission.mission_id)
-        .filter(SavedMission.user_code == user.user_code)
-        .all()
-    }
-    missions = (
+
+    saved_ids_list = [int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()]
+    saved_ids = set(saved_ids_list)
+
+    if not saved_ids_list:
+        return []
+
+    missions_db = (
         db.query(Mission)
-        .join(SavedMission, SavedMission.mission_id == Mission.mission_id)
-        .filter(SavedMission.user_code == user.user_code)
-        .order_by(SavedMission.created_at.desc(), Mission.mission_id)
+        .filter(Mission.mission_id.in_(saved_ids_list))
         .all()
     )
+
+    mission_map = {m.mission_id: m for m in missions_db}
+    missions = [mission_map[mid] for mid in saved_ids_list if mid in mission_map]
+
     return [_mission_dict(mission, completed_ids, saved_ids) for mission in missions]
 
 
@@ -462,23 +471,14 @@ def save_mission(
     if db.query(Mission.mission_id).filter(Mission.mission_id == mission_id).first() is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-    saved = (
-        db.query(SavedMission)
-        .filter(
-            SavedMission.user_code == user.user_code,
-            SavedMission.mission_id == mission_id,
-        )
-        .first()
-    )
-    if saved is None:
-        db.add(SavedMission(user_code=user.user_code, mission_id=mission_id))
-        db.flush()
-        user.saved_missions = (
-            db.query(SavedMission)
-            .filter(SavedMission.user_code == user.user_code)
-            .count()
-        )
+    saved_list = _get_saved_list(user.saved_missions)
+    mission_id_str = str(mission_id)
+
+    if mission_id_str not in saved_list:
+        saved_list.append(mission_id_str)
+        user.saved_missions = ",".join(saved_list)
         db.commit()
+
     return {"mission_id": mission_id, "is_saved": True}
 
 
@@ -489,23 +489,15 @@ def unsave_mission(
     db: Session = Depends(get_db),
 ):
     user = _get_user(db, subject)
-    saved = (
-        db.query(SavedMission)
-        .filter(
-            SavedMission.user_code == user.user_code,
-            SavedMission.mission_id == mission_id,
-        )
-        .first()
-    )
-    if saved is not None:
-        db.delete(saved)
-        db.flush()
-        user.saved_missions = (
-            db.query(SavedMission)
-            .filter(SavedMission.user_code == user.user_code)
-            .count()
-        )
+
+    saved_list = _get_saved_list(user.saved_missions)
+    mission_id_str = str(mission_id)
+
+    if mission_id_str in saved_list:
+        saved_list.remove(mission_id_str)
+        user.saved_missions = ",".join(saved_list)
         db.commit()
+
     return {"mission_id": mission_id, "is_saved": False}
 
 
@@ -521,6 +513,8 @@ def verify_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     requested_type = req.mission_type.upper()
+
+    print(f"🔍 디버깅 - 요청한 타입: [{requested_type}], DB에 저장된 타입: [{mission.mission_type}]")
     if requested_type not in MISSION_TYPES or requested_type != mission.mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
     duplicate = (

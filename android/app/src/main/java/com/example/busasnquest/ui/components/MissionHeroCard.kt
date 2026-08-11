@@ -31,13 +31,14 @@ import coil.compose.AsyncImage
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.mission.missionTypeLabel
-import com.example.busasnquest.ui.theme.BgSoftBlue
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.IconGreen
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.CoralInk
 
 // image_url 이 없을 때 쓰는 구별 그라데이션 폴백 (부산 바다·노을 톤 4종)
 private val FallbackGradients = listOf(
@@ -105,7 +106,7 @@ fun MissionHeroCard(
                     missionTypeLabel(mission.type),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = BgSoftBlue   // 흰 pill 위 → 어두운 차콜 글자 (다크 테마의 TextMain은 밝아서 안 보였음)
+                    color = TextMain   // 흰 pill 위 → 잉크 글자
                 )
             }
 
@@ -136,7 +137,7 @@ fun MissionHeroCard(
                     "+${mission.reward}P",
                     fontSize = if (compact) 11.sp else 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Coral
+                    color = CoralDark
                 )
             }
             Spacer(Modifier.height(2.dp))
@@ -164,7 +165,7 @@ fun MissionHeroCard(
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(label, color = if (bg == Coral) CoralInk else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 if (item.error != null) {
                     Spacer(Modifier.height(6.dp))

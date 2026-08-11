@@ -239,7 +239,7 @@ fun MapScreen(
                                 ) {
                                     Column {
                                         Text(m.title, fontWeight = FontWeight.Medium)
-                                        Text(m.district, color = Color.Gray, fontSize = 12.sp)
+                                        Text(m.district, color = TextSub, fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -269,7 +269,7 @@ fun MapScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Spacer(Modifier.height(4.dp))
-                            Text(mission.district, color = Color.Gray, fontSize = 13.sp)
+                            Text(mission.district, color = TextSub, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
                             Text("${mission.reward}P", color = com.example.busasnquest.ui.theme.Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }

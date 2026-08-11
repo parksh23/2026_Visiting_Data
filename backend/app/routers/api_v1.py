@@ -34,7 +34,7 @@ from auth_utils import (
     verify_password,
 )
 from database import get_db
-from models import AppUser, District, Friendship, Mission, UserMission
+from models import AppUser, District, Friendship, Mission, SavedMission, UserMission
 from tourism_scoring import refresh_tourism_scores
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
@@ -108,6 +108,12 @@ class MissionDto(BaseModel):
     mission_type: str
     image_url: Optional[str] = None
     target_text: Optional[str] = ""
+    is_saved: bool = False
+
+
+class MissionSavedResponse(BaseModel):
+    mission_id: int
+    is_saved: bool
 
 class MissionVerifyRequestDto(BaseModel):
     mission_id: int
@@ -209,7 +215,9 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
+def _mission_dict(
+    mission: Mission, completed_ids: set[int], saved_ids: Optional[set[int]] = None
+) -> dict:
     completed = mission.mission_id in completed_ids
     return {
         "mission_id": mission.mission_id,
@@ -224,6 +232,7 @@ def _mission_dict(mission: Mission, completed_ids: set[int]) -> dict:
         "status": "completed" if completed else "ongoing",
         "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
+        "is_saved": mission.mission_id in (saved_ids or set()),
     }
 
 
@@ -386,8 +395,14 @@ def get_missions(
         )
         .all()
     }
+    saved_ids = {
+        mission_id
+        for (mission_id,) in db.query(SavedMission.mission_id)
+        .filter(SavedMission.user_code == user.user_code)
+        .all()
+    }
     return [
-        _mission_dict(mission, completed_ids)
+        _mission_dict(mission, completed_ids, saved_ids)
         for mission in db.query(Mission).order_by(Mission.mission_id).all()
     ]
 
@@ -401,6 +416,97 @@ def get_ongoing_missions(
         for mission in get_missions(subject, db)
         if mission["status"] == "ongoing"
     ]
+
+
+@router.get("/missions/saved", response_model=List[MissionDto])
+def get_saved_missions(
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+    completed_ids = {
+        mission_id
+        for (mission_id,) in db.query(UserMission.mission_id)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.status == "completed",
+        )
+        .all()
+    }
+    saved_ids = {
+        mission_id
+        for (mission_id,) in db.query(SavedMission.mission_id)
+        .filter(SavedMission.user_code == user.user_code)
+        .all()
+    }
+    missions = (
+        db.query(Mission)
+        .join(SavedMission, SavedMission.mission_id == Mission.mission_id)
+        .filter(SavedMission.user_code == user.user_code)
+        .order_by(SavedMission.created_at.desc(), Mission.mission_id)
+        .all()
+    )
+    return [_mission_dict(mission, completed_ids, saved_ids) for mission in missions]
+
+
+@router.post(
+    "/missions/{mission_id}/saved",
+    response_model=MissionSavedResponse,
+    status_code=201,
+)
+def save_mission(
+    mission_id: int,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    if db.query(Mission.mission_id).filter(Mission.mission_id == mission_id).first() is None:
+        raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
+
+    saved = (
+        db.query(SavedMission)
+        .filter(
+            SavedMission.user_code == user.user_code,
+            SavedMission.mission_id == mission_id,
+        )
+        .first()
+    )
+    if saved is None:
+        db.add(SavedMission(user_code=user.user_code, mission_id=mission_id))
+        db.flush()
+        user.saved_missions = (
+            db.query(SavedMission)
+            .filter(SavedMission.user_code == user.user_code)
+            .count()
+        )
+        db.commit()
+    return {"mission_id": mission_id, "is_saved": True}
+
+
+@router.delete("/missions/{mission_id}/saved", response_model=MissionSavedResponse)
+def unsave_mission(
+    mission_id: int,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    saved = (
+        db.query(SavedMission)
+        .filter(
+            SavedMission.user_code == user.user_code,
+            SavedMission.mission_id == mission_id,
+        )
+        .first()
+    )
+    if saved is not None:
+        db.delete(saved)
+        db.flush()
+        user.saved_missions = (
+            db.query(SavedMission)
+            .filter(SavedMission.user_code == user.user_code)
+            .count()
+        )
+        db.commit()
+    return {"mission_id": mission_id, "is_saved": False}
 
 
 @router.post("/missions/verify", response_model=MissionVerifyResponse)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  지도 핀 — 진행중 미션 (하늘색 깃발)
+  ※ 세로 56 중 위쪽 28만 그림이고 아래는 비어 있다.
+     카카오맵 라벨의 기본 기준점이 이미지 중앙이라, 이렇게 두면
+     "깃대 밑동"이 정확히 미션 좌표에 꽂힌다.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="56dp"
+    android:viewportWidth="28"
+    android:viewportHeight="56">
+
+    <!-- 깃대 밑동 (땅에 닿는 지점) -->
+    <path
+        android:pathData="M4.6,28 a3.4,1.5 0 1,0 6.8,0 a3.4,1.5 0 1,0 -6.8,0"
+        android:fillColor="#2B2320" />
+
+    <!-- 깃대 -->
+    <path
+        android:pathData="M7.9,4.2 L8.6,28"
+        android:strokeColor="#2B2320"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round" />
+
+    <!-- 깃발 천 (제비꼬리) -->
+    <path
+        android:pathData="M9.0,5.0 L24.0,7.2 L20.0,12.0 L24.6,16.7 L9.6,14.6 Z"
+        android:fillColor="#17808B"
+        android:strokeColor="#2B2320"
+        android:strokeWidth="1.4"
+        android:strokeLineJoin="round" />
+</vector>

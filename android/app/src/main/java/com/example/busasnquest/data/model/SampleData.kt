@@ -1,6 +1,5 @@
 package com.example.busasnquest.data.model
 
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import com.example.busasnquest.R
@@ -8,20 +7,6 @@ import com.example.busasnquest.ui.theme.*
 
 
 // ───────────────── SAMPLE DATA (스크린샷 기준) ─────────────────
-
-// 랭킹 리스트
-val rankingList = listOf(
-    RankEntry(1, "바다사랑이", "5,620P"),
-    RankEntry(2, "해운대모험가", "4,320P"),
-    RankEntry(3, "광안리러버", "3,150P"),
-    RankEntry(4, "부산산책자", "2,850P"),
-    RankEntry(5, "푸른바다탐험가", "2,450P"),
-    RankEntry(12, "부산갈매기 (나)", "2,450P", isMe = true),
-    RankEntry(13, "송도바람", "2,340P"),
-    RankEntry(14, "남포동여행자", "2,220P"),
-    RankEntry(15, "영도나그네", "2,100P"),
-    RankEntry(16, "자갈치사랑", "1,980P"),
-)
 
 // 내 정보 - 메뉴 카드
 val profileMenuItems = listOf(

@@ -39,6 +39,7 @@ import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.example.busasnquest.R
+import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
@@ -121,30 +122,43 @@ fun MapScreen(
                                         CameraUpdateFactory.newCenterPosition(center, zoom)
                                     )
 
-                                    // ── 미션 핀 꽂기 ──
-                                    val missions = MissionRepository.missions.value.filter {
+                                    // ── 미션 깃발 꽂기 ──
+                                    // 모든 미션이 아니라 "진행중"(하늘색) · "찜한"(코럴) 미션만 표시한다.
+                                    val inRegion = MissionRepository.missions.value.filter {
                                         region == "부산" || it.mission.district == region
                                     }
+                                    fun isOngoing(item: MissionWithState) =
+                                        item.state == MissionState.IN_PROGRESS ||
+                                                item.state == MissionState.VERIFYING
+
+                                    // 진행중이면서 찜도 한 미션은 "진행중"(하늘색)을 우선 표시
+                                    val missions = inRegion.filter { isOngoing(it) || it.saved }
 
                                     if (missions.isEmpty()) return
 
-                                    val pinBitmap = androidx.core.content.ContextCompat
-                                        .getDrawable(context, R.drawable.ic_mission_pin)
-                                        ?.let { drawable ->
-                                            val bmp = android.graphics.Bitmap.createBitmap(
-                                                drawable.intrinsicWidth.coerceAtLeast(1),
-                                                drawable.intrinsicHeight.coerceAtLeast(1),
-                                                android.graphics.Bitmap.Config.ARGB_8888
-                                            )
-                                            val canvas = android.graphics.Canvas(bmp)
-                                            drawable.setBounds(0, 0, canvas.width, canvas.height)
-                                            drawable.draw(canvas)
-                                            bmp
-                                        }
+                                    fun flagBitmap(resId: Int): android.graphics.Bitmap? =
+                                        androidx.core.content.ContextCompat
+                                            .getDrawable(context, resId)
+                                            ?.let { drawable ->
+                                                val bmp = android.graphics.Bitmap.createBitmap(
+                                                    drawable.intrinsicWidth.coerceAtLeast(1),
+                                                    drawable.intrinsicHeight.coerceAtLeast(1),
+                                                    android.graphics.Bitmap.Config.ARGB_8888
+                                                )
+                                                val canvas = android.graphics.Canvas(bmp)
+                                                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                                drawable.draw(canvas)
+                                                bmp
+                                            }
 
-                                    val styles = map.labelManager?.addLabelStyles(
+                                    val ongoingStyles = map.labelManager?.addLabelStyles(
                                         LabelStyles.from(
-                                            LabelStyle.from(pinBitmap)
+                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress))
+                                        )
+                                    )
+                                    val savedStyles = map.labelManager?.addLabelStyles(
+                                        LabelStyles.from(
+                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved))
                                         )
                                     )
 
@@ -154,7 +168,9 @@ fun MapScreen(
                                         if (m.lat == 0.0 && m.lng == 0.0) return@forEach
                                         layer?.addLabel(
                                             LabelOptions.from(LatLng.from(m.lat, m.lng))
-                                                .setStyles(styles)
+                                                .setStyles(
+                                                    if (isOngoing(item)) ongoingStyles else savedStyles
+                                                )
                                                 .setTag(m.id.toString())
                                         )
                                     }

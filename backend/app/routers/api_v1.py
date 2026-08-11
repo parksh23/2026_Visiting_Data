@@ -239,7 +239,7 @@ def _mission_dict(
         "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
-        "status": "completed" if completed else "ongoing",
+        "status": "completed" if completed else "not_started",
         "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
         "is_saved": mission.mission_id in (saved_ids or set()),

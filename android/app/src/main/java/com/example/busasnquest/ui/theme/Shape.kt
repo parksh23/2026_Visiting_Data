@@ -33,6 +33,9 @@ object Dimens {
     val cardGap = 12.dp
 
     val bottomBarSpace = 50.dp   // 플로팅 탭바에 안 가려지게 스크롤 콘텐츠 맨 아래 여백
+    // 플로팅 탭바 실제 높이(테두리+패딩+아이콘+라벨 ≈ 96dp)를 넘기는 값.
+    // 스크롤 화면 맨 아래 콘텐츠가 탭바에 가리지 않게 하려면 이 값을 쓴다.
+    val bottomBarClearance = 108.dp
 
     // Elevation (부드러운 그림자)
     val elevationFloating = 8.dp

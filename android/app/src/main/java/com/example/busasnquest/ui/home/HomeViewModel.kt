@@ -32,10 +32,20 @@ data class RecommendMission(
     val subtitle: String,
     val reward: Int,
     val distanceText: String,
-    val badge: RecommendBadge
+    val badge: RecommendBadge,
+    val imageUrl: String? = null   // 서버 대표 이미지 (null 이면 플레이스홀더)
 )
 
 class HomeViewModel : ViewModel() {
+
+    init {
+        // 홈이 시작 화면이라 여기서 서버 동기화를 한 번 돌린다.
+        // (미션 탭에 들어가지 않아도 추천 미션 사진 · 보유 포인트가 실제 값으로 채워지도록)
+        viewModelScope.launch {
+            runCatching { MissionRepository.refreshMissionsFromServer() }
+            runCatching { UserRepository.refreshProfile() }
+        }
+    }
 
     // 추천 미션 — 실제 미션 목록에서 몇 개를 뽑아 보여준다.
     // 카드에 실제 mission.id 를 담아, 클릭 시 해당 미션 상세로 이동할 수 있게 한다.
@@ -53,7 +63,8 @@ class HomeViewModel : ViewModel() {
                         subtitle = m.region.ifBlank { m.district }.ifBlank { missionTypeLabel(m.type) },
                         reward = m.reward,
                         distanceText = "",
-                        badge = badges[index % badges.size]
+                        badge = badges[index % badges.size],
+                        imageUrl = m.imageUrl
                     )
                 }
             }
@@ -183,6 +194,8 @@ class HomeViewModel : ViewModel() {
         val reward = MissionRepository.missions.value
             .firstOrNull { it.mission.id == id }?.mission?.reward ?: 0
         MissionRepository.setCompleted(id)
+        // 즉시 반영 후, 서버 점수를 기준으로 다시 맞춘다
         UserRepository.addPoints(reward)
+        viewModelScope.launch { UserRepository.refreshProfile() }
     }
 }

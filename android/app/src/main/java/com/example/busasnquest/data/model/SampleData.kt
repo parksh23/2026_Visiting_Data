@@ -29,12 +29,3 @@ val profileMenuItems = listOf(
     MenuItem("찜한 미션", "찜해둔 미션을 모아볼 수 있어요", R.drawable.ic_menu_heart, IconPink, IconPinkBg),
     MenuItem("사진 관리", "미션 인증 사진을 관리하세요", R.drawable.ic_menu_camera, IconGreen, IconGreenBg),
 )
-
-// 내 정보 - 설정 리스트
-val settingItems = listOf(
-    SettingItem("알림 설정", Icons.Outlined.Notifications),
-    SettingItem("계정 설정", Icons.Outlined.Person),
-    SettingItem("고객센터", Icons.Outlined.HelpOutline),
-    SettingItem("이용약관", Icons.Outlined.Description),
-    SettingItem("개인정보처리방침", Icons.Outlined.Shield),
-)

@@ -101,23 +101,11 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // 설정 리스트
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 20.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Dimens.radiusCard))
-                .background(CardWhite)
-                .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
-        ) {
+        // 설정 리스트 — 하나의 카드에 이어서 표시
+        SettingsCard {
             settingItems.forEachIndexed { index, item ->
-                SettingRow(item)
-                if (index != settingItems.lastIndex) {
-                    HorizontalDivider(
-                        color = DividerGray,
-                        modifier = Modifier.padding(horizontal = 18.dp)
-                    )
-                }
+                SettingRow(item) { navController.navigate(item.action.route) }
+                if (index != settingItems.lastIndex) SettingsDivider()
             }
         }
 
@@ -276,7 +264,7 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun NicknameEditDialog(
+internal fun NicknameEditDialog(
     currentName: String,
     state: NicknameEditState,
     onDismiss: () -> Unit,
@@ -318,11 +306,11 @@ private fun NicknameEditDialog(
 }
 
 @Composable
-fun SettingRow(item: SettingItem) {
+fun SettingRow(item: SettingItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

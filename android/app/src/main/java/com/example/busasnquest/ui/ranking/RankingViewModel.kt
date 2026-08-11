@@ -100,21 +100,50 @@ class RankingViewModel(
         }
     }
 
+    /**
+     * 마지막으로 서버에서 받은 "내 기록"(순위/상위%/포인트).
+     *
+     * 지역 랭킹은 서버가 사용자의 지역(district_name)을 모르면
+     * {rank: 0, topPercent: 0, point: 0} + 빈 목록을 돌려준다.
+     * 그대로 표시하면 탭을 옮길 때마다 내 포인트가 0으로 바뀌어 버리므로,
+     * 이런 응답에서는 헤더 숫자를 덮어쓰지 않고 직전 값을 그대로 유지한다.
+     */
+    private var lastMyRank: String? = null
+    private var lastTopPercent: String? = null
+    private var lastPoint: String? = null
+
     // 서버 응답 → 화면 상태 변환
-    private fun RankingResponse.toSuccessState() = RankingUiState.Success(
-        myRank = myRank.rank.toString(),
-        topPercent = "상위 ${myRank.topPercent}%",
-        point = "${"%,d".format(myRank.point)}P",
-        rankings = rankings.map {
-            RankEntry(
-                rank = it.rank,
-                name = it.name,
-                score = "${"%,d".format(it.score)}P",
-                // 서버가 내 순위(rank)를 함께 주므로 rank 일치 여부로 내 행 표시
-                isMe = it.rank == myRank.rank
-            )
+    private fun RankingResponse.toSuccessState(): RankingUiState.Success {
+        // rank 가 0 이면 서버가 이 탭의 내 기록을 계산하지 못한 것
+        val hasMyRecord = myRank.rank > 0
+
+        val rankText = if (hasMyRecord) myRank.rank.toString() else lastMyRank ?: "-"
+        val topPercentText =
+            if (hasMyRecord) "상위 ${myRank.topPercent}%" else lastTopPercent ?: "-"
+        val pointText =
+            if (hasMyRecord) "${"%,d".format(myRank.point)}P" else lastPoint ?: "-"
+
+        if (hasMyRecord) {
+            lastMyRank = rankText
+            lastTopPercent = topPercentText
+            lastPoint = pointText
         }
-    )
+
+        return RankingUiState.Success(
+            myRank = rankText,
+            topPercent = topPercentText,
+            point = pointText,
+            rankings = rankings.map {
+                RankEntry(
+                    rank = it.rank,
+                    name = it.name,
+                    score = "${"%,d".format(it.score)}P",
+                    // 서버가 내 순위(rank)를 함께 주므로 rank 일치 여부로 내 행 표시
+                    isMe = it.rank == myRank.rank
+                )
+            }
+        )
+    }
 
     companion object {
         val Factory = viewModelFactory {

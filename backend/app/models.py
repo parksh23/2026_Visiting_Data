@@ -37,7 +37,8 @@ class AppUser(Base):
     level_no = Column("LEVEL_NO", Integer, nullable=False, default=1)
     total_points = Column("TOTAL_POINTS", Integer, nullable=False, default=0)
     completed_missions = Column("COMPLETED_MISSIONS", Integer, nullable=False, default=0)
-    saved_missions = Column("SAVED_MISSIONS", Integer, nullable=False, default=0)
+    saved_missions = Column("SAVED_MISSIONS", String(1000), nullable=True, default="")
+
     conquered_districts = Column("CONQUERED_DISTRICTS", Integer, nullable=False, default=0)
     created_at = Column("CREATED_AT", DateTime, default=datetime.utcnow)
     district_name = Column(
@@ -98,30 +99,6 @@ class UserMission(Base):
     verified_at = Column("ASSIGNED_AT", DateTime, nullable=False, default=datetime.utcnow)
 
 
-class SavedMission(Base):
-    __tablename__ = "SAVED_MISSIONS"
-    __table_args__ = (
-        UniqueConstraint("USER_CODE", "MISSION_ID", name="UQ_SAVED_MISSION"),
-    )
-
-    id = Column("ID", Integer, primary_key=True, autoincrement=True)
-    user_code = Column(
-        "USER_CODE",
-        String(20),
-        ForeignKey("APP_USERS.USER_CODE"),
-        nullable=False,
-        index=True,
-    )
-    mission_id = Column(
-        "MISSION_ID",
-        Integer,
-        ForeignKey("MISSIONS.MISSION_ID"),
-        nullable=False,
-        index=True,
-    )
-    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
-
-
 class Friendship(Base):
     __tablename__ = "FRIENDSHIPS"
     __table_args__ = (
@@ -147,6 +124,7 @@ class Friendship(Base):
         nullable=False,
         index=True,
     )
+
 
 class AppRanking(Base):
     __tablename__ = "APP_RANKINGS"

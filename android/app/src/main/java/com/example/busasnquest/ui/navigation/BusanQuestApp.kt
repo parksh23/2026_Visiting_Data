@@ -37,6 +37,10 @@ import kotlinx.coroutines.launch
 import com.example.busasnquest.ui.detail.MissionDetailScreen
 import com.example.busasnquest.ui.profile.MissionHistoryScreen
 import com.example.busasnquest.ui.profile.SavedMissionScreen
+import com.example.busasnquest.ui.profile.AccountSettingsScreen
+import com.example.busasnquest.ui.profile.DocumentScreen
+import com.example.busasnquest.ui.profile.NotificationSettingsScreen
+import com.example.busasnquest.ui.profile.SupportScreen
 import com.example.busasnquest.ui.ranking.DistrictRankingScreen
 
 // 앱 시작 시 로그인 여부
@@ -173,6 +177,35 @@ fun BusanQuestApp() {
                     }
                     composable("savedMission") {
                         SavedMissionScreen(navController = navController)
+                    }
+
+                    // ── 내 정보 > 설정 ──
+                    composable("settings/notification") {
+                        NotificationSettingsScreen(navController = navController)
+                    }
+                    composable("settings/account") {
+                        AccountSettingsScreen(
+                            navController = navController,
+                            onLogout = {
+                                scope.launch { tokenStore.clear() }
+                                navController.navigate("login") {
+                                    popUpTo("home") { inclusive = true }
+                                }
+                            }
+                        )
+                    }
+                    composable("support") {
+                        SupportScreen(navController = navController)
+                    }
+                    // 이용약관 / 개인정보처리방침 / 위치기반서비스 이용약관 공용 뷰어
+                    composable(
+                        route = "doc/{slug}",
+                        arguments = listOf(
+                            navArgument("slug") { type = NavType.StringType }
+                        )
+                    ) {
+                        val slug = it.arguments?.getString("slug") ?: "terms"
+                        DocumentScreen(navController = navController, slug = slug)
                     }
                     composable(
                         route = "districtRanking/{districtName}",

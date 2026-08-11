@@ -18,18 +18,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.animation.animateColor
 import androidx.compose.runtime.getValue
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.Dimens
+import com.example.busasnquest.ui.theme.OnWarnTint
 import com.example.busasnquest.ui.theme.SkeletonBase
 import com.example.busasnquest.ui.theme.SkeletonHighlight
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.onFilled
+import com.example.busasnquest.ui.theme.WarnTint
+import com.example.busasnquest.ui.theme.pressable
 
 /**
  * API 로딩/에러 상태를 모든 화면에서 같은 모양으로 보여주는 공통 컴포넌트.
@@ -88,20 +93,22 @@ fun InlineErrorBanner(
 ) {
     Column(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFFDF0EF))
+            .padding(horizontal = Dimens.screenPadding)
+            .clip(RoundedCornerShape(Dimens.radiusChip))
+            .background(WarnTint)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Text(message, color = Color(0xFF993C1D), fontSize = 12.sp)
+        Text(message, color = OnWarnTint, fontSize = 12.sp)
         if (onRetry != null) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 "다시 시도",
-                color = Coral,
+                // 크림 배너 위에서 Coral(#E8635F)은 대비 2.9:1 로 못 읽는다 → 벽돌색 + 밑줄로 링크임을 표시
+                color = OnWarnTint,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onRetry() }
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.pressable(scaleDown = 0.96f, onClick = onRetry)
             )
         }
     }
@@ -136,14 +143,15 @@ fun ErrorView(
             Spacer(Modifier.height(16.dp))
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
+                    // 버튼은 표면보다 pressable 이 먼저 와야 알약 전체가 눌린다
+                    .pressable(onClick = onRetry)
+                    .clip(CircleShape)
                     .background(Coral)
-                    .clickable { onRetry() }
                     .padding(horizontal = 24.dp, vertical = 10.dp)
             ) {
                 Text(
                     "다시 시도",
-                    color = Color.White,
+                    color = onFilled(Coral),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

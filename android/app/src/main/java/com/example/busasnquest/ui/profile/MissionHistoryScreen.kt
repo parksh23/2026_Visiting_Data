@@ -72,7 +72,7 @@ fun MissionHistoryScreen(
                         "총 ${completed.size}개의 미션을 완료했어요!",
                         color = TextSub,
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = Dimens.screenPadding, vertical = Dimens.gapTight)
                     )
                 }
                 items(completed, key = { it.mission.id }) { item ->
@@ -90,9 +90,9 @@ fun HistoryRow(item: MissionWithState) {
 
     Row(
         modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = Dimens.screenPadding, vertical = 6.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically

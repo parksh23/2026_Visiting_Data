@@ -1,6 +1,8 @@
 package com.example.busasnquest.ui.home
 
 import android.view.ViewGroup
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +20,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +50,11 @@ import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 
+// 미니맵: 히어로 카드와 같은 라운드를 써서 상단 블록들이 같은 계열로 읽히게 한다.
+// 높이는 170 → 150dp — 조작 불가한 요약용 지도가 첫 화면을 과하게 차지하지 않도록.
+private val MiniMapRadius = Dimens.radiusHero
+private val MiniMapHeight = 150.dp
+
 @Composable
 fun HomeScreen(
     navController: NavHostController,
@@ -58,35 +65,28 @@ fun HomeScreen(
     val recommended by viewModel.recommendedMissions.collectAsStateWithLifecycle()
     val points by viewModel.points.collectAsStateWithLifecycle()
 
-
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(bottom = Dimens.bottomBarSpace)
     ) {
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Dimens.gapTight))
 
         // 앱 로고 + 인사말 헤더
         HomeHeader(points = points)
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Dimens.gapBlock))
 
         // 검색 바
         SearchPill { navController.navigate("map/부산?focus=true") }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Dimens.cardGap))
 
-        // 현위치 미니맵 (탭하면 지도 탭으로)
-        HomeMiniMap { navController.navigate("map/부산") }
+        // 현위치 미니맵 — 현위치 라벨을 지도 위에 얹어 상단 블록을 3개 → 2개로 줄였다.
+        HomeMiniMap(location = "부산광역시") { navController.navigate("map/부산") }
 
-        Spacer(Modifier.height(12.dp))
-
-        // 현위치 주소
-        LocationRow { navController.navigate("map/부산") }
-
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Dimens.sectionGap))
 
         // 진행중인 미션 요약
         OngoingSummaryCard(
@@ -96,24 +96,24 @@ fun HomeScreen(
             onEmptyClick = { navController.navigate("mission") }
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Dimens.sectionGap))
 
         // 추천 미션
         SectionHeaderRow("추천 미션") { navController.navigate("mission") }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Dimens.cardGap))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Dimens.screenPadding),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.cardGap)
         ) {
             recommended.forEach { rec ->
                 RecommendCard(rec) { navController.navigate("missionDetail/${rec.id}") }
             }
         }
 
-        Spacer(Modifier.height(120.dp))
+        Spacer(Modifier.height(40.dp))
     }
 }
 
@@ -149,7 +149,7 @@ private fun HomeHeader(points: Int) {
                 Text("%,d".format(points), color = Coral, style = accentStyle(15.sp))
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(Dimens.gapTight))
         Text(
             "부산갈매기님, 오늘도 부산을 정복해볼까요?",
             fontSize = 14.sp,
@@ -163,10 +163,11 @@ private fun HomeHeader(points: Int) {
 private fun SearchPill(onClick: () -> Unit) {
     Row(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .raisedSurface(RoundedCornerShape(28.dp), elevation = 5.dp)
-            .clickable { onClick() }
+            // pressable 은 표면(clip/background)보다 먼저 — 알약 전체가 같이 눌린다
+            .pressable(onClick = onClick)
+            .raisedSurface(RoundedCornerShape(Dimens.radiusPill), elevation = 5.dp)
             .padding(horizontal = 20.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -176,15 +177,20 @@ private fun SearchPill(onClick: () -> Unit) {
 }
 
 @Composable
-private fun HomeMiniMap(onOpenMap: () -> Unit) {
+private fun HomeMiniMap(location: String, onOpenMap: () -> Unit) {
+    // 터치를 받는 건 지도 위 투명 오버레이(=지도 조작 차단)지만,
+    // 눌린 느낌은 카드 전체에 걸려야 하므로 interactionSource 를 공유한다.
+    val press = rememberPressState(scaleDown = 0.985f)
+
     Box(
         modifier = Modifier
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .height(170.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .height(MiniMapHeight)
+            .scale(press.scale)
+            .clip(RoundedCornerShape(MiniMapRadius))
             .background(SurfaceGray)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(18.dp))
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(MiniMapRadius))
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -213,29 +219,35 @@ private fun HomeMiniMap(onOpenMap: () -> Unit) {
                 }
             }
         )
+
         // 투명 오버레이: 미니맵은 조작 불가, 탭하면 지도 탭으로만 이동
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clickable { onOpenMap() }
+                .clickable(
+                    interactionSource = press.interactionSource,
+                    indication = null,
+                    onClick = onOpenMap
+                )
         )
-    }
-}
 
-@Composable
-private fun LocationRow(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 20.dp)
-            .fillMaxWidth()
-            .clickable { onClick() },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Filled.LocationOn, contentDescription = null, tint = Coral, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("현위치 : 부산광역시", color = TextMain, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(4.dp))
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(18.dp))
+        // 현위치 칩 — 지도 위에 얹어 별도 줄을 없앴다. 지도 탭 자체가 클릭 영역이라 칩은 라벨 역할만.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(10.dp)
+                .clip(CircleShape)
+                .background(CardWhite.copy(alpha = 0.94f))
+                .border(1.dp, InkBorder.copy(alpha = 0.5f), CircleShape)
+                .padding(start = 10.dp, end = 12.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.LocationOn, contentDescription = null, tint = Coral, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(location, color = TextMain, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(2.dp))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(15.dp))
+        }
     }
 }
 
@@ -246,7 +258,15 @@ private fun OngoingSummaryCard(
     onMissionClick: (Int) -> Unit,
     onEmptyClick: () -> Unit
 ) {
-    val percent = (occupation.rate * 100).toInt()
+    // 진행률은 "값이 바뀐 것"을 읽히게 하는 모션이라 애니메이션 대상.
+    // animateFloatAsState 는 첫 컴포지션에서는 목표값에서 시작하므로 화면을 열 때마다 다시 차오르지 않는다.
+    val rate = occupation.rate.coerceIn(0f, 1f)
+    val animatedRate by animateFloatAsState(
+        targetValue = rate,
+        animationSpec = tween(Motion.DurValue, easing = Motion.EaseOut),
+        label = "occupationRate"
+    )
+    val percent = (animatedRate * 100).toInt()
 
     Column(
         modifier = Modifier
@@ -255,48 +275,28 @@ private fun OngoingSummaryCard(
             .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CoralTint)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusHero))
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusHero))
             .padding(20.dp)
     ) {
-        // 크림색(CoralTint) 배경 위라 다크용 밝은 글자 대신 진한 갈색 사용
-        Text("진행중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A2E28))
+        // 크림색(CoralTint) 배경 위 전경색은 Color.kt 의 OnCoralTint* 토큰을 쓴다
+        Text("진행중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OnCoralTint)
         Spacer(Modifier.height(4.dp))
         Text(
             "미션을 선택하면\n자세한 정보를 확인할 수 있어요.",
             fontSize = 13.sp,
-            color = Color(0xFF8C6F66)
+            color = OnCoralTintSub
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Dimens.gapBlock))
 
         // 진행 중인 미션 카드 (여러 개면 옆으로 스와이프)
         if (missions.isEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(CardWhite)
-                    .clickable { onEmptyClick() }
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CoralTint),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("도전 중인 미션이 없어요", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
-                    Spacer(Modifier.height(2.dp))
-                    Text("미션 탭에서 새 미션에 도전해보세요", fontSize = 12.sp, color = TextSub, maxLines = 1)
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
-            }
+            OngoingRow(
+                title = "도전 중인 미션이 없어요",
+                subtitle = "미션 탭에서 새 미션에 도전해보세요",
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onEmptyClick
+            )
         } else {
             Row(
                 modifier = Modifier
@@ -305,57 +305,37 @@ private fun OngoingSummaryCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 missions.forEach { mission ->
-                    Row(
-                        modifier = Modifier
-                            .width(240.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(CardWhite)
-                            .clickable { onMissionClick(mission.id) }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(CoralTint),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(mission.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
-                            Spacer(Modifier.height(2.dp))
-                            Text(mission.region, fontSize = 12.sp, color = TextSub, maxLines = 1)
-                        }
-                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
-                    }
+                    OngoingRow(
+                        title = mission.title,
+                        subtitle = mission.region,
+                        modifier = Modifier.width(240.dp),
+                        onClick = { onMissionClick(mission.id) }
+                    )
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Dimens.gapBlock))
 
         // 전체 진행률
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.TrackChanges, contentDescription = null, tint = Coral, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("전체 미션 진행률", fontSize = 13.sp, color = Color(0xFF4A2E28), modifier = Modifier.weight(1f))
+            Text("전체 미션 진행률", fontSize = 13.sp, color = OnCoralTint, modifier = Modifier.weight(1f))
             Text("$percent%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Coral)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Dimens.gapTight))
         // 진행률 바
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFF0DEDE))
+                .background(CoralTrack)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(occupation.rate.coerceIn(0f, 1f))
+                    .fillMaxWidth(animatedRate)
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(Coral)
@@ -365,9 +345,44 @@ private fun OngoingSummaryCard(
         Text(
             "${occupation.completedMissions} / ${occupation.totalMissions}",
             fontSize = 12.sp,
-            color = TextSub,
+            color = OnCoralTintSub,
             modifier = Modifier.align(Alignment.End)
         )
+    }
+}
+
+/** 진행중 미션 행 — 비었을 때/있을 때 마크업이 똑같아 한 곳으로 합쳤다. */
+@Composable
+private fun OngoingRow(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = modifier
+            .pressable(onClick = onClick)
+            .clip(RoundedCornerShape(Dimens.radiusCard))
+            .background(CardWhite)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(Dimens.radiusChip))
+                .background(CoralTint),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Flag, contentDescription = null, tint = Coral, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextMain, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, fontSize = 12.sp, color = TextSub, maxLines = 1)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub)
     }
 }
 
@@ -376,7 +391,7 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = Dimens.screenPadding),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -384,7 +399,8 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
         Text(title, style = displayStyle(20.sp), color = TextMain)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { onSeeAll() }
+            // 텍스트 링크는 터치 타깃이 작으므로 눌림도 작게 (0.94 는 과함)
+            modifier = Modifier.pressable(scaleDown = 0.96f, onClick = onSeeAll)
         ) {
             Text("전체보기", color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(18.dp))
@@ -394,19 +410,24 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
 
 @Composable
 private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
-    val (badgeText, badgeBg, badgeTextColor) = when (rec.badge) {
-        RecommendBadge.POPULAR -> Triple("인기", Coral, Color.White)
-        RecommendBadge.NEW -> Triple("신규", SeaBlue, Color.White)
-        RecommendBadge.RECOMMEND -> Triple("추천", MedalGold, Color(0xFF5A4300))
+    // 배지 글자색은 채움색에서 자동으로 뽑는다 (흰 글자는 이 팔레트에서 대부분 대비 미달)
+    val (badgeText, badgeBg) = when (rec.badge) {
+        RecommendBadge.POPULAR -> "인기" to Coral
+        RecommendBadge.NEW -> "신규" to SeaBlue
+        RecommendBadge.RECOMMEND -> "추천" to MedalGold
     }
+    val badgeTextColor = onFilled(badgeBg)
+
+    // 카드 안쪽 이미지의 위 모서리는 카드 radius - 테두리 두께로 맞춘다 (틈 방지)
+    val innerTopRadius = Dimens.radiusCard - Dimens.borderWidth
 
     Column(
         modifier = Modifier
             .width(160.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .pressable(onClick = onClick)
+            .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(18.dp))
-            .clickable { onClick() }
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
             .padding(bottom = 14.dp)
     ) {
         // 이미지 자리표시 + 배지
@@ -414,7 +435,14 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(110.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(
+                    RoundedCornerShape(
+                        topStart = innerTopRadius,
+                        topEnd = innerTopRadius,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
+                    )
+                )
                 .background(SeaBlueBg)
         ) {
             Icon(
@@ -428,7 +456,7 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .padding(8.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(CircleShape)
                     .background(badgeBg)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
@@ -470,13 +498,13 @@ private fun PointsChip(points: Int) {
 
 // ── 아래 두 헬퍼는 미션/상세 화면에서도 사용하므로 유지 ──
 fun missionTypeLabel(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION   -> "📷 사진 위치 인증"
+    MissionType.IMAGE_LOCATION   -> "📷 사진 위치 인증"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치 인증"
     MissionType.RECEIPT          -> "🧾 결제 영수증 인증"
 }
 
 fun verifyButtonLabel(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION   -> "📷 사진 올려서 인증하기"
+    MissionType.IMAGE_LOCATION   -> "📷 사진 올려서 인증하기"
     MissionType.CURRENT_LOCATION -> "📍 현재 위치로 인증하기"
     MissionType.RECEIPT          -> "🧾 영수증 올려서 인증하기"
 }

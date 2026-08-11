@@ -30,10 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.repository.DistrictMissionProgress
-import com.example.busasnquest.ui.components.clickableNoRipple
+import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.Dimens
+import com.example.busasnquest.ui.theme.Motion
+import com.example.busasnquest.ui.theme.OnCoral
 import com.example.busasnquest.ui.theme.occupancyColor
 import com.example.busasnquest.ui.theme.occupancyTextColor
+import com.example.busasnquest.ui.theme.pressable
 
 /**
  * 부산 16개 구·군을 4×4 그리드로 배치 (지리 근사: 북서 → 남동).
@@ -133,20 +136,21 @@ private fun DistrictBox(
     // 인증 성공으로 점령률이 오르면 색이 부드럽게 진해진다 (보상 연출)
     val bgColor by animateColorAsState(
         targetValue = occupancyColor(rate),
-        animationSpec = tween(500),
+        // 값이 바뀌는 리드아웃(=보상 연출)이라 UI 300ms 상한의 예외. 커브는 앱 공통 ease-out.
+        animationSpec = tween(Motion.DurValue, easing = Motion.EaseOut),
         label = "occupancyColor"
     )
     val textColor = occupancyTextColor(rate)
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .pressable(onClick = onClick)
+            .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(bgColor)
             .then(
-                if (isSelected) Modifier.border(2.dp, Color(0xFF4A1B0C), RoundedCornerShape(16.dp))
+                if (isSelected) Modifier.border(2.dp, OnCoral, RoundedCornerShape(Dimens.radiusCard))
                 else Modifier
             )
-            .clickableNoRipple { onClick() }
     ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
@@ -185,7 +189,7 @@ private fun DistrictBox(
                     .padding(top = 9.dp, end = 10.dp)
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(if (rate > 0.5f) Color.White else Color(0xFFCE504D))
+                    .background(if (rate > 0.5f) Color.White else CoralDark)
             )
         }
     }

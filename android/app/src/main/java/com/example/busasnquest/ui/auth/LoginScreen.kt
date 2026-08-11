@@ -22,6 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.DividerGray
+import com.example.busasnquest.ui.theme.KakaoYellow
+import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.OnKakaoYellow
+import com.example.busasnquest.ui.theme.PointRed
+import com.example.busasnquest.ui.theme.TextSub
 import android.content.Context
 import android.util.Log
 import com.kakao.sdk.auth.model.OAuthToken
@@ -29,13 +37,17 @@ import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
 
-// 다크 단일 테마에 맞춘 로컬 색상
-private val LoginBg = Color(0xFF1C1B19)      // 화면 배경 (앱 공통 차콜)
-private val Indigo = Color(0xFF8B9AF5)       // 포인트 (다크 대비 위해 밝힘)
-private val FieldBorder = Color(0xFF3A3934)  // 입력창 테두리
-private val LabelGray = Color(0xFFD8DEE9)    // 라벨
-private val HintGray = Color(0xFF6E6B64)     // 플레이스홀더
-private val LoginCard = Color(0xFF262521)    // 로그인 카드 표면
+// 로그인 화면 로컬 별칭.
+// 6개 중 4개는 앱 공통 토큰과 값이 정확히 같았다 → 별칭만 남기고 실제 값은 theme/Color.kt 한 곳에서 관리한다.
+// (여기서 값을 다시 적으면 테마를 바꿀 때 로그인 화면만 옛 색으로 남는다)
+private val LoginBg = BgSoftBlue          // = 0xFF1C1B19 화면 배경 (앱 공통 차콜)
+private val FieldBorder = DividerGray     // = 0xFF3A3934 입력창 테두리
+private val LabelGray = NavyMain          // = 0xFFD8DEE9 라벨
+private val LoginCard = CardWhite         // = 0xFF262521 로그인 카드 표면
+private val Indigo = Color(0xFF8B9AF5)    // 로그인 전용 포인트색 (앱 코럴과 구분되는 인디고)
+// 기존 0xFF6E6B64 는 입력창(#262521) 위 대비 2.89:1 로 AA 미달이었다.
+// 플레이스홀더도 읽어야 하는 텍스트이므로 앱 공통 보조 텍스트색(6.02:1)으로 올린다.
+private val HintGray = TextSub
 
 @Composable
 fun LoginScreen(
@@ -189,7 +201,7 @@ fun LoginScreen(
             // ── 에러 메시지 ──
             if (errorMessage != null) {
                 Spacer(Modifier.height(10.dp))
-                Text(errorMessage, color = Color(0xFFE94F4F), fontSize = 13.sp)
+                Text(errorMessage, color = PointRed, fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(18.dp))
@@ -326,8 +338,8 @@ private fun KakaoLoginButton(enabled: Boolean, onClick: () -> Unit) {
         enabled = enabled,
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFFEE500),   // 카카오 브랜드 노란색
-            contentColor = Color(0xFF191919)
+            containerColor = KakaoYellow,   // 카카오 브랜드 규정색 (임의 변경 금지)
+            contentColor = OnKakaoYellow
         ),
         modifier = Modifier
             .fillMaxWidth()

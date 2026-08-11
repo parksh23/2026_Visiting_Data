@@ -9,13 +9,13 @@ import kotlin.coroutines.resume
 
 // 현재 위치를 가져온다. 못 얻으면 null.
 @SuppressLint("MissingPermission")  // 권한 확인은 화면에서 하므로 경고 끔
-suspend fun getCurrentLocation(context: Context): PhotoLatLng? =
+suspend fun getCurrentLocation(context: Context): ImageLatLng? =
     suspendCancellableCoroutine { cont ->
         val client = LocationServices.getFusedLocationProviderClient(context)
         client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
             .addOnSuccessListener { location ->
                 if (location != null) {
-                    cont.resume(PhotoLatLng(location.latitude, location.longitude))
+                    cont.resume(ImageLatLng(location.latitude, location.longitude))
                 } else {
                     cont.resume(null)
                 }

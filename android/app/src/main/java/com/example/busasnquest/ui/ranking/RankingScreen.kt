@@ -1,8 +1,11 @@
 package com.example.busasnquest.ui.ranking
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,12 +56,16 @@ import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.MedalBronze
 import com.example.busasnquest.ui.theme.MedalGold
 import com.example.busasnquest.ui.theme.MedalSilver
+import com.example.busasnquest.ui.theme.Motion
+import com.example.busasnquest.ui.theme.OnCoralTint
 import com.example.busasnquest.ui.theme.SeaBlue
 import com.example.busasnquest.ui.theme.SeaBlueBg
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.onFilled
 import com.example.busasnquest.ui.theme.accentStyle
 import com.example.busasnquest.ui.theme.displayStyle
+import com.example.busasnquest.ui.theme.pressable
 import androidx.navigation.NavHostController
 
 @Composable
@@ -95,7 +103,7 @@ fun RankingScreen(
                         selectedTab = selectedTab,
                         onSelectTab = viewModel::onSelectTab
                     )
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(Dimens.gapBlock))
                 }
 
                 if (selectedTab == 1) {
@@ -117,7 +125,7 @@ fun RankingScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(120.dp))
+                    Spacer(modifier = Modifier.height(40.dp))
                 }
             }
         }
@@ -138,9 +146,9 @@ private fun RankingSkeleton() {
                 Modifier
                     .fillMaxWidth()
                     .height(40.dp),
-                shape = RoundedCornerShape(999.dp)
+                shape = CircleShape
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Dimens.sectionGap))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -153,7 +161,7 @@ private fun RankingSkeleton() {
                 Spacer(Modifier.width(20.dp))
                 SkeletonBox(Modifier.size(46.dp), shape = CircleShape)
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Dimens.sectionGap))
 
             repeat(5) {
                 Row(
@@ -195,8 +203,8 @@ fun MyRankCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(Coral)
-            .border(1.5.dp, InkBorderStrong, RoundedCornerShape(Dimens.radiusHero))
-            .padding(24.dp)
+            .border(Dimens.borderWidth, InkBorderStrong, RoundedCornerShape(Dimens.radiusHero))
+            .padding(Dimens.cardPadding + 6.dp)
     ) {
         Column {
 
@@ -241,29 +249,45 @@ fun MyRankCard(
             Spacer(modifier = Modifier.height(20.dp))
 
             // 전체/지역/친구 랭킹 세그먼트
+            val trackShape = RoundedCornerShape(Dimens.radiusButton)
+            val thumbShape = RoundedCornerShape(Dimens.radiusButton - 4.dp)  // 트랙 안쪽 여백만큼 뺀다
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(trackShape)
                     .background(CoralDark)
-                    .border(1.5.dp, InkBorder, RoundedCornerShape(14.dp))
+                    .border(Dimens.borderWidth, InkBorder, trackShape)
                     .padding(4.dp)
             ) {
                 val tabs = listOf("전체 랭킹", "지역 랭킹")
                 tabs.forEachIndexed { index, label ->
                     val selected = index == selectedTab
+                    // 세그먼트는 위치 이동 없이 색만 넘긴다
+                    val thumbBg by animateColorAsState(
+                        targetValue = if (selected) Color.White else Color.Transparent,
+                        animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                        label = "rankTabBg"
+                    )
+                    val thumbFg by animateColorAsState(
+                        targetValue = if (selected) Coral else Color.White.copy(0.85f),
+                        animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                        label = "rankTabFg"
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(if (selected) Color.White else Color.Transparent)
-                            .clickable { onSelectTab(index) }
+                            .clip(thumbShape)
+                            .background(thumbBg)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onSelectTab(index) }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             label,
-                            color = if (selected) Coral else Color.White.copy(0.85f),
+                            color = thumbFg,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp
                         )
@@ -284,13 +308,21 @@ fun RankingRow(entry: RankEntry) {
         else -> null
     }
 
+    // 내 행은 크림 배경이라 다크 테마 글자색을 그대로 쓰면 안 읽힌다 → 전경색을 배경에 맞춰 뒤집는다
+    val fgMain = if (entry.isMe) OnCoralTint else TextMain
+    val fgAccent = if (entry.isMe) OnCoralTint else Coral
+
     Row(
         modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .padding(horizontal = Dimens.screenPadding, vertical = 5.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(if (entry.isMe) CoralTint else CardWhite)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
+            .border(
+                Dimens.borderWidth,
+                if (entry.isMe) Coral else InkBorder,
+                RoundedCornerShape(Dimens.radiusCard)
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -312,7 +344,7 @@ fun RankingRow(entry: RankEntry) {
                     ) {
                         Text(
                             "${entry.rank}",
-                            color = Color.White,
+                            color = onFilled(medalColor),
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -321,7 +353,7 @@ fun RankingRow(entry: RankEntry) {
                     Text(
                         "${entry.rank}",
                         fontWeight = FontWeight.Bold,
-                        color = Coral,
+                        color = fgAccent,
                         fontSize = 15.sp
                     )
                 }
@@ -349,7 +381,7 @@ fun RankingRow(entry: RankEntry) {
             Text(
                 entry.name,
                 fontWeight = if (entry.isMe) FontWeight.Bold else FontWeight.Medium,
-                color = TextMain,
+                color = fgMain,
                 fontSize = 15.sp
             )
         }
@@ -357,7 +389,7 @@ fun RankingRow(entry: RankEntry) {
         Text(
             entry.score,
             fontWeight = FontWeight.Bold,
-            color = Coral,
+            color = fgAccent,
             fontSize = 15.sp
         )
     }
@@ -376,7 +408,7 @@ fun RankingPodium(top: List<RankEntry>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .padding(horizontal = Dimens.screenPadding, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Bottom
     ) {
@@ -408,7 +440,7 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
                 .background(medal, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("$place", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("$place", color = onFilled(medal), fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -433,12 +465,13 @@ val busanDistricts = listOf(
 fun DistrictRankRow(district: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .padding(horizontal = Dimens.screenPadding, vertical = 5.dp)
             .fillMaxWidth()
+            // 독립된 카드형 행이라 scale 로 눌린다 (카드 안 리스트 행이면 pressableRow)
+            .pressable(onClick = onClick)
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
-            .clickable { onClick() }
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
             .padding(horizontal = 16.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

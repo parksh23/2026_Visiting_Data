@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.CoralTint
+import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.DisplayFontFamily
 import com.example.busasnquest.ui.theme.MapLandShadow
 import com.example.busasnquest.ui.theme.OccupancyTextDarker
@@ -221,7 +223,7 @@ fun BusanMap(
                         )
                     }
                     if (name == selected) {
-                        drawPath(path, color = Color(0xFFEDEBE8), style = Stroke(width = 2.5.dp.toPx()))
+                        drawPath(path, color = InkBorderStrong, style = Stroke(width = 2.5.dp.toPx()))
                     }
                 }
             }
@@ -263,7 +265,7 @@ fun BusanMap(
                     // 진행 중 점: 배경색 테두리 + 밝은 크림 — 다크 지도 위 포인트
                     val dotCenter = center.copy(y = center.y - 10.dp.toPx())
                     drawCircle(BgSoftBlue, radius = 4.dp.toPx(), center = dotCenter)
-                    drawCircle(Color(0xFFFDF0EF), radius = 2.5.dp.toPx(), center = dotCenter)
+                    drawCircle(CoralTint, radius = 2.5.dp.toPx(), center = dotCenter)
                 }
             }
         }

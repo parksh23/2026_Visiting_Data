@@ -17,17 +17,26 @@ object UserRepository {
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
 
+    // 마이페이지 통계 — 서버(users/me) 기준. 아직 못 불러왔으면 null.
+    private val _completedCount = MutableStateFlow<Int?>(null)
+    val completedCount: StateFlow<Int?> = _completedCount.asStateFlow()
+
+    private val _savedCount = MutableStateFlow<Int?>(null)
+    val savedCount: StateFlow<Int?> = _savedCount.asStateFlow()
+
     // 포인트 적립
     fun addPoints(amount: Int) {
         _points.update { it + amount }
     }
 
-    // GET /api/v1/users/me → 프로필(닉네임 등)을 불러와 저장.
+    // GET /api/v1/users/me → 프로필(닉네임, 완료/찜 개수)을 불러와 저장.
     // 실패해도 앱이 죽지 않고 기존 값을 유지한다.
     suspend fun refreshProfile() {
         try {
             val profile = RetrofitInstance.api.getMyProfile()
             _name.value = profile.name
+            _completedCount.value = profile.completedMissions
+            _savedCount.value = profile.savedMissions
         } catch (_: Exception) {
             // 네트워크/서버 오류 시 기존 값 유지 (화면은 기본값으로 폴백)
         }

@@ -36,7 +36,7 @@ fun ScreenHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .padding(horizontal = Dimens.screenPadding, vertical = Dimens.gapBlock)
     ) {
 
         Row(
@@ -64,7 +64,8 @@ fun ScreenHeader(
             PointPill()
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        // 제목과 부제는 한 덩어리로 읽혀야 하므로 gapTight
+        Spacer(modifier = Modifier.height(Dimens.gapTight))
 
         // 부제 — 뮤트 그레이 + Medium
         Text(subtitle, color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)

@@ -26,11 +26,20 @@ object Dimens {
     val radiusTile = 22.dp
     val radiusButton = 14.dp
 
+    val radiusPill = 28.dp     // 검색바 등 알약 형태
+
     // Spacing (4pt 기준)
+    // 값을 세 단계로만 쓴다: 붙은 요소(gapTight) / 블록 내부(gapBlock) / 섹션 사이(sectionGap).
+    // 12·16·20·24 를 섞어 쓰면 계층이 읽히지 않는다.
     val screenPadding = 20.dp
-    val sectionGap = 28.dp
+    val gapTight = 8.dp        // 라벨-값처럼 한 덩어리로 읽혀야 하는 요소 사이
+    val gapBlock = 16.dp       // 같은 섹션 안의 블록 사이
+    val sectionGap = 28.dp     // 서로 다른 섹션 사이
     val cardPadding = 18.dp
     val cardGap = 12.dp
+
+    /** 중첩 라운드: 바깥 radius - 테두리/여백 = 안쪽 radius (안 맞으면 모서리에 틈이 보인다) */
+    val borderWidth = 1.5.dp
 
     val bottomBarSpace = 50.dp   // 플로팅 탭바에 안 가려지게 스크롤 콘텐츠 맨 아래 여백
 

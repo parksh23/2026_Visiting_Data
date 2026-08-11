@@ -1,6 +1,5 @@
 package com.example.busasnquest.ui.map
 
-import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,16 +26,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
+import com.example.busasnquest.ui.components.KakaoMapView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakao.vectormap.KakaoMap
-import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
-import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.example.busasnquest.R
 import com.example.busasnquest.data.repository.MissionRepository
@@ -67,6 +64,8 @@ fun MapScreen(
 
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    // 미션 핀 비트맵을 만들 때 사용 (예전에는 AndroidView factory 의 context 였다)
+    val context = LocalContext.current
 
     LaunchedEffect(focusSearch) {
         if (focusSearch) {
@@ -95,77 +94,64 @@ fun MapScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            // 카카오맵 (Compose ↔ View 다리: AndroidView)
-            AndroidView(
+            // 카카오맵 — 생명주기가 붙은 공용 컴포저블
+            // (MapView 를 직접 만들면 복귀 시 먹통/렌더러 누수가 생긴다)
+            KakaoMapView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    MapView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        start(
-                            object : MapLifeCycleCallback() {
-                                override fun onMapDestroy() {}
-                                override fun onMapError(error: Exception?) {
-                                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
-                                }
-                            },
-                            object : KakaoMapReadyCallback() {
-                                override fun onMapReady(map: KakaoMap) {
-                                    kakaoMap = map
+                onMapError = { error ->
+                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
+                },
+                onMapReady = { map ->
+                    kakaoMap = map
 
-                                    val center = districtCenters[region] ?: districtCenters["부산"]!!
-                                    val zoom = if (region == "부산") 10 else 14
-                                    map.moveCamera(
-                                        CameraUpdateFactory.newCenterPosition(center, zoom)
-                                    )
+                    val center = districtCenters[region] ?: districtCenters["부산"]!!
+                    val zoom = if (region == "부산") 10 else 14
+                    map.moveCamera(
+                        CameraUpdateFactory.newCenterPosition(center, zoom)
+                    )
 
-                                    // ── 미션 핀 꽂기 ──
-                                    val missions = MissionRepository.missions.value.filter {
-                                        region == "부산" || it.mission.district == region
-                                    }
+                    // ── 미션 핀 꽂기 ──
+                    val missions = MissionRepository.missions.value.filter {
+                        region == "부산" || it.mission.district == region
+                    }
 
-                                    if (missions.isEmpty()) return
-
-                                    val pinBitmap = androidx.core.content.ContextCompat
-                                        .getDrawable(context, R.drawable.ic_mission_pin)
-                                        ?.let { drawable ->
-                                            val bmp = android.graphics.Bitmap.createBitmap(
-                                                drawable.intrinsicWidth.coerceAtLeast(1),
-                                                drawable.intrinsicHeight.coerceAtLeast(1),
-                                                android.graphics.Bitmap.Config.ARGB_8888
-                                            )
-                                            val canvas = android.graphics.Canvas(bmp)
-                                            drawable.setBounds(0, 0, canvas.width, canvas.height)
-                                            drawable.draw(canvas)
-                                            bmp
-                                        }
-
-                                    val styles = map.labelManager?.addLabelStyles(
-                                        LabelStyles.from(
-                                            LabelStyle.from(pinBitmap)
-                                        )
-                                    )
-
-                                    val layer = map.labelManager?.layer
-                                    missions.forEach { item ->
-                                        val m = item.mission
-                                        if (m.lat == 0.0 && m.lng == 0.0) return@forEach
-                                        layer?.addLabel(
-                                            LabelOptions.from(LatLng.from(m.lat, m.lng))
-                                                .setStyles(styles)
-                                                .setTag(m.id.toString())
-                                        )
-                                    }
-                                    map.setOnLabelClickListener { _, _, label ->
-                                        val id = label.tag?.toString()?.toIntOrNull()
-                                        selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
-                                        true
-                                    }
-                                }
+                    // 람다 안이라 그냥 return 은 쓸 수 없다 → 라벨 붙인 return
+                    if (missions.isNotEmpty()) {
+                        val pinBitmap = androidx.core.content.ContextCompat
+                            .getDrawable(context, R.drawable.ic_mission_pin)
+                            ?.let { drawable ->
+                                val bmp = android.graphics.Bitmap.createBitmap(
+                                    drawable.intrinsicWidth.coerceAtLeast(1),
+                                    drawable.intrinsicHeight.coerceAtLeast(1),
+                                    android.graphics.Bitmap.Config.ARGB_8888
+                                )
+                                val canvas = android.graphics.Canvas(bmp)
+                                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                drawable.draw(canvas)
+                                bmp
                             }
+
+                        val styles = map.labelManager?.addLabelStyles(
+                            LabelStyles.from(
+                                LabelStyle.from(pinBitmap)
+                            )
                         )
+
+                        val layer = map.labelManager?.layer
+                        missions.forEach { item ->
+                            val m = item.mission
+                            if (m.lat == 0.0 && m.lng == 0.0) return@forEach
+                            layer?.addLabel(
+                                LabelOptions.from(LatLng.from(m.lat, m.lng))
+                                    .setStyles(styles)
+                                    .setTag(m.id.toString())
+                            )
+                        }
+                        map.setOnLabelClickListener { _, _, label ->
+                            val id = label.tag?.toString()?.toIntOrNull()
+                            selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
+                            true
+                        }
                     }
                 }
             )

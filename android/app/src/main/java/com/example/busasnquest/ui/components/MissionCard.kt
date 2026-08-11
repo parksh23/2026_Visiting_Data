@@ -1,9 +1,10 @@
 package com.example.busasnquest.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,9 +46,12 @@ import com.example.busasnquest.ui.mission.missionTypeLabel
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.CoralTint
+import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.IconGreen
 import com.example.busasnquest.ui.theme.InkBorder
+import com.example.busasnquest.ui.theme.Motion
 import com.example.busasnquest.ui.theme.PointRed
+import com.example.busasnquest.ui.theme.pressable
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.accentStyle
@@ -63,25 +68,30 @@ fun MissionCard(
     onChallenge: () -> Unit,
     onClick: () -> Unit = {},
     onVerify: () -> Unit = {},
-    onToggleSaved: () -> Unit = {}
+    onToggleSaved: () -> Unit = {},
+    savePending: Boolean = false      // 찜 요청 중 → 하트 잠금 (중복 요청 방지)
 ) {
     val mission = item.mission
 
-    Box(modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth()) {
+    val cardShape = RoundedCornerShape(Dimens.radiusCard)
+
+    Box(modifier = Modifier.padding(horizontal = Dimens.screenPadding).fillMaxWidth()) {
         Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            // pressable 을 표면보다 먼저 — 카드 전체가 같이 눌린다
+            .pressable(onClick = onClick)
+            .clip(cardShape)
             .background(CardWhite)
-            .border(1.5.dp, InkBorder, RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(16.dp)
+            .border(Dimens.borderWidth, InkBorder, cardShape)
+            .padding(Dimens.gapBlock)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             MissionCircleIcon(
                 imageUrl = mission.imageUrl,
                 size = 100.dp,
-                shape = RoundedCornerShape(8.dp)
+                // 카드(18) 안쪽 썸네일이 8이면 모서리 리듬이 깨진다 → 칩 라운드로 통일
+                shape = RoundedCornerShape(Dimens.radiusChip)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -95,15 +105,30 @@ fun MissionCard(
                         color = TextMain,
                         modifier = Modifier.weight(1f)
                     )
-                    Icon(
-                        imageVector = if (item.saved) Icons.Filled.Favorite
-                        else Icons.Outlined.FavoriteBorder,
-                        contentDescription = "찜하기",
-                        tint = if (item.saved) Coral else TextSub,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickableNoRipple { onToggleSaved() }
+                    // 22dp 아이콘은 터치 타깃이 너무 작다 → 40dp 박스로 감싸고 눌림을 크게
+                    val heartTint by animateColorAsState(
+                        targetValue = if (item.saved) Coral else TextSub,
+                        animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                        label = "heartTint"
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .pressable(
+                                enabled = !savePending,
+                                scaleDown = 0.86f,
+                                onClick = onToggleSaved
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (item.saved) Icons.Filled.Favorite
+                            else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (item.saved) "찜 해제" else "찜하기",
+                            tint = if (savePending) heartTint.copy(alpha = 0.4f) else heartTint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))

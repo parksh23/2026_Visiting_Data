@@ -1,7 +1,9 @@
 package com.example.busasnquest.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -18,6 +21,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,18 +39,16 @@ import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.IconGreen
+import com.example.busasnquest.ui.theme.InkBorder
+import com.example.busasnquest.ui.theme.MissionFallbackGradients
+import com.example.busasnquest.ui.theme.Motion
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.pressable
 import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.CoralInk
 
-// image_url 이 없을 때 쓰는 구별 그라데이션 폴백 (부산 바다·노을 톤 4종)
-private val FallbackGradients = listOf(
-    listOf(Color(0xFF5A9BBF), Color(0xFF2C5F7C)), // 바다
-    listOf(Color(0xFF7FB8D4), Color(0xFF3A7CA5)), // 하늘
-    listOf(Color(0xFFE8B4A0), Color(0xFFB5651D)), // 노을
-    listOf(Color(0xFF9FE1CB), Color(0xFF0E7C86))  // 해안
-)
+// 폴백 그라데이션은 theme/Color.kt 의 MissionFallbackGradients 로 이관했다.
 
 /**
  * 이미지 히어로 미션 카드 (에어비앤비 리스팅 카드 모티브).
@@ -63,25 +65,38 @@ fun MissionHeroCard(
     onToggleSaved: () -> Unit,
     onAction: () -> Unit,          // 도전하기/인증하기 (상태에 따라)
     modifier: Modifier = Modifier,
-    compact: Boolean = false
+    compact: Boolean = false,
+    savePending: Boolean = false   // 찜 요청 중 → 하트 잠금 (중복 요청 방지)
 ) {
     val mission = item.mission
     val imageHeight = if (compact) 96.dp else 150.dp
-    val gradient = FallbackGradients[
-        (mission.district.hashCode().let { if (it < 0) -it else it }) % FallbackGradients.size
+    val gradient = MissionFallbackGradients[
+        (mission.district.hashCode().let { if (it < 0) -it else it }) % MissionFallbackGradients.size
     ]
+    // 카드 안쪽 이미지의 위 모서리 = 카드 radius - 테두리 (모서리 틈 방지)
+    val innerTopRadius = Dimens.radiusCard - Dimens.borderWidth
 
     Column(
         modifier = modifier
+            // pressable 을 표면보다 먼저 — 카드 전체가 같이 눌린다
+            .pressable(onClick = onClick)
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(CardWhite)
-            .clickable { onClick() }
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
     ) {
         // ── 이미지 영역 ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(imageHeight)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = innerTopRadius,
+                        topEnd = innerTopRadius,
+                        bottomStart = 0.dp,
+                        bottomEnd = 0.dp
+                    )
+                )
                 .background(Brush.linearGradient(gradient))
         ) {
             if (mission.imageUrl != null) {
@@ -98,7 +113,7 @@ fun MissionHeroCard(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.95f))
                     .padding(horizontal = 9.dp, vertical = 3.dp)
             ) {
@@ -111,16 +126,28 @@ fun MissionHeroCard(
             }
 
             // 우상단: 하트(찜)
-            Icon(
-                imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                contentDescription = "찜하기",
-                tint = if (item.saved) Coral else Color.White,
+            // 20dp 아이콘을 그대로 누르게 하면 터치 타깃이 너무 작다 → 40dp 박스로 감싼다.
+            val heartTint by animateColorAsState(
+                targetValue = if (item.saved) Coral else Color.White,
+                animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                label = "heartTint"
+            )
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(20.dp)
-                    .clickableNoRipple { onToggleSaved() }
-            )
+                    .padding(2.dp)
+                    .size(40.dp)
+                    // 작은 타깃이라 눌림은 더 크게 줘야 읽힌다
+                    .pressable(enabled = !savePending, scaleDown = 0.86f, onClick = onToggleSaved),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (item.saved) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = if (item.saved) "찜 해제" else "찜하기",
+                    tint = if (savePending) heartTint.copy(alpha = 0.4f) else heartTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         // ── 텍스트 영역 ──
@@ -159,9 +186,9 @@ fun MissionHeroCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(999.dp))
+                        .pressable(enabled = enabled, onClick = onAction)
+                        .clip(CircleShape)
                         .background(bg)
-                        .clickable(enabled = enabled) { onAction() }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {

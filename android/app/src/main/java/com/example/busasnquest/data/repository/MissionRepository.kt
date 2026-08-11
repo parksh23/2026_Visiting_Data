@@ -22,7 +22,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import com.example.busasnquest.data.remote.MissionVerifyRequestDto
+import com.example.busasnquest.data.remote.ErrorDetailDto
+import com.google.gson.Gson
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -77,18 +81,18 @@ object MissionRepository {
     // 서버 연결 전에도 앱이 빈 화면이 되지 않도록 임시 미션을 가지고 있음
     private val allMissions = listOf(
         // 해운대구
-        OngoingMission(1, "해운대 해수욕장 인증샷", "해운대구", 100, 0, 1, MissionType.PHOTO_LOCATION, "해운대구"),
+        OngoingMission(1, "해운대 해수욕장 인증샷", "해운대구", 100, 0, 1, MissionType.IMAGE_LOCATION, "해운대구"),
         OngoingMission(2, "동백섬 산책로 걷기", "해운대구", 80, 0, 1, MissionType.CURRENT_LOCATION, "해운대구"),
         OngoingMission(3, "해운대 맛집에서 식사", "해운대구", 150, 0, 1, MissionType.RECEIPT, "해운대구"),
 
         // 수영구
-        OngoingMission(4, "광안리 해변 인증샷", "수영구", 100, 0, 1, MissionType.PHOTO_LOCATION, "수영구"),
+        OngoingMission(4, "광안리 해변 인증샷", "수영구", 100, 0, 1, MissionType.IMAGE_LOCATION, "수영구"),
         OngoingMission(5, "광안대교 야경 보기", "수영구", 80, 0, 1, MissionType.CURRENT_LOCATION, "수영구"),
 
         // 중구
         OngoingMission(6, "남포동 맛집에서 식사", "중구", 150, 0, 1, MissionType.RECEIPT, "중구"),
         OngoingMission(7, "용두산공원 방문", "중구", 80, 0, 1, MissionType.CURRENT_LOCATION, "중구"),
-        OngoingMission(8, "자갈치시장 구경", "중구", 100, 0, 1, MissionType.PHOTO_LOCATION, "중구")
+        OngoingMission(8, "자갈치시장 구경", "중구", 100, 0, 1, MissionType.IMAGE_LOCATION, "중구")
     ).map { it.copy(imageUrl = it.imageUrl ?: FALLBACK_IMAGE_URL.format(it.id)) }
 
     // 미션 + 상태 목록
@@ -108,9 +112,121 @@ object MissionRepository {
     private var loadedFromServer = false
 
 
-    // 찜하기 토글
-    fun toggleSaved(id: Int) {
-        updateMission(id) { it.copy(saved = !it.saved) }
+    // ───────────────── 미션 찜 ─────────────────
+
+    // GET /api/v1/missions/saved 결과 (최근 찜한 순)
+    private val _savedMissions = MutableStateFlow<List<MissionWithState>>(emptyList())
+    val savedMissions: StateFlow<List<MissionWithState>> = _savedMissions.asStateFlow()
+
+    // 요청 중인 미션 id 목록 — 하트를 연속으로 눌러도 중복 요청이 나가지 않게 한다
+    private val _savedPending = MutableStateFlow<Set<Int>>(emptySet())
+    val savedPending: StateFlow<Set<Int>> = _savedPending.asStateFlow()
+
+    private val savedMutex = Mutex()
+
+    private suspend fun beginSavedRequest(id: Int): Boolean = savedMutex.withLock {
+        if (_savedPending.value.contains(id)) return@withLock false
+        _savedPending.value = _savedPending.value + id
+        true
+    }
+
+    private suspend fun endSavedRequest(id: Int) = savedMutex.withLock {
+        _savedPending.value = _savedPending.value - id
+    }
+
+    fun isSaved(id: Int): Boolean =
+        _missions.value.firstOrNull { it.mission.id == id }?.saved
+            ?: _savedMissions.value.any { it.mission.id == id }
+
+    /**
+     * 찜 추가/해제. POST·DELETE /api/v1/missions/{mission_id}/saved
+     *
+     * - 응답의 is_saved 값을 그대로 화면 상태로 반영한다(서버가 진실).
+     * - 같은 미션에 대한 요청이 이미 진행 중이면 무시한다(중복 클릭 방지).
+     */
+    suspend fun setSavedOnServer(missionId: Int, saved: Boolean): Result<Boolean> {
+        if (!beginSavedRequest(missionId)) {
+            // 이미 요청이 날아가 있는 상태 → 무시하고 현재 값을 그대로 돌려준다
+            return Result.success(isSaved(missionId))
+        }
+        return try {
+            val response = if (saved) {
+                RetrofitInstance.api.addSavedMission(missionId)
+            } else {
+                RetrofitInstance.api.removeSavedMission(missionId)
+            }
+            applySavedResult(missionId, response.isSaved)
+            Result.success(response.isSaved)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(Exception(e.toSavedErrorMessage()))
+        } finally {
+            endSavedRequest(missionId)
+        }
+    }
+
+    // 현재 상태의 반대로 토글
+    suspend fun toggleSavedOnServer(missionId: Int): Result<Boolean> =
+        setSavedOnServer(missionId, !isSaved(missionId))
+
+    // 서버 응답(is_saved)을 전체 미션 목록과 찜 목록에 반영
+    private fun applySavedResult(missionId: Int, saved: Boolean) {
+        updateMission(missionId) { it.copy(saved = saved) }
+
+        _savedMissions.update { list ->
+            if (saved) {
+                val target = _missions.value.firstOrNull { it.mission.id == missionId }
+                    ?: list.firstOrNull { it.mission.id == missionId }
+                // 최근 찜한 미션이 맨 앞
+                if (target == null) list
+                else listOf(target.copy(saved = true)) + list.filter { it.mission.id != missionId }
+            } else {
+                list.filter { it.mission.id != missionId }
+            }
+        }
+    }
+
+    // GET /api/v1/missions/saved → 찜 목록 새로고침 + 전체 목록의 하트 상태 동기화
+    suspend fun refreshSavedMissionsFromServer() {
+        val saved = RetrofitInstance.api.getSavedMissions()
+
+        _savedMissions.value = saved.map { dto ->
+            MissionWithState(
+                mission = dto.toOngoingMission(),
+                state = dto.status.toMissionState(),
+                saved = true
+            )
+        }
+
+        val savedIds = saved.map { it.missionId }.toSet()
+        _missions.update { list ->
+            list.map { it.copy(saved = savedIds.contains(it.mission.id)) }
+        }
+    }
+
+    // 서버 오류 → 사용자에게 보여줄 문구
+    private fun Throwable.toSavedErrorMessage(): String = when (this) {
+        is retrofit2.HttpException -> when (code()) {
+            401 -> "로그인이 필요해요. 다시 로그인해주세요."
+            403 -> "이용이 제한된 계정이에요."
+            404 -> "미션을 찾을 수 없어요."
+            422 -> serverDetail() ?: "요청 정보를 확인해주세요."
+            in 500..599 -> "서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+            else -> serverDetail() ?: "찜 처리에 실패했어요. (${code()})"
+        }
+        is java.io.IOException -> "네트워크 연결을 확인해주세요."
+        else -> "찜 처리 중 오류가 발생했어요."
+    }
+
+    // 오류 응답 본문의 {"detail": "..."} 추출
+    private fun retrofit2.HttpException.serverDetail(): String? = try {
+        response()?.errorBody()?.string()
+            ?.let { Gson().fromJson(it, ErrorDetailDto::class.java) }
+            ?.detail
+            ?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
     }
 
 
@@ -163,7 +279,7 @@ object MissionRepository {
      *
      * 타입별로 채워야 하는 필드 (MissionVerifyRequestDto):
      * - CURRENT_LOCATION → latitude, longitude
-     * - PHOTO            → photo_url (+ 사진의 GPS 좌표도 함께 전송)
+     * - IMAGE            → image (+ 사진의 GPS 좌표도 함께 전송)
      * - RECEIPT          → receipt_image_url
      *
      * 성공/실패를 Result 로 돌려주고, 상태 변경(setCompleted/setError)은
@@ -188,7 +304,7 @@ object MissionRepository {
     }
 
     /**
-     * Photo Picker/카메라의 content:// URI를 서버가 접근 가능한 HTTP URL로 변환한다.
+     * 이미지 선택기/카메라의 content:// URI를 서버가 접근 가능한 HTTP URL로 변환한다.
      * 서버 업로드 규격에 맞춰 이미지를 최대 2048px JPEG로 변환하고 5MB 이하로 압축한다.
      */
     suspend fun uploadImage(context: Context, uri: Uri): Result<String> =
@@ -286,7 +402,8 @@ object MissionRepository {
         _missions.value = serverMissions.map { dto ->
             MissionWithState(
                 mission = dto.toOngoingMission(),
-                state = dto.status.toMissionState()
+                state = dto.status.toMissionState(),
+                saved = dto.isSaved          // 서버 기준 찜 상태 = 하트 초기값
             )
         }
 
@@ -359,7 +476,7 @@ object MissionRepository {
     suspend fun submitMissionVerification(
         missionId: Int,
         missionType: String,
-        photoUrl: String? = null,
+        imageUrl: String? = null,
         latitude: Double? = null,
         longitude: Double? = null,
         receiptImageUrl: String? = null
@@ -368,7 +485,7 @@ object MissionRepository {
         val request = MissionVerifyRequestDto(
             missionId = missionId,
             missionType = missionType,
-            photoUrl = photoUrl,
+            imageUrl = imageUrl,
             latitude = latitude,
             longitude = longitude,
             receiptImageUrl = receiptImageUrl
@@ -400,6 +517,8 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         total = progressTotal,
         type = missionType.toMissionType(),
         district = resolvedDistrict,
+        lat = latitude,
+        lng = longitude,
         imageUrl = imageUrl
     )
 }
@@ -409,7 +528,8 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
 private fun String.toMissionType(): MissionType {
     return when (this.uppercase()) {
         "CURRENT_LOCATION" -> MissionType.CURRENT_LOCATION
-        "PHOTO", "PHOTO_LOCATION", "IMAGE" -> MissionType.PHOTO_LOCATION
+        // 서버가 예전 값("PHOTO")을 내려줘도 깨지지 않게 함께 받아준다
+        "IMAGE", "IMAGE_LOCATION", "PHOTO", "PHOTO_LOCATION" -> MissionType.IMAGE_LOCATION
         "RECEIPT" -> MissionType.RECEIPT
         else -> MissionType.CURRENT_LOCATION
     }

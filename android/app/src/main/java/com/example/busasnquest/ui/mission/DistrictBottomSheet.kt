@@ -1,7 +1,6 @@
 package com.example.busasnquest.ui.mission
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -29,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,11 +39,14 @@ import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.CoralTint
+import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.IconGreen
-import com.example.busasnquest.ui.theme.OccupancyTextDark
+import com.example.busasnquest.ui.theme.OnCoralTint
 import com.example.busasnquest.ui.theme.SurfaceGray
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.onFilled
+import com.example.busasnquest.ui.theme.pressable
 
 /**
  * 구·군 박스를 탭했을 때 올라오는 바텀시트.
@@ -79,7 +81,7 @@ fun DistrictBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(maxHeight)
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = Dimens.screenPadding)
         ) {
             // 헤더: 구 이름 + 점령률 배지
             Row(
@@ -95,7 +97,7 @@ fun DistrictBottomSheet(
                 )
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
+                        .clip(CircleShape)
                         .background(CoralTint)
                         .padding(horizontal = 12.dp, vertical = 5.dp)
                 ) {
@@ -103,7 +105,8 @@ fun DistrictBottomSheet(
                         "점령률 $percent%",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = OccupancyTextDark
+                        // OccupancyTextDark(#EDEBE8)는 크림 배지 위에서 대비 1.1:1 로 사실상 안 보였다
+                        color = OnCoralTint
                     )
                 }
             }
@@ -116,7 +119,7 @@ fun DistrictBottomSheet(
                 color = TextSub
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Dimens.gapBlock))
 
             // 남은 미션 리스트 (전부 완료면 완료 미션도 보여줌)
             val listToShow = if (remaining.isEmpty()) missions else remaining
@@ -150,9 +153,9 @@ private fun SheetMissionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .pressable(onClick = onClick)
+            .clip(RoundedCornerShape(Dimens.radiusChip))
             .background(SurfaceGray)
-            .clickable { onClick() }
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -160,13 +163,13 @@ private fun SheetMissionRow(
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(Dimens.radiusChip - 2.dp))
                 .background(CoralTint),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = when (mission.type) {
-                    MissionType.PHOTO_LOCATION -> Icons.Filled.CameraAlt
+                    MissionType.IMAGE_LOCATION -> Icons.Filled.CameraAlt
                     MissionType.CURRENT_LOCATION -> Icons.Filled.LocationOn
                     MissionType.RECEIPT -> Icons.Filled.Receipt
                 },
@@ -194,26 +197,27 @@ private fun SheetMissionRow(
             MissionState.VERIFYING -> "확인 중" to TextSub
             MissionState.COMPLETED -> "완료" to IconGreen
         }
+        val actionable = item.state == MissionState.NOT_STARTED || item.state == MissionState.IN_PROGRESS
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(bg)
-                .clickable(enabled = item.state == MissionState.NOT_STARTED || item.state == MissionState.IN_PROGRESS) {
+                .pressable(enabled = actionable) {
                     when (item.state) {
                         MissionState.NOT_STARTED -> onChallenge()
                         MissionState.IN_PROGRESS -> onVerify()
                         else -> Unit
                     }
                 }
+                .clip(CircleShape)
+                .background(bg)
                 .padding(horizontal = 14.dp, vertical = 7.dp)
         ) {
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onFilled(bg))
         }
     }
 }
 
 fun missionTypeLabel(type: MissionType): String = when (type) {
-    MissionType.PHOTO_LOCATION -> "사진 인증"
+    MissionType.IMAGE_LOCATION -> "사진 인증"
     MissionType.CURRENT_LOCATION -> "위치 인증"
     MissionType.RECEIPT -> "영수증 인증"
 }

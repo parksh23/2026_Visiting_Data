@@ -14,7 +14,7 @@ from auth_utils import get_current_user_email
 from database import Base, SessionLocal, engine
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from models import AppUser, District, Friendship, Mission, UserMission
+from models import AppUser, District, Friendship, Mission, SavedMission, UserMission
 import routers.api_v1 as api_v1_module
 from routers.api_v1 import (
     BUSAN_DISTRICTS,
@@ -27,8 +27,11 @@ from routers.api_v1 import (
     get_missions,
     get_my_profile,
     get_rankings,
+    get_saved_missions,
     kakao_login,
     signup,
+    save_mission,
+    unsave_mission,
     update_my_nickname,
     verify_mission,
 )
@@ -127,6 +130,23 @@ def test_frontend_contract():
         assert missions[0]["latitude"] == 35.1
         assert missions[0]["longitude"] == 129.03
         assert missions[0]["image_url"] == "https://example.com/images/junggu.jpg"
+        assert missions[0]["is_saved"] is False
+
+        saved = save_mission(1, subject, db)
+        assert saved == {"mission_id": 1, "is_saved": True}
+        assert save_mission(1, subject, db) == saved
+        assert db.query(SavedMission).count() == 1
+        assert [mission["mission_id"] for mission in get_saved_missions(subject, db)] == [1]
+        assert get_missions(subject, db)[0]["is_saved"] is True
+        assert get_my_profile(subject, db)["saved_missions"] == 1
+
+        assert unsave_mission(1, subject, db) == {
+            "mission_id": 1,
+            "is_saved": False,
+        }
+        assert unsave_mission(1, subject, db)["is_saved"] is False
+        assert get_saved_missions(subject, db) == []
+        assert get_my_profile(subject, db)["saved_missions"] == 0
 
         friend = AppUser(
             user_code="U999",

@@ -33,6 +33,27 @@ class FakeBusanQuestApi : BusanQuestApi {
         return emptyList()
     }
 
+    // ── 찜 (메모리에만 저장) ──
+    private val savedIds = linkedSetOf<Int>()   // 최근 찜한 순서 유지
+
+    override suspend fun getSavedMissions(): List<MissionDto> {
+        delay(300)
+        return emptyList()
+    }
+
+    override suspend fun addSavedMission(missionId: Int): SavedMissionResponseDto {
+        delay(300)
+        savedIds.remove(missionId)   // 다시 넣어 "최근 찜" 맨 앞으로
+        savedIds.add(missionId)
+        return SavedMissionResponseDto(missionId = missionId, isSaved = true)
+    }
+
+    override suspend fun removeSavedMission(missionId: Int): SavedMissionResponseDto {
+        delay(300)
+        savedIds.remove(missionId)
+        return SavedMissionResponseDto(missionId = missionId, isSaved = false)
+    }
+
     // 테스트용 구/군별 진행률 목록
     override suspend fun getDistrictProgress(): List<DistrictStatusDto> {
         delay(1000)

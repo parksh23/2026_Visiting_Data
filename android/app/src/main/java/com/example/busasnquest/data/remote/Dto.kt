@@ -41,7 +41,32 @@ data class MissionDto(
     val missionType: String,
 
     @SerializedName("image_url")
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+
+    val latitude: Double = 0.0,
+
+    val longitude: Double = 0.0,
+
+    @SerializedName("target_text")
+    val targetText: String = "",
+
+    // 현재 로그인한 사용자의 찜 여부. 서버가 안 내려주는 옛 응답 대비 기본값 false.
+    @SerializedName("is_saved")
+    val isSaved: Boolean = false
+)
+
+// 찜 추가/해제 응답 (POST·DELETE /api/v1/missions/{id}/saved)
+data class SavedMissionResponseDto(
+    @SerializedName("mission_id")
+    val missionId: Int,
+
+    @SerializedName("is_saved")
+    val isSaved: Boolean
+)
+
+// 서버 오류 본문 ({"detail": "..."}) 파싱용
+data class ErrorDetailDto(
+    val detail: String? = null
 )
 
 // 미션 인증(사진/위치/영수증) 제출용
@@ -91,8 +116,9 @@ data class MissionVerifyRequestDto(
     @SerializedName("mission_type")
     val missionType: String,
 
-    @SerializedName("photo_url")
-    val photoUrl: String? = null,
+    // 사진(IMAGE) 미션 인증 이미지 URL — 백엔드 변수명 "image" 로 통일
+    @SerializedName("image")
+    val imageUrl: String? = null,
 
     val latitude: Double? = null,
 

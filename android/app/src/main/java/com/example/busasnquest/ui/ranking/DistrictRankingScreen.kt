@@ -55,9 +55,9 @@ fun DistrictRankingScreen(
         // 내 점수 안내
         Box(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(horizontal = Dimens.screenPadding, vertical = Dimens.gapTight)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(Dimens.radiusCard))
                 .background(NavyMain)
                 .padding(20.dp)
         ) {

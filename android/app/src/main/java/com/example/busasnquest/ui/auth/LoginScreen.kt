@@ -22,6 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.busasnquest.ui.theme.BgSoftBlue
+import com.example.busasnquest.ui.theme.CardWhite
+import com.example.busasnquest.ui.theme.DividerGray
+import com.example.busasnquest.ui.theme.KakaoYellow
+import com.example.busasnquest.ui.theme.NavyMain
+import com.example.busasnquest.ui.theme.OnKakaoYellow
+import com.example.busasnquest.ui.theme.PointRed
+import com.example.busasnquest.ui.theme.TextSub
 import android.content.Context
 import android.util.Log
 import com.kakao.sdk.auth.model.OAuthToken
@@ -326,8 +334,8 @@ private fun KakaoLoginButton(enabled: Boolean, onClick: () -> Unit) {
         enabled = enabled,
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFFEE500),   // 카카오 브랜드 노란색
-            contentColor = Color(0xFF191919)
+            containerColor = KakaoYellow,   // 카카오 브랜드 규정색 (임의 변경 금지)
+            contentColor = OnKakaoYellow
         ),
         modifier = Modifier
             .fillMaxWidth()

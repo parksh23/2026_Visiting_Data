@@ -18,6 +18,13 @@ object UserRepository {
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
 
+    // 마이페이지 통계 — 서버(users/me) 기준. 아직 못 불러왔으면 null.
+    private val _completedCount = MutableStateFlow<Int?>(null)
+    val completedCount: StateFlow<Int?> = _completedCount.asStateFlow()
+
+    private val _savedCount = MutableStateFlow<Int?>(null)
+    val savedCount: StateFlow<Int?> = _savedCount.asStateFlow()
+
     // 포인트 적립 — 인증 직후 즉시 반영용(낙관적 갱신).
     // 서버가 최종 점수의 기준이므로, 곧이어 refreshProfile()로 덮어쓴다.
     fun addPoints(amount: Int) {
@@ -28,7 +35,7 @@ object UserRepository {
     private fun String.toPointsInt(): Int =
         filter { it.isDigit() }.toIntOrNull() ?: 0
 
-    // GET /api/v1/users/me → 프로필(닉네임 등)을 불러와 저장.
+    // GET /api/v1/users/me → 프로필(닉네임, 포인트, 완료/찜 개수)을 불러와 저장.
     // 실패해도 앱이 죽지 않고 기존 값을 유지한다.
     suspend fun refreshProfile() {
         try {
@@ -36,6 +43,8 @@ object UserRepository {
             _name.value = profile.name
             // 서버는 "2,450P" 형태의 문자열로 준다 → 숫자만 뽑아 반영
             _points.value = profile.points.toPointsInt()
+            _completedCount.value = profile.completedMissions
+            _savedCount.value = profile.savedMissions
         } catch (_: Exception) {
             // 네트워크/서버 오류 시 기존 값 유지 (화면은 기본값으로 폴백)
         }

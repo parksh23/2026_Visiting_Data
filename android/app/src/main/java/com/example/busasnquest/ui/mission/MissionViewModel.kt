@@ -6,6 +6,7 @@ import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.repository.MissionWithState
+import com.example.busasnquest.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -20,7 +21,8 @@ data class MissionUiState(
     val districts: List<DistrictMissionProgress> = emptyList(),
     val expandedDistrict: String? = null,                  // (구 UI 잔재 — 그리드에서는 selectedDistrict 사용)
     val selectedDistrict: String? = null,                  // 그리드에서 탭한 구 (바텀시트 열림)
-    val typeFilter: MissionType? = null                    // 종류별 탭 필터 (null = 전체)
+    val typeFilter: MissionType? = null,                   // 종류별 탭 필터 (null = 전체)
+    val savePending: Set<Int> = emptySet()                 // 찜 요청 중인 미션 (하트 비활성화)
 )
 
 class MissionViewModel : ViewModel() {
@@ -36,6 +38,10 @@ class MissionViewModel : ViewModel() {
     // 서버에서 미션을 불러오다 실패했을 때의 메시지 (null 이면 정상)
     private val _loadError = MutableStateFlow<String?>(null)
     val loadError: StateFlow<String?> = _loadError
+
+    // 찜 처리 실패 메시지 (스낵바로 한 번 보여주고 clearSaveError() 로 지운다)
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError: StateFlow<String?> = _saveError
 
     init {
         refreshFromServer()
@@ -56,6 +62,13 @@ class MissionViewModel : ViewModel() {
             } catch (e: Exception) {
                 _loadError.value = "미션을 불러오는 중 오류가 발생했습니다."
             }
+
+            // 찜 목록은 별도로 — 실패해도 미션 목록 자체는 계속 보여준다.
+            // (GET /api/v1/missions 의 is_saved 로 하트 초기 상태는 이미 맞춰져 있다)
+            try {
+                MissionRepository.refreshSavedMissionsFromServer()
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -64,15 +77,17 @@ class MissionViewModel : ViewModel() {
         combine(
             MissionRepository.missions,
             MissionRepository.districtProgress,
+            MissionRepository.savedPending,
             _localState
-        ) { missions, districts, local ->
+        ) { missions, districts, pending, local ->
             MissionUiState(
                 selectedTab = local.selectedTab,
                 allMissions = missions,
                 districts = districts,
                 expandedDistrict = local.expandedDistrict,
                 selectedDistrict = local.selectedDistrict,
-                typeFilter = local.typeFilter
+                typeFilter = local.typeFilter,
+                savePending = pending
             )
         }.stateIn(
             scope = viewModelScope,
@@ -111,7 +126,17 @@ class MissionViewModel : ViewModel() {
     fun startMission(id: Int) {
         MissionRepository.startMission(id)
     }
+    // 하트 클릭 → 서버에 찜 추가/해제 요청. 성공하면 응답의 is_saved 로 화면이 갱신된다.
+    // 요청 중에는 Repository 가 중복 요청을 막고, 화면은 savePending 으로 버튼을 잠근다.
     fun toggleSaved(id: Int) {
-        MissionRepository.toggleSaved(id)
+        viewModelScope.launch {
+            MissionRepository.toggleSavedOnServer(id)
+                .onSuccess { UserRepository.refreshProfile() }   // 마이페이지 찜 개수 동기화
+                .onFailure { e -> _saveError.value = e.message }
+        }
+    }
+
+    fun clearSaveError() {
+        _saveError.value = null
     }
 }

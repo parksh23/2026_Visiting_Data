@@ -2,7 +2,6 @@ package com.example.busasnquest.ui.map
 
 import android.view.ViewGroup
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,10 +43,13 @@ import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.InkBorder
 import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.pressable
+import com.example.busasnquest.ui.theme.pressableRow
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
@@ -190,7 +191,7 @@ fun MapScreen(
                             }
                         }
                     },
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(Dimens.radiusPill),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = CardWhite,
                         unfocusedContainerColor = CardWhite,
@@ -226,7 +227,8 @@ fun MapScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
+                                        // 카드 안 리스트 행 → scale 대신 배경 하이라이트
+                                        .pressableRow {
                                             kakaoMap?.moveCamera(
                                                 CameraUpdateFactory.newCenterPosition(
                                                     LatLng.from(m.lat, m.lng),
@@ -257,7 +259,7 @@ fun MapScreen(
                         .padding(horizontal = 16.dp)
                         .navigationBarsPadding()
                         .padding(bottom = 100.dp, top = 16.dp)
-                        .clickable { navController.navigate("missionDetail/${mission.id}") },
+                        .pressable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {
                     Row(
@@ -267,11 +269,11 @@ fun MapScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(mission.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextMain)
                             Spacer(Modifier.height(4.dp))
                             Text(mission.district, color = TextSub, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
-                            Text("${mission.reward}P", color = com.example.busasnquest.ui.theme.Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("${mission.reward}P", color = Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         IconButton(onClick = { selectedMission = null }) {
                             Icon(Icons.Default.Close, contentDescription = "닫기")

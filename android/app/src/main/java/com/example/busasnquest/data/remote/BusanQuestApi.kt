@@ -1,11 +1,13 @@
 package com.example.busasnquest.data.remote
 
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Body
 import retrofit2.http.Multipart
 import retrofit2.http.Part
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Path
 import okhttp3.MultipartBody
 
 interface BusanQuestApi {
@@ -22,6 +24,24 @@ interface BusanQuestApi {
 
     @GET("api/v1/missions/ongoing")
     suspend fun getOngoingMissions(): List<MissionDto>
+
+    // ───────── 미션 찜 ─────────
+
+    // 찜한 미션 목록 (최근 찜한 순). 없으면 빈 배열.
+    @GET("api/v1/missions/saved")
+    suspend fun getSavedMissions(): List<MissionDto>
+
+    // 찜 추가 (201). 이미 찜한 미션이어도 성공 응답.
+    @POST("api/v1/missions/{mission_id}/saved")
+    suspend fun addSavedMission(
+        @Path("mission_id") missionId: Int
+    ): SavedMissionResponseDto
+
+    // 찜 해제 (200). 이미 해제된 미션이어도 성공 응답.
+    @DELETE("api/v1/missions/{mission_id}/saved")
+    suspend fun removeSavedMission(
+        @Path("mission_id") missionId: Int
+    ): SavedMissionResponseDto
 
     @GET("api/v1/districts/progress")
     suspend fun getDistrictProgress(): List<DistrictStatusDto>

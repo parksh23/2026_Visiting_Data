@@ -52,7 +52,6 @@ import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.InkBorder
-import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.MedalBronze
 import com.example.busasnquest.ui.theme.MedalGold
 import com.example.busasnquest.ui.theme.MedalSilver
@@ -203,7 +202,7 @@ fun MyRankCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(Coral)
-            .border(Dimens.borderWidth, InkBorderStrong, RoundedCornerShape(Dimens.radiusHero))
+            .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusHero))
             .padding(Dimens.cardPadding + 6.dp)
     ) {
         Column {

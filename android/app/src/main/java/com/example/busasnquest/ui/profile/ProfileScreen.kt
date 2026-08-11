@@ -108,7 +108,7 @@ fun ProfileScreen(
                 .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
         ) {
             settingItems.forEachIndexed { index, item ->
-                SettingRow(item)
+                SettingRow(item) { navController.navigate(item.action.route) }
                 if (index != settingItems.lastIndex) {
                     HorizontalDivider(
                         color = DividerGray,
@@ -280,7 +280,7 @@ fun MenuRow(item: MenuItem, onClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun NicknameEditDialog(
+internal fun NicknameEditDialog(
     currentName: String,
     state: NicknameEditState,
     onDismiss: () -> Unit,

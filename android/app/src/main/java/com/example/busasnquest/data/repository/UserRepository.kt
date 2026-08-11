@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.update
 // object = 앱 전체에서 딱 하나만 존재하는 인스턴스 (모든 탭이 같은 걸 봄)
 object UserRepository {
 
-    private val _points = MutableStateFlow(2450)
+    // 초기값 0 — 서버(GET /api/v1/users/me)에서 받아오기 전까지는 아무 값도 지어내지 않는다.
+    private val _points = MutableStateFlow(0)
     val points: StateFlow<Int> = _points.asStateFlow()
 
     // 서버에서 불러온 사용자 닉네임 (로그인한 실제 이름). 아직 못 불러왔으면 빈 문자열.
@@ -24,17 +25,24 @@ object UserRepository {
     private val _savedCount = MutableStateFlow<Int?>(null)
     val savedCount: StateFlow<Int?> = _savedCount.asStateFlow()
 
-    // 포인트 적립
+    // 포인트 적립 — 인증 직후 즉시 반영용(낙관적 갱신).
+    // 서버가 최종 점수의 기준이므로, 곧이어 refreshProfile()로 덮어쓴다.
     fun addPoints(amount: Int) {
         _points.update { it + amount }
     }
 
-    // GET /api/v1/users/me → 프로필(닉네임, 완료/찜 개수)을 불러와 저장.
+    /** "2,450P" / "2450" 등 서버 표기에서 숫자만 뽑아 Int로 변환 */
+    private fun String.toPointsInt(): Int =
+        filter { it.isDigit() }.toIntOrNull() ?: 0
+
+    // GET /api/v1/users/me → 프로필(닉네임, 포인트, 완료/찜 개수)을 불러와 저장.
     // 실패해도 앱이 죽지 않고 기존 값을 유지한다.
     suspend fun refreshProfile() {
         try {
             val profile = RetrofitInstance.api.getMyProfile()
             _name.value = profile.name
+            // 서버는 "2,450P" 형태의 문자열로 준다 → 숫자만 뽑아 반영
+            _points.value = profile.points.toPointsInt()
             _completedCount.value = profile.completedMissions
             _savedCount.value = profile.savedMissions
         } catch (_: Exception) {

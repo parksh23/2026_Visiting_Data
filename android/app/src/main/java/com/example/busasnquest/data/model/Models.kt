@@ -44,8 +44,5 @@ data class MenuItem(
     val bg: Color
 )
 
-// 내 정보 - 설정 항목
-data class SettingItem(
-    val title: String,
-    val icon: ImageVector
-)
+// 설정 항목(SettingItem)은 ui/profile/SettingsCatalog.kt 로 이동했다.
+// (제목·아이콘뿐 아니라 이동할 route 까지 갖게 되어 화면 레이어에 두는 게 맞다)

@@ -28,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,7 +36,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
 import com.example.busasnquest.R
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
@@ -272,7 +273,6 @@ private fun OngoingSummaryCard(
         modifier = Modifier
             .padding(horizontal = Dimens.screenPadding)
             .fillMaxWidth()
-            .shadow(Dimens.elevationFloating, RoundedCornerShape(Dimens.radiusHero))
             .clip(RoundedCornerShape(Dimens.radiusHero))
             .background(CoralTint)
             .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusHero))
@@ -430,7 +430,7 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
             .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(Dimens.radiusCard))
             .padding(bottom = 14.dp)
     ) {
-        // 이미지 자리표시 + 배지
+        // 대표 사진 + 배지
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -445,14 +445,25 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
                 )
                 .background(SeaBlueBg)
         ) {
-            Icon(
-                Icons.Filled.Image,
-                contentDescription = null,
-                tint = SeaBlue,
-                modifier = Modifier
-                    .size(34.dp)
-                    .align(Alignment.Center)
-            )
+            if (!rec.imageUrl.isNullOrBlank()) {
+                // 서버 대표 사진
+                AsyncImage(
+                    model = rec.imageUrl,
+                    contentDescription = rec.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize()
+                )
+            } else {
+                // 사진이 없는 미션: 플레이스홀더 아이콘
+                Icon(
+                    Icons.Filled.Image,
+                    contentDescription = null,
+                    tint = SeaBlue,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .align(Alignment.Center)
+                )
+            }
             Box(
                 modifier = Modifier
                     .padding(8.dp)

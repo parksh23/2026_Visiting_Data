@@ -73,6 +73,10 @@ object MissionRepository {
     // StateFlow를 stateIn으로 만들 때 필요한 CoroutineScope
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // 서버 시드와 같은 규칙의 임시 대표 이미지 (서버 연결 전 폴백)
+    private const val FALLBACK_IMAGE_URL =
+        "https://picsum.photos/seed/busan-quest-%d/1280/720"
+
     // 전체 미션 목록 기본값
     // 서버 연결 전에도 앱이 빈 화면이 되지 않도록 임시 미션을 가지고 있음
     private val allMissions = listOf(
@@ -89,7 +93,7 @@ object MissionRepository {
         OngoingMission(6, "남포동 맛집에서 식사", "중구", 150, 0, 1, MissionType.RECEIPT, "중구"),
         OngoingMission(7, "용두산공원 방문", "중구", 80, 0, 1, MissionType.CURRENT_LOCATION, "중구"),
         OngoingMission(8, "자갈치시장 구경", "중구", 100, 0, 1, MissionType.IMAGE_LOCATION, "중구")
-    )
+    ).map { it.copy(imageUrl = it.imageUrl ?: FALLBACK_IMAGE_URL.format(it.id)) }
 
     // 미션 + 상태 목록
     private val _missions = MutableStateFlow(

@@ -8,7 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import com.example.busasnquest.ui.navigation.BusanQuestApp
@@ -24,10 +24,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 다크 단일 테마: 상태바/내비바 아이콘을 밝은 색으로 고정
+        // 라이트 단일 테마: 상태바/내비바 아이콘을 어두운 색으로 고정
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
         )
 
         // RetrofitInstance가 DataStore에서 토큰을 읽을 수 있게 초기화
@@ -42,13 +42,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 배민식 타이포/형태 토큰을 앱 전체에 적용 (색상은 기존 유지)
             MaterialTheme(
-                colorScheme = darkColorScheme(
+                colorScheme = lightColorScheme(
                     primary = Coral,
                     onPrimary = Color.White,
                     background = com.example.busasnquest.ui.theme.BgSoftBlue,
                     surface = com.example.busasnquest.ui.theme.CardWhite,
                     onBackground = com.example.busasnquest.ui.theme.TextMain,
-                    onSurface = com.example.busasnquest.ui.theme.TextMain
+                    onSurface = com.example.busasnquest.ui.theme.TextMain,
+                    outline = com.example.busasnquest.ui.theme.InkBorder,
+                    error = com.example.busasnquest.ui.theme.PointRed
                 ),
                 typography = AppTypography,
                 shapes = AppShapes

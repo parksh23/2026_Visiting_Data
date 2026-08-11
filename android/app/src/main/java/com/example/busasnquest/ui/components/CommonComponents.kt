@@ -41,8 +41,7 @@ fun PointBadge(
         modifier = Modifier.size(size).clip(CircleShape).background(Coral),
         contentAlignment = Alignment.Center
     ) {
-        // 흰 P 는 코럴 위 3.29:1 로 미달 → 채움색에 맞는 전경색을 자동 선택
-        Text("P", color = onFilled(Coral), fontSize = fontSize, fontWeight = FontWeight.Bold)
+        Text("P", color = CoralInk, fontSize = fontSize, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -80,7 +79,7 @@ fun ProgressCard(
         // 알파를 낮춘 보조 텍스트는 대비가 더 떨어지므로 0.75 대신 0.85 로 올린다.
         val fg = onFilled(Coral)
         Column {
-            Text(label, color = fg.copy(0.85f), fontSize = 14.sp)
+            Text(label, color = Color.White.copy(0.9f), fontSize = 14.sp)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -93,7 +92,7 @@ fun ProgressCard(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            Text(caption, color = fg.copy(0.8f), fontSize = 13.sp)
+            Text(caption, color = Color.White.copy(0.82f), fontSize = 13.sp)
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -123,7 +122,7 @@ fun GradientProgressBar(progress: Float) {
                 .fillMaxWidth()
                 .height(12.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(0.18f))
+                .background(Color.White.copy(0.30f))
         ) {
             Box(
                 modifier = Modifier
@@ -140,9 +139,9 @@ fun GradientProgressBar(progress: Float) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("0%", color = Color.White.copy(0.6f), fontSize = 11.sp)
-            Text("50%", color = Color.White.copy(0.6f), fontSize = 11.sp)
-            Text("100%", color = Color.White.copy(0.6f), fontSize = 11.sp)
+            Text("0%", color = Color.White.copy(0.8f), fontSize = 11.sp)
+            Text("50%", color = Color.White.copy(0.8f), fontSize = 11.sp)
+            Text("100%", color = Color.White.copy(0.8f), fontSize = 11.sp)
         }
     }
 }
@@ -198,7 +197,7 @@ fun SegmentedToggle(
             ) {
                 Text(
                     label,
-                    color = fg,
+                    color = if (selected) CoralInk else TextSub,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 15.sp
                 )

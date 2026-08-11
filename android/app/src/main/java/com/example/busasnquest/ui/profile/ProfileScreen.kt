@@ -132,8 +132,7 @@ fun ProfileScreen(
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
-            // 크림(CoralTint) 위 Coral 은 대비 2.9:1 로 못 읽는다 → 크림 전용 전경색 사용
-            Text("로그아웃", color = OnCoralTint, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("로그아웃", color = CoralDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(40.dp))
@@ -310,7 +309,7 @@ private fun NicknameEditDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(input) }, enabled = !state.loading) {
-                Text(if (state.loading) "확인 중..." else "저장", color = Coral, fontWeight = FontWeight.Bold)
+                Text(if (state.loading) "확인 중..." else "저장", color = CoralDark, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

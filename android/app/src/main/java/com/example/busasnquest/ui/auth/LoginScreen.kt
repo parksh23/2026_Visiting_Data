@@ -37,17 +37,13 @@ import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
 
-// 로그인 화면 로컬 별칭.
-// 6개 중 4개는 앱 공통 토큰과 값이 정확히 같았다 → 별칭만 남기고 실제 값은 theme/Color.kt 한 곳에서 관리한다.
-// (여기서 값을 다시 적으면 테마를 바꿀 때 로그인 화면만 옛 색으로 남는다)
-private val LoginBg = BgSoftBlue          // = 0xFF1C1B19 화면 배경 (앱 공통 차콜)
-private val FieldBorder = DividerGray     // = 0xFF3A3934 입력창 테두리
-private val LabelGray = NavyMain          // = 0xFFD8DEE9 라벨
-private val LoginCard = CardWhite         // = 0xFF262521 로그인 카드 표면
-private val Indigo = Color(0xFF8B9AF5)    // 로그인 전용 포인트색 (앱 코럴과 구분되는 인디고)
-// 기존 0xFF6E6B64 는 입력창(#262521) 위 대비 2.89:1 로 AA 미달이었다.
-// 플레이스홀더도 읽어야 하는 텍스트이므로 앱 공통 보조 텍스트색(6.02:1)으로 올린다.
-private val HintGray = TextSub
+// 다크 단일 테마에 맞춘 로컬 색상
+private val LoginBg = Color(0xFFF7F3EA)      // 화면 배경 (앱 공통 크림 페이퍼)
+private val Indigo = Color(0xFF5B67D8)       // 포인트 (라이트 대비 위해 낮춤 · 흰 글자 4.8:1)
+private val FieldBorder = Color(0xFFDED4C4)  // 입력창 테두리
+private val LabelGray = Color(0xFF4A423C)    // 라벨
+private val HintGray = Color(0xFFA79C92)     // 플레이스홀더
+private val LoginCard = Color(0xFFFFFFFF)    // 로그인 카드 표면
 
 @Composable
 fun LoginScreen(
@@ -201,7 +197,7 @@ fun LoginScreen(
             // ── 에러 메시지 ──
             if (errorMessage != null) {
                 Spacer(Modifier.height(10.dp))
-                Text(errorMessage, color = PointRed, fontSize = 13.sp)
+                Text(errorMessage, color = Color(0xFFCC3B3B), fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(18.dp))

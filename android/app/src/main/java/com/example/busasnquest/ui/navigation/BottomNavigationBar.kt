@@ -122,7 +122,7 @@ private fun BottomItem(
             Icon(
                 painter = painterResource(id = iconRes),
                 contentDescription = title,
-                tint = fg,
+                tint = if (selected) CoralDark else TextSub,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -130,7 +130,7 @@ private fun BottomItem(
         Text(
             title,
             fontSize = 11.sp,
-            color = fg,
+            color = if (selected) CoralDark else TextSub,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }

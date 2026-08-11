@@ -56,6 +56,7 @@ import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.accentStyle
 import com.example.busasnquest.ui.theme.displayStyle
+import com.example.busasnquest.ui.theme.CoralDark
 
 /**
  * 미션 카드 (리스트형): 좌측 이미지 타일 + 제목/하트 + 위치 + 보상 + 상태별 버튼.
@@ -156,7 +157,7 @@ fun MissionCard(
                     PointBadge(size = 16.dp, fontSize = 9.sp)
                     Spacer(modifier = Modifier.width(4.dp))
                     // 보상 숫자 — 액센트 폰트
-                    Text("+${mission.reward}", style = accentStyle(15.sp), color = Coral)
+                    Text("+${mission.reward}", style = accentStyle(15.sp), color = CoralDark)
                 }
             }
         }
@@ -202,16 +203,26 @@ fun MissionCard(
     }
 }
 
-/** 완료 도장 — 코럴 잉크, 살짝 기울어진 스탬프. */
+/**
+ * 완료 도장 — 코럴 잉크, 살짝 기울어진 스탬프.
+ * 카드 위에 "쾅" 찍힌 느낌이 나도록 카드 폭의 72%를 차지한다.
+ */
 @Composable
 private fun CompletedStamp(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
+            .fillMaxWidth(0.72f)
             .rotate(-12f)
-            .border(3.dp, Coral.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .border(5.dp, Coral.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text("완료", style = displayStyle(22.sp), color = Coral.copy(alpha = 0.9f))
+        Text(
+            "완료",
+            style = displayStyle(52.sp),
+            color = Coral.copy(alpha = 0.85f),
+            maxLines = 1
+        )
     }
 }
 

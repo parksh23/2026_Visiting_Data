@@ -240,8 +240,7 @@ fun MapScreen(
                                         .padding(horizontal = 16.dp, vertical = 12.dp)
                                 ) {
                                     Column {
-                                        Text(m.title, fontWeight = FontWeight.Medium, color = TextMain)
-                                        // Color.Gray 는 다크 카드 위 대비 4.3:1 로 미달 → 공통 보조 텍스트색
+                                        Text(m.title, fontWeight = FontWeight.Medium)
                                         Text(m.district, color = TextSub, fontSize = 12.sp)
                                     }
                                 }

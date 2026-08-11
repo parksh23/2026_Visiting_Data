@@ -33,10 +33,11 @@ import com.example.busasnquest.data.repository.DistrictMissionProgress
 import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.Motion
-import com.example.busasnquest.ui.theme.OnCoral
 import com.example.busasnquest.ui.theme.occupancyColor
 import com.example.busasnquest.ui.theme.occupancyTextColor
 import com.example.busasnquest.ui.theme.pressable
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.InkBorderStrong
 
 /**
  * 부산 16개 구·군을 4×4 그리드로 배치 (지리 근사: 북서 → 남동).
@@ -148,7 +149,7 @@ private fun DistrictBox(
             .clip(RoundedCornerShape(Dimens.radiusCard))
             .background(bgColor)
             .then(
-                if (isSelected) Modifier.border(2.dp, OnCoral, RoundedCornerShape(Dimens.radiusCard))
+                if (isSelected) Modifier.border(2.dp, InkBorderStrong, RoundedCornerShape(16.dp))
                 else Modifier
             )
     ) {
@@ -175,7 +176,7 @@ private fun DistrictBox(
             Icon(
                 imageVector = Icons.Filled.Flag,
                 contentDescription = "점령 완료",
-                tint = Color.White,
+                tint = textColor,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 7.dp, end = 8.dp)

@@ -150,7 +150,7 @@ fun MissionDetailScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                Icon(Icons.Filled.Image, contentDescription = null, tint = Color.White.copy(0.8f), modifier = Modifier.size(56.dp))
+                Icon(Icons.Filled.Image, contentDescription = null, tint = SeaBlue.copy(0.7f), modifier = Modifier.size(56.dp))
             }
         }
 

@@ -146,7 +146,7 @@ private fun HomeHeader(points: Int) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 com.example.busasnquest.ui.components.PointBadge(size = 17.dp, fontSize = 9.sp)
                 Spacer(Modifier.width(5.dp))
-                Text("%,d".format(points), color = Coral, style = accentStyle(15.sp))
+                Text("%,d".format(points), color = CoralDark, style = accentStyle(15.sp))
             }
         }
         Spacer(Modifier.height(Dimens.gapTight))
@@ -321,8 +321,8 @@ private fun OngoingSummaryCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.TrackChanges, contentDescription = null, tint = Coral, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("전체 미션 진행률", fontSize = 13.sp, color = OnCoralTint, modifier = Modifier.weight(1f))
-            Text("$percent%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Coral)
+            Text("전체 미션 진행률", fontSize = 13.sp, color = Color(0xFF4A2E28), modifier = Modifier.weight(1f))
+            Text("$percent%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CoralDark)
         }
         Spacer(Modifier.height(Dimens.gapTight))
         // 진행률 바
@@ -448,7 +448,7 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
             Icon(
                 Icons.Filled.Image,
                 contentDescription = null,
-                tint = Color.White,
+                tint = SeaBlue,
                 modifier = Modifier
                     .size(34.dp)
                     .align(Alignment.Center)
@@ -492,7 +492,7 @@ private fun PointsChip(points: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
         Spacer(Modifier.width(5.dp))
-        Text("$points", color = Coral, style = accentStyle(14.sp))
+        Text("$points", color = CoralDark, style = accentStyle(14.sp))
     }
 }
 

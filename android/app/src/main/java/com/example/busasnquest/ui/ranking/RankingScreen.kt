@@ -62,10 +62,10 @@ import com.example.busasnquest.ui.theme.SeaBlue
 import com.example.busasnquest.ui.theme.SeaBlueBg
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
-import com.example.busasnquest.ui.theme.onFilled
 import com.example.busasnquest.ui.theme.accentStyle
 import com.example.busasnquest.ui.theme.displayStyle
 import com.example.busasnquest.ui.theme.pressable
+import com.example.busasnquest.ui.theme.CoralInk
 import androidx.navigation.NavHostController
 
 @Composable
@@ -287,7 +287,7 @@ fun MyRankCard(
                     ) {
                         Text(
                             label,
-                            color = thumbFg,
+                            color = if (selected) CoralDark else Color.White.copy(0.85f),
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp
                         )
@@ -344,7 +344,7 @@ fun RankingRow(entry: RankEntry) {
                     ) {
                         Text(
                             "${entry.rank}",
-                            color = onFilled(medalColor),
+                            color = CoralInk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -353,7 +353,7 @@ fun RankingRow(entry: RankEntry) {
                     Text(
                         "${entry.rank}",
                         fontWeight = FontWeight.Bold,
-                        color = fgAccent,
+                        color = CoralDark,
                         fontSize = 15.sp
                     )
                 }
@@ -389,7 +389,7 @@ fun RankingRow(entry: RankEntry) {
         Text(
             entry.score,
             fontWeight = FontWeight.Bold,
-            color = fgAccent,
+            color = CoralDark,
             fontSize = 15.sp
         )
     }
@@ -440,7 +440,7 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
                 .background(medal, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("$place", color = onFilled(medal), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("$place", color = CoralInk, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
         Spacer(Modifier.height(6.dp))
         Text(

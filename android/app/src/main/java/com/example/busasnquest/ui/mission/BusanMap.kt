@@ -42,9 +42,12 @@ import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.InkBorderStrong
 import com.example.busasnquest.ui.theme.DisplayFontFamily
 import com.example.busasnquest.ui.theme.MapLandShadow
-import com.example.busasnquest.ui.theme.OccupancyTextDarker
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.occupancyColor
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.InkBorderStrong
+import com.example.busasnquest.ui.theme.Occupancy0
+import com.example.busasnquest.ui.theme.occupancyTextColor
 import kotlin.math.min
 
 /**
@@ -185,7 +188,7 @@ fun BusanMap(
             BusanMapShapes.polygons.forEach { (_, parts) ->
                 parts.forEach { pts ->
                     translate(top = shadowOffset) {
-                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.55f))
+                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.20f))
                     }
                 }
             }
@@ -193,14 +196,14 @@ fun BusanMap(
             BusanMapShapes.polygons.forEach { (_, parts) ->
                 parts.forEach { pts ->
                     translate(top = shadowOffset * 0.5f) {
-                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.35f))
+                        drawPath(buildPath(pts), color = MapLandShadow.copy(alpha = 0.12f))
                     }
                 }
             }
 
             // 2) 구 폴리곤: 채움 + 경계선 + 윗면 하이라이트
             BusanMapShapes.polygons.forEach { (name, parts) ->
-                val color = animatedColors[name] ?: Color.LightGray
+                val color = animatedColors[name] ?: Occupancy0
                 parts.forEach { pts ->
                     val path = buildPath(pts)
                     // 채움 (위가 살짝 밝은 그라데이션 — 빛이 위에서 오는 느낌)
@@ -213,12 +216,12 @@ fun BusanMap(
                         )
                     )
                     // 구 경계선
-                    drawPath(path, color = BgSoftBlue, style = Stroke(width = 2.dp.toPx()))
+                    drawPath(path, color = MapLandShadow.copy(alpha = 0.45f), style = Stroke(width = 2.dp.toPx()))
                     // 윗면 하이라이트 — 살짝 위로 올린 밝은 선
                     translate(top = -0.8f.dp.toPx()) {
                         drawPath(
                             path,
-                            color = Color.White.copy(alpha = 0.10f),
+                            color = Color.White.copy(alpha = 0.35f),
                             style = Stroke(width = 1.2.dp.toPx())
                         )
                     }
@@ -234,8 +237,8 @@ fun BusanMap(
                 val total = p?.total ?: 0
                 val completed = p?.completed ?: 0
                 val rate = if (total == 0) 0f else completed.toFloat() / total
-                // 모든 구 동일한 글자색 — 흰 외곽선(halo)이 있어 어떤 배경에서도 잘 보임
-                val labelColor = OccupancyTextDarker
+                // 라이트 테마: 연한 칸은 잉크 글자, 진한 칸은 흰 글자로 자동 반전
+                val labelColor = occupancyTextColor(rate)
                 val (cx, cy) = BusanMapShapes.labelCenter(name)
                 val center = Offset(tx(cx), ty(cy))
                 val tiny = name in BusanMapShapes.tinyDistricts
@@ -265,7 +268,7 @@ fun BusanMap(
                     // 진행 중 점: 배경색 테두리 + 밝은 크림 — 다크 지도 위 포인트
                     val dotCenter = center.copy(y = center.y - 10.dp.toPx())
                     drawCircle(BgSoftBlue, radius = 4.dp.toPx(), center = dotCenter)
-                    drawCircle(CoralTint, radius = 2.5.dp.toPx(), center = dotCenter)
+                    drawCircle(CoralDark, radius = 2.5.dp.toPx(), center = dotCenter)
                 }
             }
         }
@@ -321,9 +324,10 @@ private fun DrawScope.drawCenteredText(
         style.copy(
             // 지도 라벨은 구 이름(한글)+% 라 디스플레이 폰트로 통일
             fontFamily = DisplayFontFamily,
-            // 다크 테마: 글로우도 배경색 계열로 (밝은 글자 주변을 어둡게 잡아줌)
+            // 라이트 테마: 글자색에 따라 헤일로를 뒤집는다 (흰 글자 → 어두운 헤일로)
             shadow = Shadow(
-                color = BgSoftBlue,
+                color = if (style.color.red + style.color.green + style.color.blue > 2.2f)
+                    Color(0xFF6B2B26) else BgSoftBlue,
                 offset = Offset.Zero,
                 blurRadius = style.fontSize.toPx() * 0.35f
             )

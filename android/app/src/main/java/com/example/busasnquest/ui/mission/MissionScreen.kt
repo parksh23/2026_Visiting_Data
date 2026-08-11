@@ -219,7 +219,7 @@ private fun TypeFilterChips(
                     label,
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) Color(0xFF4A1B0C) else TextSub
+                    color = if (isSelected) CoralInk else TextSub
                 )
             }
         }

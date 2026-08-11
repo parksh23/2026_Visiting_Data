@@ -135,7 +135,7 @@ fun ProfileScreen(
                 .padding(vertical = 18.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("로그아웃", color = Coral, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("로그아웃", color = CoralDark, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(120.dp))
@@ -305,7 +305,7 @@ private fun NicknameEditDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(input) }, enabled = !state.loading) {
-                Text(if (state.loading) "확인 중..." else "저장", color = Coral, fontWeight = FontWeight.Bold)
+                Text(if (state.loading) "확인 중..." else "저장", color = CoralDark, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

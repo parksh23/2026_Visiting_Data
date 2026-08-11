@@ -34,6 +34,8 @@ import com.example.busasnquest.ui.components.clickableNoRipple
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.occupancyColor
 import com.example.busasnquest.ui.theme.occupancyTextColor
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.InkBorderStrong
 
 /**
  * 부산 16개 구·군을 4×4 그리드로 배치 (지리 근사: 북서 → 남동).
@@ -143,7 +145,7 @@ private fun DistrictBox(
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
             .then(
-                if (isSelected) Modifier.border(2.dp, Color(0xFF4A1B0C), RoundedCornerShape(16.dp))
+                if (isSelected) Modifier.border(2.dp, InkBorderStrong, RoundedCornerShape(16.dp))
                 else Modifier
             )
             .clickableNoRipple { onClick() }
@@ -171,7 +173,7 @@ private fun DistrictBox(
             Icon(
                 imageVector = Icons.Filled.Flag,
                 contentDescription = "점령 완료",
-                tint = Color.White,
+                tint = textColor,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 7.dp, end = 8.dp)
@@ -185,7 +187,7 @@ private fun DistrictBox(
                     .padding(top = 9.dp, end = 10.dp)
                     .size(7.dp)
                     .clip(CircleShape)
-                    .background(if (rate > 0.5f) Color.White else Color(0xFFCE504D))
+                    .background(if (rate > 0.5f) Color.White else CoralDark)
             )
         }
     }

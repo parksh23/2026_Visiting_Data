@@ -30,12 +30,12 @@ import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
 
 // 다크 단일 테마에 맞춘 로컬 색상
-private val LoginBg = Color(0xFF1C1B19)      // 화면 배경 (앱 공통 차콜)
-private val Indigo = Color(0xFF8B9AF5)       // 포인트 (다크 대비 위해 밝힘)
-private val FieldBorder = Color(0xFF3A3934)  // 입력창 테두리
-private val LabelGray = Color(0xFFD8DEE9)    // 라벨
-private val HintGray = Color(0xFF6E6B64)     // 플레이스홀더
-private val LoginCard = Color(0xFF262521)    // 로그인 카드 표면
+private val LoginBg = Color(0xFFF7F3EA)      // 화면 배경 (앱 공통 크림 페이퍼)
+private val Indigo = Color(0xFF5B67D8)       // 포인트 (라이트 대비 위해 낮춤 · 흰 글자 4.8:1)
+private val FieldBorder = Color(0xFFDED4C4)  // 입력창 테두리
+private val LabelGray = Color(0xFF4A423C)    // 라벨
+private val HintGray = Color(0xFFA79C92)     // 플레이스홀더
+private val LoginCard = Color(0xFFFFFFFF)    // 로그인 카드 표면
 
 @Composable
 fun LoginScreen(
@@ -189,7 +189,7 @@ fun LoginScreen(
             // ── 에러 메시지 ──
             if (errorMessage != null) {
                 Spacer(Modifier.height(10.dp))
-                Text(errorMessage, color = Color(0xFFE94F4F), fontSize = 13.sp)
+                Text(errorMessage, color = Color(0xFFCC3B3B), fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(18.dp))

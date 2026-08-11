@@ -58,6 +58,7 @@ import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.accentStyle
 import com.example.busasnquest.ui.theme.displayStyle
+import com.example.busasnquest.ui.theme.CoralInk
 import androidx.navigation.NavHostController
 
 @Composable
@@ -263,7 +264,7 @@ fun MyRankCard(
                     ) {
                         Text(
                             label,
-                            color = if (selected) Coral else Color.White.copy(0.85f),
+                            color = if (selected) CoralDark else Color.White.copy(0.85f),
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp
                         )
@@ -312,7 +313,7 @@ fun RankingRow(entry: RankEntry) {
                     ) {
                         Text(
                             "${entry.rank}",
-                            color = Color.White,
+                            color = CoralInk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -321,7 +322,7 @@ fun RankingRow(entry: RankEntry) {
                     Text(
                         "${entry.rank}",
                         fontWeight = FontWeight.Bold,
-                        color = Coral,
+                        color = CoralDark,
                         fontSize = 15.sp
                     )
                 }
@@ -357,7 +358,7 @@ fun RankingRow(entry: RankEntry) {
         Text(
             entry.score,
             fontWeight = FontWeight.Bold,
-            color = Coral,
+            color = CoralDark,
             fontSize = 15.sp
         )
     }
@@ -408,7 +409,7 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
                 .background(medal, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("$place", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("$place", color = CoralInk, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
         Spacer(Modifier.height(6.dp))
         Text(

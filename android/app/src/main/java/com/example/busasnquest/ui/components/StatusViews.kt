@@ -30,6 +30,8 @@ import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.ui.theme.SkeletonBase
 import com.example.busasnquest.ui.theme.SkeletonHighlight
 import com.example.busasnquest.ui.theme.TextSub
+import com.example.busasnquest.ui.theme.CoralDark
+import com.example.busasnquest.ui.theme.CoralInk
 
 /**
  * API 로딩/에러 상태를 모든 화면에서 같은 모양으로 보여주는 공통 컴포넌트.
@@ -98,7 +100,7 @@ fun InlineErrorBanner(
             Spacer(Modifier.height(4.dp))
             Text(
                 "다시 시도",
-                color = Coral,
+                color = CoralDark,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable { onRetry() }
@@ -143,7 +145,7 @@ fun ErrorView(
             ) {
                 Text(
                     "다시 시도",
-                    color = Color.White,
+                    color = CoralInk,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

@@ -35,7 +35,7 @@ fun PointBadge(
         modifier = Modifier.size(size).clip(CircleShape).background(Coral),
         contentAlignment = Alignment.Center
     ) {
-        Text("P", color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold)
+        Text("P", color = CoralInk, fontSize = fontSize, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -70,7 +70,7 @@ fun ProgressCard(
             .padding(24.dp)
     ) {
         Column {
-            Text(label, color = Color.White.copy(0.75f), fontSize = 14.sp)
+            Text(label, color = Color.White.copy(0.9f), fontSize = 14.sp)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -83,7 +83,7 @@ fun ProgressCard(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            Text(caption, color = Color.White.copy(0.65f), fontSize = 13.sp)
+            Text(caption, color = Color.White.copy(0.82f), fontSize = 13.sp)
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -111,7 +111,7 @@ fun GradientProgressBar(progress: Float) {
                 .fillMaxWidth()
                 .height(12.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(0.18f))
+                .background(Color.White.copy(0.30f))
         ) {
             Box(
                 modifier = Modifier
@@ -128,9 +128,9 @@ fun GradientProgressBar(progress: Float) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("0%", color = Color.White.copy(0.6f), fontSize = 11.sp)
-            Text("50%", color = Color.White.copy(0.6f), fontSize = 11.sp)
-            Text("100%", color = Color.White.copy(0.6f), fontSize = 11.sp)
+            Text("0%", color = Color.White.copy(0.8f), fontSize = 11.sp)
+            Text("50%", color = Color.White.copy(0.8f), fontSize = 11.sp)
+            Text("100%", color = Color.White.copy(0.8f), fontSize = 11.sp)
         }
     }
 }
@@ -170,7 +170,7 @@ fun SegmentedToggle(
             ) {
                 Text(
                     label,
-                    color = if (selected) Color(0xFF4A1B0C) else TextSub,
+                    color = if (selected) CoralInk else TextSub,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 15.sp
                 )

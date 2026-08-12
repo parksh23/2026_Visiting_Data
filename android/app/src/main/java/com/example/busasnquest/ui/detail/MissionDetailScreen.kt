@@ -166,12 +166,15 @@ fun MissionDetailScreen(
 
             Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
-            // 보상
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange, fontSize = 16.sp)
-            }
+            // 보상 — 앱 공통 포인트 표시 (별 아이콘 → P 뱃지로 통일)
+            com.example.busasnquest.ui.components.PointAmount(
+                value = mission.reward,
+                prefix = "+",
+                badgeSize = 20.dp,
+                badgeFontSize = 11.sp,
+                fontSize = 16.sp,
+                gap = 6.dp
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 

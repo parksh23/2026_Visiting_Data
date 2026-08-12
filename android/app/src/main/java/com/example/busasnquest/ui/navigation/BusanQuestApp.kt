@@ -73,7 +73,11 @@ fun BusanQuestApp() {
                 .currentBackStackEntryAsState().value?.destination?.route
 
             // 로그인 화면에서는 하단 탭바를 숨긴다
-            val showBottomBar = currentRoute != null && currentRoute != "login"
+            // 로그인 화면과 "로그인 전 약관 열람" 상태에서는 탭바를 숨긴다.
+            // (로그인 전에 탭바가 보이면 토큰 없이 메인 탭으로 들어갈 수 있다)
+            val showBottomBar = currentRoute != null &&
+                    currentRoute != "login" &&
+                    status == AuthStatus.LoggedIn
 
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
@@ -130,7 +134,9 @@ fun BusanQuestApp() {
                                 navController.navigate("home") {
                                     popUpTo("login") { inclusive = true }
                                 }
-                            }
+                            },
+                            // 약관 동의 항목의 '보기' → 문서 전문 화면 (로그인 전에도 열람 가능해야 한다)
+                            onOpenDocument = { slug -> navController.navigate("doc/$slug") }
                         )
                     }
 

@@ -66,6 +66,7 @@ import com.example.busasnquest.ui.theme.displayStyle
 import com.example.busasnquest.ui.theme.pressable
 import com.example.busasnquest.ui.theme.CoralInk
 import androidx.navigation.NavHostController
+import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
 fun RankingScreen(
@@ -87,7 +88,7 @@ fun RankingScreen(
 
         is RankingUiState.Success -> {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+                contentPadding = PaddingValues(bottom = bottomBarSpacing())
             ) {
                 item {
                     ScreenHeader(
@@ -241,7 +242,14 @@ fun MyRankCard(
                     }
                     Text(topPercent, color = Color.White.copy(0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(point, color = Color.White, style = accentStyle(17.sp))
+                    // 내 포인트 — 앱 공통 표시 (네이비 카드 위라 숫자는 흰색)
+                    com.example.busasnquest.ui.components.PointAmount(
+                        text = point,
+                        badgeSize = 18.dp,
+                        badgeFontSize = 10.sp,
+                        fontSize = 17.sp,
+                        color = Color.White
+                    )
                 }
             }
 
@@ -298,7 +306,11 @@ fun MyRankCard(
 }
 
 @Composable
-fun RankingRow(entry: RankEntry) {
+fun RankingRow(
+    entry: RankEntry,
+    // 점수가 포인트면 P 뱃지를 붙인다. 지역 랭킹처럼 "3개" 같은 값이면 false.
+    scoreIsPoint: Boolean = true
+) {
 
     val medalColor = when (entry.rank) {
         1 -> MedalGold
@@ -385,12 +397,23 @@ fun RankingRow(entry: RankEntry) {
             )
         }
 
-        Text(
-            entry.score,
-            fontWeight = FontWeight.Bold,
-            color = CoralDark,
-            fontSize = 15.sp
-        )
+        if (scoreIsPoint) {
+            // 앱 공통 포인트 표시 (홈 헤더와 같은 모양)
+            com.example.busasnquest.ui.components.PointAmount(
+                text = entry.score,
+                badgeSize = 16.dp,
+                badgeFontSize = 9.sp,
+                fontSize = 15.sp,
+                gap = 4.dp
+            )
+        } else {
+            Text(
+                entry.score,
+                fontWeight = FontWeight.Bold,
+                color = CoralDark,
+                fontSize = 15.sp
+            )
+        }
     }
 }
 
@@ -449,7 +472,15 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
             fontSize = 12.sp,
             maxLines = 1
         )
-        Text(entry.score, color = TextSub, fontSize = 11.sp)
+        // 시상대 점수 — 앱 공통 포인트 표시 (작은 크기)
+        com.example.busasnquest.ui.components.PointAmount(
+            text = entry.score,
+            badgeSize = 12.dp,
+            badgeFontSize = 7.sp,
+            fontSize = 11.sp,
+            color = TextSub,
+            gap = 3.dp
+        )
     }
 }
 

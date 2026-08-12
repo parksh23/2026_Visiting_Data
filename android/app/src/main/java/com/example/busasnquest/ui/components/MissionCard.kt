@@ -151,14 +151,8 @@ fun MissionCard(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 보상
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 보상 — 공통 포인트 뱃지로 통일
-                    PointBadge(size = 16.dp, fontSize = 9.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    // 보상 숫자 — 액센트 폰트
-                    Text("+${mission.reward}", style = accentStyle(15.sp), color = CoralDark)
-                }
+                // 보상 — 앱 공통 포인트 표시 (홈 헤더와 같은 모양)
+                PointAmount(value = mission.reward, prefix = "+")
             }
         }
 

@@ -97,7 +97,7 @@ fun SavedMissionScreen(
 
                 else -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+                        contentPadding = PaddingValues(bottom = bottomBarSpacing())
                     ) {
                         item {
                             Text(
@@ -156,11 +156,15 @@ fun SavedRow(
             Spacer(modifier = Modifier.height(2.dp))
             Text(mission.region, color = TextSub, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(2.dp))
-                Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange, fontSize = 13.sp)
-            }
+            // 보상 — 앱 공통 포인트 표시
+            com.example.busasnquest.ui.components.PointAmount(
+                value = mission.reward,
+                prefix = "+",
+                badgeSize = 15.dp,
+                badgeFontSize = 8.sp,
+                fontSize = 13.sp,
+                gap = 4.dp
+            )
         }
 
         // 찜 해제 하트 — 24dp 아이콘 단독 클릭은 터치 타깃이 작다 → 44dp 박스로 확대

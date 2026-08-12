@@ -45,6 +45,55 @@ fun PointBadge(
     }
 }
 
+/**
+ * 앱 공통 포인트 표시 — [PointBadge] + 액센트 숫자.
+ *
+ * 홈 탭 헤더 디자인이 기준이다. 포인트가 보이는 모든 곳(헤더·미션 보상·프로필 통계·
+ * 랭킹 등)은 별·"P" 접미사·알약 같은 제각각의 표현 대신 이걸 쓴다.
+ *
+ * @param text  이미 포맷된 숫자 문자열. 예) "1,000", "+100"
+ * @param color 숫자 색. 어두운 배경 위에서는 Color.White 를 넘긴다.
+ */
+@Composable
+fun PointAmount(
+    text: String,
+    modifier: Modifier = Modifier,
+    badgeSize: androidx.compose.ui.unit.Dp = 17.dp,
+    badgeFontSize: androidx.compose.ui.unit.TextUnit = 9.sp,
+    fontSize: androidx.compose.ui.unit.TextUnit = 15.sp,
+    color: Color = CoralDark,
+    gap: androidx.compose.ui.unit.Dp = 5.dp
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        PointBadge(size = badgeSize, fontSize = badgeFontSize)
+        Spacer(Modifier.width(gap))
+        Text(text, color = color, style = accentStyle(fontSize))
+    }
+}
+
+/** 정수 포인트용 오버로드. 천 단위 콤마를 붙이고, 보상 표시에는 prefix = "+" 를 준다. */
+@Composable
+fun PointAmount(
+    value: Int,
+    modifier: Modifier = Modifier,
+    prefix: String = "",
+    badgeSize: androidx.compose.ui.unit.Dp = 17.dp,
+    badgeFontSize: androidx.compose.ui.unit.TextUnit = 9.sp,
+    fontSize: androidx.compose.ui.unit.TextUnit = 15.sp,
+    color: Color = CoralDark,
+    gap: androidx.compose.ui.unit.Dp = 5.dp
+) {
+    PointAmount(
+        text = prefix + "%,d".format(value),
+        modifier = modifier,
+        badgeSize = badgeSize,
+        badgeFontSize = badgeFontSize,
+        fontSize = fontSize,
+        color = color,
+        gap = gap
+    )
+}
+
 @Composable
 fun SectionTitle(text: String) {
     Text(

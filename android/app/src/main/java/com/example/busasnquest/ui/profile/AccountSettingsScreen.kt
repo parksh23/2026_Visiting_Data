@@ -87,7 +87,7 @@ fun AccountSettingsScreen(
             .background(BgSoftBlue)
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarClearance)
+            .padding(bottom = bottomBarSpacing())
     ) {
         SubPageHeader("계정 설정", navController)
         Spacer(Modifier.height(8.dp))

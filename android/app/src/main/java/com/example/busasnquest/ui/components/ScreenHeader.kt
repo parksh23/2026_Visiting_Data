@@ -24,9 +24,6 @@ import androidx.compose.runtime.getValue
  * 상단 헤더: 좌측에 제목 + (선택) 강조 단어 + 부제,
  * 우측에 포인트 배지 + 알림 벨.
  */
-fun formatPoints(value: Int): String {
-    return "%,d".format(value) + "P"
-}
 @Composable
 fun ScreenHeader(
     title: String,
@@ -72,27 +69,14 @@ fun ScreenHeader(
     }
 }
 
+/**
+ * 상단 우측 포인트 표시.
+ * 홈 탭과 동일한 모양(P 뱃지 + 액센트 숫자)으로 통일 — 예전의 별 아이콘 + 흰 알약은 제거.
+ */
 @Composable
 fun PointPill() {
     val points by UserRepository.points.collectAsStateWithLifecycle()
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(CardWhite)
-            .border(1.dp, DividerGray, CircleShape)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Filled.Star,
-            contentDescription = null,
-            tint = Coral,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        // 숫자 — 액센트 폰트 (영문·숫자 전용)
-        Text(formatPoints(points), style = accentStyle(15.sp), color = TextMain)
-    }
+    PointAmount(value = points)
 }
 
 

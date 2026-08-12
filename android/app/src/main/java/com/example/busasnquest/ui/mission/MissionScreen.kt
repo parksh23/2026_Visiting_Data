@@ -125,7 +125,7 @@ fun MissionScreen(
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace + 100.dp)
+                contentPadding = PaddingValues(bottom = bottomBarSpacing())
             ) {
                 if (filtered.isEmpty()) {
                     item {
@@ -176,7 +176,7 @@ fun MissionScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = Dimens.bottomBarSpace)
+                .padding(bottom = bottomBarSpacing())
         )
     }
 }

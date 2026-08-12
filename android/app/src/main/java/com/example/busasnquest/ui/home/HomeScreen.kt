@@ -1,6 +1,5 @@
 package com.example.busasnquest.ui.home
 
-import android.view.ViewGroup
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -32,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -44,11 +42,8 @@ import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
 import com.example.busasnquest.data.repository.OccupationStat
 import com.example.busasnquest.ui.theme.*
-import com.kakao.vectormap.KakaoMap
-import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
-import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
+import com.example.busasnquest.ui.components.KakaoMapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 
 // 미니맵: 히어로 카드와 같은 라운드를 써서 상단 블록들이 같은 계열로 읽히게 한다.
@@ -70,7 +65,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarSpace)
+            .padding(bottom = bottomBarSpacing())
     ) {
         Spacer(Modifier.height(Dimens.gapTight))
 
@@ -143,12 +138,8 @@ private fun HomeHeader(points: Int) {
                     Text("따먹기", style = displayStyle(26.sp), color = TextMain)
                 }
             }
-            // 포인트 — 다른 탭과 동일: P 뱃지 + 액센트 숫자 (크림 알약 제거)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                com.example.busasnquest.ui.components.PointBadge(size = 17.dp, fontSize = 9.sp)
-                Spacer(Modifier.width(5.dp))
-                Text("%,d".format(points), color = CoralDark, style = accentStyle(15.sp))
-            }
+            // 포인트 — 앱 공통 표시 (모든 탭이 이 모양을 따른다)
+            com.example.busasnquest.ui.components.PointAmount(value = points)
         }
         Spacer(Modifier.height(Dimens.gapTight))
         Text(
@@ -193,31 +184,17 @@ private fun HomeMiniMap(location: String, onOpenMap: () -> Unit) {
             .background(SurfaceGray)
             .border(Dimens.borderWidth, InkBorder, RoundedCornerShape(MiniMapRadius))
     ) {
-        AndroidView(
+        // 생명주기가 붙은 공용 지도 컴포저블 (직접 MapView 를 만들지 말 것 — 복귀 시 먹통 원인)
+        KakaoMapView(
             modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                MapView(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    start(
-                        object : MapLifeCycleCallback() {
-                            override fun onMapDestroy() {}
-                            override fun onMapError(error: Exception?) {
-                                android.util.Log.e("HomeMiniMap", "지도 에러: ${error?.message}")
-                            }
-                        },
-                        object : KakaoMapReadyCallback() {
-                            override fun onMapReady(kakaoMap: KakaoMap) {
-                                val busan = LatLng.from(35.1796, 129.0756)
-                                kakaoMap.moveCamera(
-                                    CameraUpdateFactory.newCenterPosition(busan, 12)
-                                )
-                            }
-                        }
-                    )
-                }
+            onMapError = { error ->
+                android.util.Log.e("HomeMiniMap", "지도 에러: ${error?.message}")
+            },
+            onMapReady = { kakaoMap ->
+                val busan = LatLng.from(35.1796, 129.0756)
+                kakaoMap.moveCamera(
+                    CameraUpdateFactory.newCenterPosition(busan, 12)
+                )
             }
         )
 
@@ -500,11 +477,12 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
 
 @Composable
 private fun PointsChip(points: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
-        Spacer(Modifier.width(5.dp))
-        Text("$points", color = CoralDark, style = accentStyle(14.sp))
-    }
+    com.example.busasnquest.ui.components.PointAmount(
+        value = points,
+        badgeSize = 18.dp,
+        badgeFontSize = 10.sp,
+        fontSize = 14.sp
+    )
 }
 
 // ── 아래 두 헬퍼는 미션/상세 화면에서도 사용하므로 유지 ──

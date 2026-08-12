@@ -3,6 +3,8 @@ package com.example.busasnquest.ui.auth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -10,6 +12,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,19 +51,38 @@ private val LoginCard = Color(0xFFFFFFFF)    // 로그인 카드 표면
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onOpenDocument: (String) -> Unit = {},
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    var selectedTab by remember { mutableStateOf(0) }       // 0=Log in, 1=Sign up
-    var email by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var passwordConfirm by remember { mutableStateOf("") }
-    var passwordConfirmVisible by remember { mutableStateOf(false) }
-    var infoMessage by remember { mutableStateOf<String?>(null) }
+    // 약관 동의 상태 (회원가입·카카오 로그인 공통)
+    val agreements = rememberAgreementState()
+    // 로그인 탭에서 카카오 버튼을 눌렀을 때 뜨는 약관 동의 창
+    var showKakaoAgreement by rememberSaveable { mutableStateOf(false) }
+
+    // ⚠️ rememberSaveable — 약관 '보기'로 문서 화면에 다녀오면 이 화면의 컴포지션이
+    //    사라졌다 다시 만들어진다. remember 로 두면 탭과 입력값이 전부 초기화된다.
+    //    돌아왔을 때 처음부터 다시 입력하지 않도록 입력값을 모두 보존한다.
+    var selectedTab by rememberSaveable { mutableStateOf(0) }   // 0=Log in, 1=Sign up
+    var email by rememberSaveable { mutableStateOf("") }
+    var nickname by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var passwordConfirm by rememberSaveable { mutableStateOf("") }
+    var passwordConfirmVisible by rememberSaveable { mutableStateOf(false) }
+    var infoMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
+    /**
+     * 회원가입 방식. null 이면 아직 안 고른 상태(= 방식 선택 화면).
+     * 이메일 가입은 입력칸이 4개라, 카카오로 가입할 사람에게까지 다 보여줄 필요가 없다.
+     */
+    var signupWithEmail by rememberSaveable { mutableStateOf(false) }
+
+    // 이메일 입력 폼을 보여줄 조건 — 로그인 탭이거나, 회원가입에서 '메일'을 고른 경우
+    val showEmailForm = selectedTab == 0 || signupWithEmail
+
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
 
@@ -70,6 +92,7 @@ fun LoginScreen(
             is LoginUiState.Success -> onLoginSuccess()
             is LoginUiState.SignupSuccess -> {
                 selectedTab = 0                 // 로그인 탭으로 전환
+                signupWithEmail = false         // 다음 가입은 다시 방식 선택부터
                 password = ""
                 passwordConfirm = ""
                 nickname = ""
@@ -80,10 +103,16 @@ fun LoginScreen(
         }
     }
 
+    // ⚠️ 스크롤 필수 — 회원가입 탭은 입력칸 4개 + 약관 박스까지 들어가 카드가 화면보다 길어진다.
+    //    스크롤이 없으면 아래쪽(카카오 버튼·하단 안내)이 화면 밖으로 잘려 안 보인다.
+    //    imePadding: 키보드가 올라와도 입력칸이 가리지 않게 한다.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LoginBg),
+            .background(LoginBg)
+            .systemBarsPadding()
+            .imePadding()
+            .verticalScroll(rememberScrollState()),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -101,11 +130,16 @@ fun LoginScreen(
             ) {
                 AuthTab("로그인", selectedTab == 0) { selectedTab = 0 }
                 Spacer(Modifier.width(28.dp))
-                AuthTab("회원가입", selectedTab == 1) { selectedTab = 1 }
+                AuthTab("회원가입", selectedTab == 1) {
+                    selectedTab = 1
+                    signupWithEmail = false   // 회원가입 탭은 항상 방식 선택부터
+                }
             }
 
             Spacer(Modifier.height(28.dp))
 
+            // ── 이메일 입력 폼 (로그인 / 메일 회원가입에서만) ──
+            if (showEmailForm) {
             // ── 이메일 ──
             FieldLabel("이메일")
             Spacer(Modifier.height(8.dp))
@@ -175,6 +209,8 @@ fun LoginScreen(
                 )
             }
 
+            }   // showEmailForm 끝
+
             // ── 비밀번호 찾기 (로그인 탭에서만 표시) ──
             if (selectedTab == 0) {
                 Spacer(Modifier.height(10.dp))
@@ -194,6 +230,20 @@ fun LoginScreen(
                 Text(infoMessage!!, color = Indigo, fontSize = 13.sp)
             }
 
+            // ── 약관 동의 (회원가입 탭) ──
+            // 방식(메일/카카오)과 무관하게 가입 전에 먼저 받는다.
+            if (selectedTab == 1) {
+                Spacer(Modifier.height(18.dp))
+                AgreementSection(
+                    state = agreements,
+                    onOpenDocument = onOpenDocument,
+                    accent = Indigo,
+                    borderColor = FieldBorder,
+                    labelColor = LabelGray,
+                    subColor = HintGray
+                )
+            }
+
             // ── 에러 메시지 ──
             if (errorMessage != null) {
                 Spacer(Modifier.height(10.dp))
@@ -202,13 +252,18 @@ fun LoginScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // ── Continue / Sign up 버튼 ──
+            // ── 제출 버튼 (로그인 / 메일 회원가입) ──
+            if (showEmailForm) {
             Button(
                 onClick = {
                     if (selectedTab == 0) viewModel.login(email, password)
-                    else viewModel.signup(email, password, passwordConfirm,nickname)
+                    else viewModel.signup(
+                        email, password, passwordConfirm, nickname,
+                        agreements.toDtoList()
+                    )
                 },
-                enabled = !isLoading,
+                // 회원가입은 필수 약관에 모두 동의해야 누를 수 있다
+                enabled = !isLoading && (selectedTab == 0 || agreements.allRequiredAgreed),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Indigo),
                 modifier = Modifier
@@ -230,29 +285,84 @@ fun LoginScreen(
                     )
                 }
             }
+            }   // 제출 버튼 끝
 
             Spacer(Modifier.height(22.dp))
 
-            // ── or 구분선 ──
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
-                Text("  또는  ", color = HintGray, fontSize = 12.sp)
-                HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
-            }
+            if (selectedTab == 0) {
+                // ── 로그인 탭: 또는 구분선 + 카카오 로그인 ──
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
+                    Text("  또는  ", color = HintGray, fontSize = 12.sp)
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
+                }
+                Spacer(Modifier.height(20.dp))
+                // 버튼을 누르면 약관 동의 창을 먼저 띄운다.
+                // 처음 온 카카오 계정이면 서버가 여기서 가입을 만들기 때문이다.
+                KakaoLoginButton(
+                    enabled = !isLoading,
+                    label = "카카오로 로그인",
+                    onClick = { showKakaoAgreement = true }
+                )
+            } else if (!signupWithEmail) {
+                // ── 회원가입 탭 · 방식 선택 ──
+                // 약관에 동의해야 두 방식 모두 열린다.
+                val needsAgreement = !agreements.allRequiredAgreed
 
-            Spacer(Modifier.height(20.dp))
-
-            // ── 카카오 로그인 버튼 ──
-            KakaoLoginButton(
-                enabled = !isLoading,
-                onClick = {
-                    startKakaoLogin(
-                        context = context,
-                        onToken = { accessToken -> viewModel.loginWithKakao(accessToken) },
-                        onError = { msg -> viewModel.onKakaoError(msg) }
+                Button(
+                    onClick = { signupWithEmail = true },
+                    enabled = !isLoading && !needsAgreement,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Indigo),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                ) {
+                    Text(
+                        "메일로 회원가입",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
                     )
                 }
-            )
+
+                Spacer(Modifier.height(12.dp))
+
+                KakaoLoginButton(
+                    enabled = !isLoading && !needsAgreement,
+                    label = "카카오로 회원가입",
+                    onClick = {
+                        startKakaoLogin(
+                            context = context,
+                            onToken = { accessToken ->
+                                viewModel.loginWithKakao(accessToken, agreements.toDtoList())
+                            },
+                            onError = { msg -> viewModel.onKakaoError(msg) }
+                        )
+                    }
+                )
+
+                if (needsAgreement) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "약관에 동의하면 회원가입을 진행할 수 있어요.",
+                        color = HintGray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            } else {
+                // ── 회원가입 탭 · 메일 가입 중 → 방식 선택으로 되돌아가기 ──
+                Text(
+                    "다른 방법으로 가입하기",
+                    color = Indigo,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .clickable { signupWithEmail = false }
+                )
+            }
 
             Spacer(Modifier.height(22.dp))
 
@@ -271,6 +381,62 @@ fun LoginScreen(
                 )
             }
         }
+    }
+
+    // ── 카카오 로그인 전 약관 동의 창 ──
+    // 이미 회원가입 탭에서 체크했다면 체크된 상태로 열리므로 확인만 누르면 된다.
+    if (showKakaoAgreement) {
+        AlertDialog(
+            onDismissRequest = { showKakaoAgreement = false },
+            containerColor = LoginCard,
+            title = {
+                Text("약관 동의", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = LabelGray)
+            },
+            text = {
+                Column {
+                    Text(
+                        "카카오로 계속하려면 아래 약관에 동의해주세요.",
+                        color = HintGray,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    AgreementSection(
+                        state = agreements,
+                        onOpenDocument = onOpenDocument,
+                        accent = Indigo,
+                        borderColor = FieldBorder,
+                        labelColor = LabelGray,
+                        subColor = HintGray
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = agreements.allRequiredAgreed,
+                    onClick = {
+                        showKakaoAgreement = false
+                        startKakaoLogin(
+                            context = context,
+                            onToken = { accessToken ->
+                                viewModel.loginWithKakao(accessToken, agreements.toDtoList())
+                            },
+                            onError = { msg -> viewModel.onKakaoError(msg) }
+                        )
+                    }
+                ) {
+                    Text(
+                        "동의하고 계속",
+                        color = if (agreements.allRequiredAgreed) Indigo else HintGray,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showKakaoAgreement = false }) {
+                    Text("취소", color = HintGray)
+                }
+            }
+        )
     }
 }
 
@@ -328,7 +494,11 @@ private fun AuthTextField(
 }
 
 @Composable
-private fun KakaoLoginButton(enabled: Boolean, onClick: () -> Unit) {
+private fun KakaoLoginButton(
+    enabled: Boolean,
+    label: String = "카카오로 로그인",
+    onClick: () -> Unit
+) {
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -341,7 +511,7 @@ private fun KakaoLoginButton(enabled: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .height(50.dp)
     ) {
-        Text("카카오로 로그인", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }
 

@@ -25,8 +25,7 @@ import com.example.busasnquest.data.remote.MissionVerifyRequestDto
 import com.example.busasnquest.data.remote.ErrorDetailDto
 import com.google.gson.Gson
 import java.io.ByteArrayOutputStream
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -122,16 +121,27 @@ object MissionRepository {
     private val _savedPending = MutableStateFlow<Set<Int>>(emptySet())
     val savedPending: StateFlow<Set<Int>> = _savedPending.asStateFlow()
 
-    private val savedMutex = Mutex()
-
-    private suspend fun beginSavedRequest(id: Int): Boolean = savedMutex.withLock {
-        if (_savedPending.value.contains(id)) return@withLock false
-        _savedPending.value = _savedPending.value + id
-        true
+    /**
+     * ⚠️ 이 두 함수는 절대 suspend 로 만들지 말 것.
+     *
+     * 코루틴이 취소된 뒤에는 finally 안의 suspend 호출이 즉시 CancellationException 을 던진다.
+     * 예전 구현은 Mutex.withLock(suspend) 을 썼는데, 요청 중에 화면을 벗어나
+     * viewModelScope 이 취소되면 endSavedRequest 가 실행되지 못하고
+     * 해당 미션 id 가 savedPending 에 영원히 남았다 → 돌아왔을 때 하트가 계속 잠김.
+     *
+     * MutableStateFlow.update 는 CAS 기반이라 락 없이도 원자적이다.
+     */
+    private fun beginSavedRequest(id: Int): Boolean {
+        var accepted = false
+        _savedPending.update { current ->
+            accepted = !current.contains(id)
+            if (accepted) current + id else current
+        }
+        return accepted
     }
 
-    private suspend fun endSavedRequest(id: Int) = savedMutex.withLock {
-        _savedPending.value = _savedPending.value - id
+    private fun endSavedRequest(id: Int) {
+        _savedPending.update { it - id }
     }
 
     fun isSaved(id: Int): Boolean =
@@ -149,21 +159,24 @@ object MissionRepository {
             // 이미 요청이 날아가 있는 상태 → 무시하고 현재 값을 그대로 돌려준다
             return Result.success(isSaved(missionId))
         }
-        return try {
-            val response = if (saved) {
-                RetrofitInstance.api.addSavedMission(missionId)
-            } else {
-                RetrofitInstance.api.removeSavedMission(missionId)
+        // Repository 자체 scope 에서 실행한다.
+        // 호출한 화면이 사라져 viewModelScope 이 취소돼도 요청은 끝까지 보내고
+        // pending 도 반드시 해제된다 (서버엔 반영됐는데 앱만 모르는 상태 방지).
+        return scope.async {
+            try {
+                val response = if (saved) {
+                    RetrofitInstance.api.addSavedMission(missionId)
+                } else {
+                    RetrofitInstance.api.removeSavedMission(missionId)
+                }
+                applySavedResult(missionId, response.isSaved)
+                Result.success(response.isSaved)
+            } catch (e: Exception) {
+                Result.failure(Exception(e.toSavedErrorMessage()))
+            } finally {
+                endSavedRequest(missionId)
             }
-            applySavedResult(missionId, response.isSaved)
-            Result.success(response.isSaved)
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Result.failure(Exception(e.toSavedErrorMessage()))
-        } finally {
-            endSavedRequest(missionId)
-        }
+        }.await()
     }
 
     // 현재 상태의 반대로 토글
@@ -519,7 +532,8 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         district = resolvedDistrict,
         lat = latitude,
         lng = longitude,
-        imageUrl = imageUrl
+        imageUrl = imageUrl,
+        serverType = missionType     // 인증 제출 때 그대로 돌려보내기 위해 원문 보관
     )
 }
 

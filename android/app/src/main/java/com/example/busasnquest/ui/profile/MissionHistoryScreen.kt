@@ -65,7 +65,7 @@ fun MissionHistoryScreen(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+                contentPadding = PaddingValues(bottom = bottomBarSpacing())
             ) {
                 item {
                     Text(
@@ -120,10 +120,14 @@ fun HistoryRow(item: MissionWithState) {
             Text(mission.region, color = TextSub, fontSize = 12.sp)
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Star, contentDescription = null, tint = PointOrange, modifier = Modifier.size(14.dp))
-            Spacer(modifier = Modifier.width(2.dp))
-            Text("+${mission.reward}P", fontWeight = FontWeight.Bold, color = PointOrange, fontSize = 13.sp)
-        }
+        // 보상 — 앱 공통 포인트 표시
+        com.example.busasnquest.ui.components.PointAmount(
+            value = mission.reward,
+            prefix = "+",
+            badgeSize = 15.dp,
+            badgeFontSize = 8.sp,
+            fontSize = 13.sp,
+            gap = 4.dp
+        )
     }
 }

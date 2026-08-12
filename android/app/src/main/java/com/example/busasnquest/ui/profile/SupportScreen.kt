@@ -89,7 +89,7 @@ fun SupportScreen(
             .background(BgSoftBlue)
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarClearance)
+            .padding(bottom = bottomBarSpacing())
     ) {
         SubPageHeader("문의하기", navController)
         Spacer(Modifier.height(8.dp))

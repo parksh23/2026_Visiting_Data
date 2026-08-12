@@ -1,5 +1,6 @@
 package com.example.busasnquest.ui.map
 
+import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,16 +27,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalContext
-import com.example.busasnquest.ui.components.KakaoMapView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakao.vectormap.KakaoMap
+import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
+import com.kakao.vectormap.MapLifeCycleCallback
+import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.example.busasnquest.R
+import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
@@ -50,7 +54,6 @@ import com.example.busasnquest.ui.theme.pressableRow
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
-import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
 fun MapScreen(
@@ -65,8 +68,6 @@ fun MapScreen(
 
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    // 미션 핀 비트맵을 만들 때 사용 (예전에는 AndroidView factory 의 context 였다)
-    val context = LocalContext.current
 
     LaunchedEffect(focusSearch) {
         if (focusSearch) {
@@ -95,64 +96,92 @@ fun MapScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            // 카카오맵 — 생명주기가 붙은 공용 컴포저블
-            // (MapView 를 직접 만들면 복귀 시 먹통/렌더러 누수가 생긴다)
-            KakaoMapView(
+            // 카카오맵 (Compose ↔ View 다리: AndroidView)
+            AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                onMapError = { error ->
-                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
-                },
-                onMapReady = { map ->
-                    kakaoMap = map
-
-                    val center = districtCenters[region] ?: districtCenters["부산"]!!
-                    val zoom = if (region == "부산") 10 else 14
-                    map.moveCamera(
-                        CameraUpdateFactory.newCenterPosition(center, zoom)
-                    )
-
-                    // ── 미션 핀 꽂기 ──
-                    val missions = MissionRepository.missions.value.filter {
-                        region == "부산" || it.mission.district == region
-                    }
-
-                    // 람다 안이라 그냥 return 은 쓸 수 없다 → 라벨 붙인 return
-                    if (missions.isNotEmpty()) {
-                        val pinBitmap = androidx.core.content.ContextCompat
-                            .getDrawable(context, R.drawable.ic_mission_pin)
-                            ?.let { drawable ->
-                                val bmp = android.graphics.Bitmap.createBitmap(
-                                    drawable.intrinsicWidth.coerceAtLeast(1),
-                                    drawable.intrinsicHeight.coerceAtLeast(1),
-                                    android.graphics.Bitmap.Config.ARGB_8888
-                                )
-                                val canvas = android.graphics.Canvas(bmp)
-                                drawable.setBounds(0, 0, canvas.width, canvas.height)
-                                drawable.draw(canvas)
-                                bmp
-                            }
-
-                        val styles = map.labelManager?.addLabelStyles(
-                            LabelStyles.from(
-                                LabelStyle.from(pinBitmap)
-                            )
+                factory = { context ->
+                    MapView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        start(
+                            object : MapLifeCycleCallback() {
+                                override fun onMapDestroy() {}
+                                override fun onMapError(error: Exception?) {
+                                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
+                                }
+                            },
+                            object : KakaoMapReadyCallback() {
+                                override fun onMapReady(map: KakaoMap) {
+                                    kakaoMap = map
 
-                        val layer = map.labelManager?.layer
-                        missions.forEach { item ->
-                            val m = item.mission
-                            if (m.lat == 0.0 && m.lng == 0.0) return@forEach
-                            layer?.addLabel(
-                                LabelOptions.from(LatLng.from(m.lat, m.lng))
-                                    .setStyles(styles)
-                                    .setTag(m.id.toString())
-                            )
-                        }
-                        map.setOnLabelClickListener { _, _, label ->
-                            val id = label.tag?.toString()?.toIntOrNull()
-                            selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
-                            true
-                        }
+                                    val center = districtCenters[region] ?: districtCenters["부산"]!!
+                                    val zoom = if (region == "부산") 10 else 14
+                                    map.moveCamera(
+                                        CameraUpdateFactory.newCenterPosition(center, zoom)
+                                    )
+
+                                    // ── 미션 깃발 꽂기 ──
+                                    // 모든 미션이 아니라 "진행중"(하늘색) · "찜한"(코럴) 미션만 표시한다.
+                                    val inRegion = MissionRepository.missions.value.filter {
+                                        region == "부산" || it.mission.district == region
+                                    }
+                                    fun isOngoing(item: MissionWithState) =
+                                        item.state == MissionState.IN_PROGRESS ||
+                                                item.state == MissionState.VERIFYING
+
+                                    // 진행중이면서 찜도 한 미션은 "진행중"(하늘색)을 우선 표시
+                                    val missions = inRegion.filter { isOngoing(it) || it.saved }
+
+                                    if (missions.isEmpty()) return
+
+                                    fun flagBitmap(resId: Int): android.graphics.Bitmap? =
+                                        androidx.core.content.ContextCompat
+                                            .getDrawable(context, resId)
+                                            ?.let { drawable ->
+                                                val bmp = android.graphics.Bitmap.createBitmap(
+                                                    drawable.intrinsicWidth.coerceAtLeast(1),
+                                                    drawable.intrinsicHeight.coerceAtLeast(1),
+                                                    android.graphics.Bitmap.Config.ARGB_8888
+                                                )
+                                                val canvas = android.graphics.Canvas(bmp)
+                                                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                                                drawable.draw(canvas)
+                                                bmp
+                                            }
+
+                                    val ongoingStyles = map.labelManager?.addLabelStyles(
+                                        LabelStyles.from(
+                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress))
+                                        )
+                                    )
+                                    val savedStyles = map.labelManager?.addLabelStyles(
+                                        LabelStyles.from(
+                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved))
+                                        )
+                                    )
+
+                                    val layer = map.labelManager?.layer
+                                    missions.forEach { item ->
+                                        val m = item.mission
+                                        if (m.lat == 0.0 && m.lng == 0.0) return@forEach
+                                        layer?.addLabel(
+                                            LabelOptions.from(LatLng.from(m.lat, m.lng))
+                                                .setStyles(
+                                                    if (isOngoing(item)) ongoingStyles else savedStyles
+                                                )
+                                                .setTag(m.id.toString())
+                                        )
+                                    }
+                                    map.setOnLabelClickListener { _, _, label ->
+                                        val id = label.tag?.toString()?.toIntOrNull()
+                                        selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
+                                        true
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             )
@@ -245,7 +274,7 @@ fun MapScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .navigationBarsPadding()
-                        .padding(bottom = bottomBarSpacing(), top = 16.dp)
+                        .padding(bottom = 100.dp, top = 16.dp)
                         .pressable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {
@@ -260,14 +289,7 @@ fun MapScreen(
                             Spacer(Modifier.height(4.dp))
                             Text(mission.district, color = TextSub, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
-                            // 보상 — 앱 공통 포인트 표시
-                            com.example.busasnquest.ui.components.PointAmount(
-                                value = mission.reward,
-                                badgeSize = 15.dp,
-                                badgeFontSize = 8.sp,
-                                fontSize = 13.sp,
-                                gap = 4.dp
-                            )
+                            Text("${mission.reward}P", color = Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         IconButton(onClick = { selectedMission = null }) {
                             Icon(Icons.Default.Close, contentDescription = "닫기")

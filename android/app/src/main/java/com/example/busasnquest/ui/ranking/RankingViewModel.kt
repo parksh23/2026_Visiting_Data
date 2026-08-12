@@ -120,8 +120,9 @@ class RankingViewModel(
         val rankText = if (hasMyRecord) myRank.rank.toString() else lastMyRank ?: "-"
         val topPercentText =
             if (hasMyRecord) "상위 ${myRank.topPercent}%" else lastTopPercent ?: "-"
+        // 숫자만 넘긴다 — "P" 는 화면의 공통 포인트 뱃지가 대신한다
         val pointText =
-            if (hasMyRecord) "${"%,d".format(myRank.point)}P" else lastPoint ?: "-"
+            if (hasMyRecord) "%,d".format(myRank.point) else lastPoint ?: "-"
 
         if (hasMyRecord) {
             lastMyRank = rankText
@@ -137,7 +138,8 @@ class RankingViewModel(
                 RankEntry(
                     rank = it.rank,
                     name = it.name,
-                    score = "${"%,d".format(it.score)}P",
+                    // "P" 없이 숫자만 — 화면에서 공통 포인트 뱃지를 붙인다
+                    score = "%,d".format(it.score),
                     // 서버가 내 순위(rank)를 함께 주므로 rank 일치 여부로 내 행 표시
                     isMe = it.rank == myRank.rank
                 )

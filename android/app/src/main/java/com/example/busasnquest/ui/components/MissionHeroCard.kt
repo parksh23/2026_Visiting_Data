@@ -160,11 +160,14 @@ fun MissionHeroCard(
                     color = TextMain,
                     modifier = Modifier.weight(1f)
                 )
-                Text(
-                    "+${mission.reward}P",
+                // 보상 — 앱 공통 포인트 표시
+                PointAmount(
+                    value = mission.reward,
+                    prefix = "+",
+                    badgeSize = if (compact) 14.dp else 16.dp,
+                    badgeFontSize = if (compact) 8.sp else 9.sp,
                     fontSize = if (compact) 11.sp else 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CoralDark
+                    gap = 4.dp
                 )
             }
             Spacer(Modifier.height(2.dp))

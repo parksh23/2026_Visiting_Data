@@ -229,11 +229,13 @@ fun ProfileStat(
     ) {
         // 통계 숫자 — 액센트 폰트 (포인트 통계는 공통 P 뱃지 표시)
         if (leadingPoint) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
-                Spacer(modifier = Modifier.width(5.dp))
-                Text(value, color = TextMain, style = accentStyle(20.sp))
-            }
+            // 앱 공통 포인트 표시 (홈 헤더와 같은 모양)
+            com.example.busasnquest.ui.components.PointAmount(
+                text = value,
+                badgeSize = 18.dp,
+                badgeFontSize = 10.sp,
+                fontSize = 20.sp
+            )
         } else {
             Text(value, color = TextMain, style = accentStyle(20.sp))
         }

@@ -138,12 +138,8 @@ private fun HomeHeader(points: Int) {
                     Text("따먹기", style = displayStyle(26.sp), color = TextMain)
                 }
             }
-            // 포인트 — 다른 탭과 동일: P 뱃지 + 액센트 숫자 (크림 알약 제거)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                com.example.busasnquest.ui.components.PointBadge(size = 17.dp, fontSize = 9.sp)
-                Spacer(Modifier.width(5.dp))
-                Text("%,d".format(points), color = CoralDark, style = accentStyle(15.sp))
-            }
+            // 포인트 — 앱 공통 표시 (모든 탭이 이 모양을 따른다)
+            com.example.busasnquest.ui.components.PointAmount(value = points)
         }
         Spacer(Modifier.height(Dimens.gapTight))
         Text(
@@ -481,11 +477,12 @@ private fun RecommendCard(rec: RecommendMission, onClick: () -> Unit) {
 
 @Composable
 private fun PointsChip(points: Int) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        com.example.busasnquest.ui.components.PointBadge(size = 18.dp, fontSize = 10.sp)
-        Spacer(Modifier.width(5.dp))
-        Text("$points", color = CoralDark, style = accentStyle(14.sp))
-    }
+    com.example.busasnquest.ui.components.PointAmount(
+        value = points,
+        badgeSize = 18.dp,
+        badgeFontSize = 10.sp,
+        fontSize = 14.sp
+    )
 }
 
 // ── 아래 두 헬퍼는 미션/상세 화면에서도 사용하므로 유지 ──

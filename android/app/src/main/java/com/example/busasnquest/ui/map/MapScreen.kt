@@ -259,7 +259,14 @@ fun MapScreen(
                             Spacer(Modifier.height(4.dp))
                             Text(mission.district, color = TextSub, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
-                            Text("${mission.reward}P", color = Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            // 보상 — 앱 공통 포인트 표시
+                            com.example.busasnquest.ui.components.PointAmount(
+                                value = mission.reward,
+                                badgeSize = 15.dp,
+                                badgeFontSize = 8.sp,
+                                fontSize = 13.sp,
+                                gap = 4.dp
+                            )
                         }
                         IconButton(onClick = { selectedMission = null }) {
                             Icon(Icons.Default.Close, contentDescription = "닫기")

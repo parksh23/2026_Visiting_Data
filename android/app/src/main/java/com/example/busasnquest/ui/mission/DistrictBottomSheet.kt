@@ -183,11 +183,19 @@ private fun SheetMissionRow(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(mission.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMain)
-            Text(
-                "${missionTypeLabel(mission.type)} · +${mission.reward}P",
-                fontSize = 11.sp,
-                color = TextSub
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(missionTypeLabel(mission.type), fontSize = 11.sp, color = TextSub)
+                Spacer(Modifier.width(6.dp))
+                // 보상 — 앱 공통 포인트 표시
+                com.example.busasnquest.ui.components.PointAmount(
+                    value = mission.reward,
+                    prefix = "+",
+                    badgeSize = 13.dp,
+                    badgeFontSize = 7.sp,
+                    fontSize = 11.sp,
+                    gap = 3.dp
+                )
+            }
         }
 
         // 상태별 작은 버튼

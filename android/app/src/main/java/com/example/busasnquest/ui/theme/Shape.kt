@@ -41,9 +41,9 @@ object Dimens {
     /** 중첩 라운드: 바깥 radius - 테두리/여백 = 안쪽 radius (안 맞으면 모서리에 틈이 보인다) */
     val borderWidth = 1.5.dp
 
-    val bottomBarSpace = 50.dp   // 플로팅 탭바에 안 가려지게 스크롤 콘텐츠 맨 아래 여백
     // 플로팅 탭바 실제 높이(테두리+패딩+아이콘+라벨 ≈ 96dp)를 넘기는 값.
-    // 스크롤 화면 맨 아래 콘텐츠가 탭바에 가리지 않게 하려면 이 값을 쓴다.
+    // ⚠️ 화면에서 직접 쓰지 말 것. 시스템 내비게이션 인셋이 빠져 있어 그대로 쓰면 여전히 가린다.
+    //    스크롤 콘텐츠 하단 여백은 bottomBarSpacing() 컴포저블을 쓴다.
     val bottomBarClearance = 108.dp
 
     // Elevation (부드러운 그림자)

@@ -66,6 +66,7 @@ import com.example.busasnquest.ui.theme.displayStyle
 import com.example.busasnquest.ui.theme.pressable
 import com.example.busasnquest.ui.theme.CoralInk
 import androidx.navigation.NavHostController
+import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
 fun RankingScreen(
@@ -87,7 +88,7 @@ fun RankingScreen(
 
         is RankingUiState.Success -> {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+                contentPadding = PaddingValues(bottom = bottomBarSpacing())
             ) {
                 item {
                     ScreenHeader(

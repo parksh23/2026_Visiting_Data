@@ -85,7 +85,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
             .background(BgSoftBlue)
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarClearance)
+            .padding(bottom = bottomBarSpacing())
     ) {
         SubPageHeader("알림 설정", navController)
 

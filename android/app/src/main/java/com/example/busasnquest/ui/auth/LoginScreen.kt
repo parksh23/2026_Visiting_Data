@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,19 +49,26 @@ private val LoginCard = Color(0xFFFFFFFF)    // 로그인 카드 표면
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onOpenDocument: (String) -> Unit = {},
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    var selectedTab by remember { mutableStateOf(0) }       // 0=Log in, 1=Sign up
-    var email by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var passwordConfirm by remember { mutableStateOf("") }
-    var passwordConfirmVisible by remember { mutableStateOf(false) }
-    var infoMessage by remember { mutableStateOf<String?>(null) }
+    // 약관 동의 상태 (회원가입·카카오 로그인 공통)
+    val agreements = rememberAgreementState()
+
+    // ⚠️ rememberSaveable — 약관 '보기'로 문서 화면에 다녀오면 이 화면의 컴포지션이
+    //    사라졌다 다시 만들어진다. remember 로 두면 탭과 입력값이 전부 초기화된다.
+    //    돌아왔을 때 처음부터 다시 입력하지 않도록 입력값을 모두 보존한다.
+    var selectedTab by rememberSaveable { mutableStateOf(0) }   // 0=Log in, 1=Sign up
+    var email by rememberSaveable { mutableStateOf("") }
+    var nickname by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var passwordConfirm by rememberSaveable { mutableStateOf("") }
+    var passwordConfirmVisible by rememberSaveable { mutableStateOf(false) }
+    var infoMessage by rememberSaveable { mutableStateOf<String?>(null) }
     val isLoading = uiState is LoginUiState.Loading
     val errorMessage = (uiState as? LoginUiState.Error)?.message
 
@@ -194,6 +202,21 @@ fun LoginScreen(
                 Text(infoMessage!!, color = Indigo, fontSize = 13.sp)
             }
 
+            // ── 약관 동의 (회원가입 탭에서만 표시) ──
+            // 카카오 로그인도 신규 가입일 수 있어 같은 동의를 요구하므로,
+            // 회원가입 탭에서 체크한 값을 아래 카카오 버튼에서도 그대로 쓴다.
+            if (selectedTab == 1) {
+                Spacer(Modifier.height(18.dp))
+                AgreementSection(
+                    state = agreements,
+                    onOpenDocument = onOpenDocument,
+                    accent = Indigo,
+                    borderColor = FieldBorder,
+                    labelColor = LabelGray,
+                    subColor = HintGray
+                )
+            }
+
             // ── 에러 메시지 ──
             if (errorMessage != null) {
                 Spacer(Modifier.height(10.dp))
@@ -206,9 +229,13 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (selectedTab == 0) viewModel.login(email, password)
-                    else viewModel.signup(email, password, passwordConfirm,nickname)
+                    else viewModel.signup(
+                        email, password, passwordConfirm, nickname,
+                        agreements.toDtoList()
+                    )
                 },
-                enabled = !isLoading,
+                // 회원가입은 필수 약관에 모두 동의해야 누를 수 있다
+                enabled = !isLoading && (selectedTab == 0 || agreements.allRequiredAgreed),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Indigo),
                 modifier = Modifier
@@ -243,16 +270,33 @@ fun LoginScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── 카카오 로그인 버튼 ──
+            // 카카오는 신규 가입과 기존 로그인이 한 버튼이라, 가입일 수 있는 이상
+            // 동의 없이 진행할 수 없다 → 회원가입 탭의 약관 동의를 그대로 요구한다.
+            val kakaoNeedsAgreement = !agreements.allRequiredAgreed
             KakaoLoginButton(
-                enabled = !isLoading,
+                enabled = !isLoading && !kakaoNeedsAgreement,
                 onClick = {
                     startKakaoLogin(
                         context = context,
-                        onToken = { accessToken -> viewModel.loginWithKakao(accessToken) },
+                        onToken = { accessToken ->
+                            viewModel.loginWithKakao(accessToken, agreements.toDtoList())
+                        },
                         onError = { msg -> viewModel.onKakaoError(msg) }
                     )
                 }
             )
+
+            // 로그인 탭에서는 약관 체크박스가 안 보이므로, 왜 눌리지 않는지 알려준다
+            if (kakaoNeedsAgreement) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (selectedTab == 0) "카카오로 시작하려면 회원가입 탭에서 약관에 동의해주세요."
+                    else "약관에 동의하면 카카오로 시작할 수 있어요.",
+                    color = HintGray,
+                    fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
 
             Spacer(Modifier.height(22.dp))
 

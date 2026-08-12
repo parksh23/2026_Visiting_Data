@@ -95,17 +95,39 @@ data class LoginResponseDto(
     val token: String
 )
 
+/**
+ * 약관 동의 이력 한 건.
+ *
+ * 어떤 문서를, 어느 버전으로, 언제 동의했는지를 남긴다.
+ * doc 값: "terms"(이용약관) | "privacy"(개인정보처리방침) | "location"(위치기반서비스 이용약관)
+ * version 은 assets/{doc}.md 머리말의 version 값을 그대로 보낸다.
+ * agreedAt 은 ISO-8601 UTC (예: 2026-08-12T09:30:00Z)
+ */
+data class AgreementDto(
+    val doc: String,
+    val version: String,
+    val agreed: Boolean,
+
+    @SerializedName("agreed_at")
+    val agreedAt: String
+)
+
 // 카카오 로그인 요청 - 앱이 받은 카카오 access token 을 서버로 전달
+// 신규 가입일 수 있으므로 동의 이력을 함께 보낸다 (서버는 신규일 때만 저장하면 된다)
 data class KakaoLoginRequestDto(
     @SerializedName("access_token")
-    val accessToken: String
+    val accessToken: String,
+
+    val agreements: List<AgreementDto> = emptyList()
 )
 
 // 회원가입 요청 - 서버로 보낼 것
 data class SignupRequestDto(
     val email: String,
     val nickname: String,
-    val password: String
+    val password: String,
+
+    val agreements: List<AgreementDto> = emptyList()
 )
 // 미션 인증 제출 요청 DTO
 // 앱 → 백엔드로 보내는 데이터

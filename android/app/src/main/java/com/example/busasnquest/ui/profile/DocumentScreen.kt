@@ -51,7 +51,7 @@ fun DocumentScreen(navController: NavHostController, slug: String) {
             .background(BgSoftBlue)
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarClearance)
+            .padding(bottom = bottomBarSpacing())
     ) {
         SubPageHeader(document?.title ?: "문서", navController)
 

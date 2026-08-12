@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.busasnquest.data.local.AppDocuments
+import com.example.busasnquest.data.remote.AgreementDto
 
 // 로그인 진행 상태
 sealed interface LoginUiState {
@@ -52,10 +54,13 @@ class AuthViewModel(
      * LoginScreen 에서 카카오 SDK 로그인으로 받은 access token 을 넘겨받아
      * 백엔드로 보내고, 돌아온 우리 서버 JWT 를 저장한다.
      */
-    fun loginWithKakao(kakaoAccessToken: String) {
+    fun loginWithKakao(
+        kakaoAccessToken: String,
+        agreements: List<AgreementDto> = emptyList()
+    ) {
         _uiState.value = LoginUiState.Loading
         viewModelScope.launch {
-            repository.loginWithKakao(kakaoAccessToken)
+            repository.loginWithKakao(kakaoAccessToken, agreements)
                 .onSuccess { token ->
                     tokenStore.saveToken(token)
                     _uiState.value = LoginUiState.Success
@@ -72,7 +77,13 @@ class AuthViewModel(
      * 2) 통과하면 repository.signup 을 호출한다.
      * 성공 시 토큰을 저장해 가입과 동시에 자동 로그인 처리한다.
      */
-    fun signup(email: String, password: String, passwordConfirm: String, nickname: String) {
+    fun signup(
+        email: String,
+        password: String,
+        passwordConfirm: String,
+        nickname: String,
+        agreements: List<AgreementDto> = emptyList()
+    ) {
         val trimmedEmail = email.trim()
         val trimmedNickname = nickname.trim()
 
@@ -86,6 +97,10 @@ class AuthViewModel(
                 "비밀번호는 8자 이상이어야 합니다."
             password != passwordConfirm ->
                 "비밀번호가 일치하지 않습니다."
+            // 화면에서 버튼을 잠그지만, 우회 경로가 생겨도 가입되지 않도록 여기서도 막는다
+            !agreements.filter { it.agreed }.map { it.doc }
+                .containsAll(AppDocuments.requiredSlugs) ->
+                "필수 약관에 모두 동의해주세요."
             else -> null
         }
         if (validationError != null) {
@@ -95,7 +110,7 @@ class AuthViewModel(
 
         _uiState.value = LoginUiState.Loading
         viewModelScope.launch {
-            repository.signup(trimmedEmail, password, trimmedNickname)
+            repository.signup(trimmedEmail, password, trimmedNickname, agreements)
                 .onSuccess {
                     // 자동 로그인하지 않고, 사용자가 직접 다시 로그인하도록 한다
                     _uiState.value = LoginUiState.SignupSuccess

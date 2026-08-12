@@ -65,7 +65,7 @@ fun MissionHistoryScreen(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+                contentPadding = PaddingValues(bottom = bottomBarSpacing())
             ) {
                 item {
                     Text(

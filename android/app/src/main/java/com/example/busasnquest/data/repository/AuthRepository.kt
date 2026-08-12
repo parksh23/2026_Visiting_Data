@@ -8,6 +8,7 @@ import com.example.busasnquest.data.remote.SignupRequestDto
 import org.json.JSONObject
 import retrofit2.HttpException
 import java.io.IOException
+import com.example.busasnquest.data.remote.AgreementDto
 
 // 서버가 내려준 에러 응답에서 detail 메시지를 뽑아낸다.
 // FastAPI 는 오류 시 {"detail": "..."} 형태로 응답한다.
@@ -33,10 +34,19 @@ interface AuthRepository {
     suspend fun login(email: String, password: String): Result<String>
 
     // 카카오 access token 을 서버로 보내 우리 서버 JWT 를 받는다
-    suspend fun loginWithKakao(kakaoAccessToken: String): Result<String>
+    // agreements: 신규 가입일 수 있으므로 약관 동의 이력을 함께 전달한다
+    suspend fun loginWithKakao(
+        kakaoAccessToken: String,
+        agreements: List<AgreementDto> = emptyList()
+    ): Result<String>
 
-    // 이메일/비밀번호로 회원가입 후 JWT 를 받는다
-    suspend fun signup(email: String, password: String, nickname: String): Result<String>
+    // 이메일/비밀번호로 회원가입 후 JWT 를 받는다 (약관 동의 이력 포함)
+    suspend fun signup(
+        email: String,
+        password: String,
+        nickname: String,
+        agreements: List<AgreementDto> = emptyList()
+    ): Result<String>
 }
 
 /**
@@ -56,12 +66,20 @@ class FakeAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun loginWithKakao(kakaoAccessToken: String): Result<String> {
+    override suspend fun loginWithKakao(
+        kakaoAccessToken: String,
+        agreements: List<AgreementDto>
+    ): Result<String> {
         delay(500)
         return Result.success("fake-kakao-token-${System.currentTimeMillis()}")
     }
 
-    override suspend fun signup(email: String, password: String, nickname: String): Result<String> {
+    override suspend fun signup(
+        email: String,
+        password: String,
+        nickname: String,
+        agreements: List<AgreementDto>
+    ): Result<String> {
         delay(800)
         return Result.success("fake-signup-token-${System.currentTimeMillis()}")
     }
@@ -125,9 +143,17 @@ class RetrofitAuthRepository(
      * 카카오 로그인: 카카오 access token 을 서버로 보내면
      * 서버가 카카오에 검증 후 우리 서버 JWT 를 돌려준다.
      */
-    override suspend fun loginWithKakao(kakaoAccessToken: String): Result<String> {
+    override suspend fun loginWithKakao(
+        kakaoAccessToken: String,
+        agreements: List<AgreementDto>
+    ): Result<String> {
         return try {
-            val response = api.kakaoLogin(KakaoLoginRequestDto(kakaoAccessToken))
+            val response = api.kakaoLogin(
+                KakaoLoginRequestDto(
+                    accessToken = kakaoAccessToken,
+                    agreements = agreements
+                )
+            )
             Result.success(response.token)
         } catch (e: HttpException) {
             // 서버가 내려준 실패 사유(detail)가 있으면 그대로 보여준다
@@ -157,13 +183,19 @@ class RetrofitAuthRepository(
     *   "token": "test-jwt-token"
     * }
     */
-    override suspend fun signup(email: String, password: String, nickname: String): Result<String> {
+    override suspend fun signup(
+        email: String,
+        password: String,
+        nickname: String,
+        agreements: List<AgreementDto>
+    ): Result<String> {
         return try {
             val response = api.signup(
                 SignupRequestDto(
                     email = email,
                     password = password,
-                    nickname = nickname        // ← 추가
+                    nickname = nickname,
+                    agreements = agreements    // 약관 동의 이력
                 )
             )
             Result.success(response.token)

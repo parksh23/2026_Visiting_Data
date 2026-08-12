@@ -71,7 +71,7 @@ fun DistrictRankingScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         LazyColumn(
-            contentPadding = PaddingValues(bottom = Dimens.bottomBarSpace)
+            contentPadding = PaddingValues(bottom = bottomBarSpacing())
         ) {
             items(rankings) { entry ->
                 // 지역 랭킹의 점수는 "3개"(완료 미션 수)라 P 뱃지를 붙이지 않는다

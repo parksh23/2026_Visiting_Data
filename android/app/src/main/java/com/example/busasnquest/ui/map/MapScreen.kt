@@ -50,6 +50,7 @@ import com.example.busasnquest.ui.theme.pressableRow
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
+import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
 fun MapScreen(
@@ -244,7 +245,7 @@ fun MapScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .navigationBarsPadding()
-                        .padding(bottom = 100.dp, top = 16.dp)
+                        .padding(bottom = bottomBarSpacing(), top = 16.dp)
                         .pressable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {

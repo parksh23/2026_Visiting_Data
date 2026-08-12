@@ -65,7 +65,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(bottom = Dimens.bottomBarSpace)
+            .padding(bottom = bottomBarSpacing())
     ) {
         Spacer(Modifier.height(Dimens.gapTight))
 

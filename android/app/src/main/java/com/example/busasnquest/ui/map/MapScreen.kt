@@ -1,6 +1,5 @@
 package com.example.busasnquest.ui.map
 
-import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,13 +29,9 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakao.vectormap.KakaoMap
-import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
-import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.example.busasnquest.R
 import com.example.busasnquest.data.model.MissionState
@@ -54,6 +49,9 @@ import com.example.busasnquest.ui.theme.pressableRow
 import com.kakao.vectormap.label.LabelOptions
 import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
+import androidx.compose.ui.platform.LocalContext
+import com.example.busasnquest.ui.components.KakaoMapView
+import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
 fun MapScreen(
@@ -68,6 +66,8 @@ fun MapScreen(
 
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    // 깃발 비트맵을 만들 때 사용 (예전에는 AndroidView factory 의 context 였다)
+    val context = LocalContext.current
 
     LaunchedEffect(focusSearch) {
         if (focusSearch) {
@@ -78,6 +78,78 @@ fun MapScreen(
 
     // region 내 미션 중 제목/구군명이 검색어와 일치하는 목록
     val missionsList by MissionRepository.missions.collectAsStateWithLifecycle()
+
+    /**
+     * ── 미션 깃발 꽂기 ──
+     * 진행중(하늘색) · 찜한(코럴) 미션만 표시하고, 둘 다면 진행중을 우선한다.
+     *
+     * ⚠️ onMapReady 안에서 한 번만 그리면 안 된다.
+     *    지도가 준비되는 시점엔 서버 미션이 아직 안 왔을 수 있고(그땐 좌표 없는 샘플 데이터다),
+     *    이후 미션을 불러오거나 찜을 바꿔도 깃발이 갱신되지 않는다.
+     *    → 지도·미션 목록이 바뀔 때마다 다시 그린다.
+     */
+    LaunchedEffect(kakaoMap, missionsList, region) {
+        val map = kakaoMap ?: return@LaunchedEffect
+        val layer = map.labelManager?.layer ?: return@LaunchedEffect
+
+        layer.removeAll()   // 이전 깃발 제거 후 다시 그린다
+
+        val inRegion = missionsList.filter {
+            region == "부산" || it.mission.district == region
+        }
+        fun isOngoing(item: MissionWithState) =
+            item.state == MissionState.IN_PROGRESS ||
+                    item.state == MissionState.VERIFYING
+
+        val targets = inRegion.filter { isOngoing(it) || it.saved }
+        val withCoordinate = targets.filter { it.mission.lat != 0.0 || it.mission.lng != 0.0 }
+
+        // 깃발이 안 보일 때 원인을 바로 알 수 있게 남긴다
+        android.util.Log.d(
+            "KakaoMap",
+            "깃발 갱신 region=$region 지역미션=${inRegion.size} " +
+                    "대상(진행중·찜)=${targets.size} 좌표있음=${withCoordinate.size}"
+        )
+
+        if (withCoordinate.isEmpty()) return@LaunchedEffect
+
+        fun flagBitmap(resId: Int): android.graphics.Bitmap? =
+            androidx.core.content.ContextCompat
+                .getDrawable(context, resId)
+                ?.let { drawable ->
+                    val bmp = android.graphics.Bitmap.createBitmap(
+                        drawable.intrinsicWidth.coerceAtLeast(1),
+                        drawable.intrinsicHeight.coerceAtLeast(1),
+                        android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    val canvas = android.graphics.Canvas(bmp)
+                    drawable.setBounds(0, 0, canvas.width, canvas.height)
+                    drawable.draw(canvas)
+                    bmp
+                }
+
+        val ongoingStyles = map.labelManager?.addLabelStyles(
+            LabelStyles.from(LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress)))
+        )
+        val savedStyles = map.labelManager?.addLabelStyles(
+            LabelStyles.from(LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved)))
+        )
+
+        withCoordinate.forEach { item ->
+            val m = item.mission
+            layer.addLabel(
+                LabelOptions.from(LatLng.from(m.lat, m.lng))
+                    .setStyles(if (isOngoing(item)) ongoingStyles else savedStyles)
+                    .setTag(m.id.toString())
+            )
+        }
+
+        map.setOnLabelClickListener { _, _, label ->
+            val id = label.tag?.toString()?.toIntOrNull()
+            selectedMission = withCoordinate.firstOrNull { it.mission.id == id }?.mission
+            true
+        }
+    }
 
     val searchResults: List<MissionWithState> =
         if (searchQuery.isBlank()) emptyList()
@@ -96,93 +168,21 @@ fun MapScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            // 카카오맵 (Compose ↔ View 다리: AndroidView)
-            AndroidView(
+            // 카카오맵 — 생명주기가 붙은 공용 컴포저블
+            // (MapView 를 직접 만들면 백그라운드 복귀 시 첫 프레임을 못 그려 앱이 멈춘다)
+            KakaoMapView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    MapView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        start(
-                            object : MapLifeCycleCallback() {
-                                override fun onMapDestroy() {}
-                                override fun onMapError(error: Exception?) {
-                                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
-                                }
-                            },
-                            object : KakaoMapReadyCallback() {
-                                override fun onMapReady(map: KakaoMap) {
-                                    kakaoMap = map
+                onMapError = { error ->
+                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
+                },
+                onMapReady = { map ->
+                    kakaoMap = map
 
-                                    val center = districtCenters[region] ?: districtCenters["부산"]!!
-                                    val zoom = if (region == "부산") 10 else 14
-                                    map.moveCamera(
-                                        CameraUpdateFactory.newCenterPosition(center, zoom)
-                                    )
-
-                                    // ── 미션 깃발 꽂기 ──
-                                    // 모든 미션이 아니라 "진행중"(하늘색) · "찜한"(코럴) 미션만 표시한다.
-                                    val inRegion = MissionRepository.missions.value.filter {
-                                        region == "부산" || it.mission.district == region
-                                    }
-                                    fun isOngoing(item: MissionWithState) =
-                                        item.state == MissionState.IN_PROGRESS ||
-                                                item.state == MissionState.VERIFYING
-
-                                    // 진행중이면서 찜도 한 미션은 "진행중"(하늘색)을 우선 표시
-                                    val missions = inRegion.filter { isOngoing(it) || it.saved }
-
-                                    if (missions.isEmpty()) return
-
-                                    fun flagBitmap(resId: Int): android.graphics.Bitmap? =
-                                        androidx.core.content.ContextCompat
-                                            .getDrawable(context, resId)
-                                            ?.let { drawable ->
-                                                val bmp = android.graphics.Bitmap.createBitmap(
-                                                    drawable.intrinsicWidth.coerceAtLeast(1),
-                                                    drawable.intrinsicHeight.coerceAtLeast(1),
-                                                    android.graphics.Bitmap.Config.ARGB_8888
-                                                )
-                                                val canvas = android.graphics.Canvas(bmp)
-                                                drawable.setBounds(0, 0, canvas.width, canvas.height)
-                                                drawable.draw(canvas)
-                                                bmp
-                                            }
-
-                                    val ongoingStyles = map.labelManager?.addLabelStyles(
-                                        LabelStyles.from(
-                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress))
-                                        )
-                                    )
-                                    val savedStyles = map.labelManager?.addLabelStyles(
-                                        LabelStyles.from(
-                                            LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved))
-                                        )
-                                    )
-
-                                    val layer = map.labelManager?.layer
-                                    missions.forEach { item ->
-                                        val m = item.mission
-                                        if (m.lat == 0.0 && m.lng == 0.0) return@forEach
-                                        layer?.addLabel(
-                                            LabelOptions.from(LatLng.from(m.lat, m.lng))
-                                                .setStyles(
-                                                    if (isOngoing(item)) ongoingStyles else savedStyles
-                                                )
-                                                .setTag(m.id.toString())
-                                        )
-                                    }
-                                    map.setOnLabelClickListener { _, _, label ->
-                                        val id = label.tag?.toString()?.toIntOrNull()
-                                        selectedMission = missions.firstOrNull { it.mission.id == id }?.mission
-                                        true
-                                    }
-                                }
-                            }
-                        )
-                    }
+                    val center = districtCenters[region] ?: districtCenters["부산"]!!
+                    val zoom = if (region == "부산") 10 else 14
+                    map.moveCamera(
+                        CameraUpdateFactory.newCenterPosition(center, zoom)
+                    )
                 }
             )
 
@@ -274,7 +274,7 @@ fun MapScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .navigationBarsPadding()
-                        .padding(bottom = 100.dp, top = 16.dp)
+                        .padding(bottom = bottomBarSpacing(), top = 16.dp)
                         .pressable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {
@@ -289,7 +289,14 @@ fun MapScreen(
                             Spacer(Modifier.height(4.dp))
                             Text(mission.district, color = TextSub, fontSize = 13.sp)
                             Spacer(Modifier.height(4.dp))
-                            Text("${mission.reward}P", color = Coral, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            // 보상 — 앱 공통 포인트 표시
+                            com.example.busasnquest.ui.components.PointAmount(
+                                value = mission.reward,
+                                badgeSize = 15.dp,
+                                badgeFontSize = 8.sp,
+                                fontSize = 13.sp,
+                                gap = 4.dp
+                            )
                         }
                         IconButton(onClick = { selectedMission = null }) {
                             Icon(Icons.Default.Close, contentDescription = "닫기")

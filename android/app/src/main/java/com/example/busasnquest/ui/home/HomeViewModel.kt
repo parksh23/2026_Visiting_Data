@@ -140,7 +140,7 @@ class HomeViewModel : ViewModel() {
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
-                    missionType = MissionType.IMAGE_LOCATION.toServerType(),
+                    missionType = serverTypeOf(id, MissionType.IMAGE_LOCATION),
                     imageUrl = imageUrl,
                     latitude = location.latitude,
                     longitude = location.longitude
@@ -162,7 +162,7 @@ class HomeViewModel : ViewModel() {
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
-                    missionType = MissionType.CURRENT_LOCATION.toServerType(),
+                    missionType = serverTypeOf(id, MissionType.CURRENT_LOCATION),
                     latitude = location.latitude,
                     longitude = location.longitude
                 )
@@ -191,7 +191,7 @@ class HomeViewModel : ViewModel() {
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
-                    missionType = MissionType.RECEIPT.toServerType(),
+                    missionType = serverTypeOf(id, MissionType.RECEIPT),
                     receiptImageUrl = receiptImageUrl
                 )
             )
@@ -201,6 +201,21 @@ class HomeViewModel : ViewModel() {
     fun onCameraPermissionDenied(id: Int) {
         MissionRepository.setError(id, "카메라 권한이 있어야 영수증을 촬영할 수 있어요.")
     }
+
+    /**
+     * 서버에 보낼 mission_type.
+     *
+     * 서버는 요청한 타입이 DB 값과 정확히 같은지 검사한다. 앱이 자체 문자열을 만들어 보내면
+     * 서버 표기가 바뀔 때마다("PHOTO" ↔ "IMAGE") 인증이 거절되므로,
+     * 서버가 내려준 원문(serverType)을 그대로 되돌려 보낸다.
+     * 로컬 샘플 데이터라 원문이 없으면 앱 기본값으로 폴백한다.
+     */
+    private fun serverTypeOf(missionId: Int, fallback: MissionType): String =
+        MissionRepository.missions.value
+            .firstOrNull { it.mission.id == missionId }
+            ?.mission?.serverType
+            ?.takeIf { it.isNotBlank() }
+            ?: fallback.toServerType()
 
     // 공통: 서버 제출 → 성공이면 완료 처리, 실패면 에러 표시 후 진행 중으로 복귀
     private suspend fun submitVerification(id: Int, request: MissionVerifyRequestDto) {

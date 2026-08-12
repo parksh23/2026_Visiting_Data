@@ -16,7 +16,17 @@ data class OngoingMission(
     val district: String = "",
     val lat: Double = 0.0,      // 위도 (지도 핀)
     val lng: Double = 0.0,      // 경도 (지도 핀)
-    val imageUrl: String? = null // 히어로 카드용 대표 사진 (null 이면 구별 그라데이션 폴백)
+    val imageUrl: String? = null, // 히어로 카드용 대표 사진 (null 이면 구별 그라데이션 폴백)
+
+    /**
+     * 서버가 이 미션을 내려줄 때 쓴 mission_type 원문("IMAGE" / "PHOTO" / "RECEIPT" …).
+     *
+     * 인증을 제출할 때는 앱이 만든 값 대신 이 값을 그대로 돌려보낸다.
+     * 서버는 요청한 타입이 DB 값과 정확히 같은지 검사하는데,
+     * 앱이 자체 문자열을 만들어 보내면 서버 표기가 바뀔 때마다 인증이 거절된다.
+     * 비어 있으면(=로컬 샘플 데이터) MissionType.toServerType() 으로 폴백한다.
+     */
+    val serverType: String = ""
 )
 
 // 구·군별 진행 현황

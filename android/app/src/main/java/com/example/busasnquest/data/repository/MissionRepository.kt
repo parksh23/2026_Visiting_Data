@@ -532,7 +532,8 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         district = resolvedDistrict,
         lat = latitude,
         lng = longitude,
-        imageUrl = imageUrl
+        imageUrl = imageUrl,
+        serverType = missionType     // 인증 제출 때 그대로 돌려보내기 위해 원문 보관
     )
 }
 

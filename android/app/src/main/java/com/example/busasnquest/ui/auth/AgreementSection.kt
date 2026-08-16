@@ -46,29 +46,49 @@ import java.util.TimeZone
  *
  * 화면에서 rememberAgreementState() 로 만들어 쓰고,
  * 가입/카카오 로그인 요청 시 toDtoList() 로 서버 전송용 이력을 만든다.
+ *
+ * 동의 이력은 법적 증빙이므로 "언제 동의했는지"가 정확해야 한다.
+ * 그래서 전송 시각이 아니라 사용자가 체크한 그 순간의 시각을 문서별로 보관한다.
+ * (체크를 풀면 시각도 함께 지워진다 = 동의하지 않은 상태)
  */
 class AgreementState(
     private val versions: Map<String, String>
 ) {
-    // slug -> 동의 여부 (Compose 스냅샷 맵이라 값이 바뀌면 화면이 다시 그려진다)
-    private val checked = mutableStateMapOf<String, Boolean>()
+    // slug -> 동의한 시각(ISO-8601 UTC). 키가 없으면 미동의.
+    // Compose 스냅샷 맵이라 값이 바뀌면 화면이 다시 그려진다.
+    private val agreedAtBySlug = mutableStateMapOf<String, String>()
 
     val allRequiredAgreed: Boolean
-        get() = AppDocuments.requiredSlugs.all { checked[it] == true }
+        get() = AppDocuments.requiredSlugs.all { agreedAtBySlug.containsKey(it) }
 
-    fun isAgreed(slug: String): Boolean = checked[slug] == true
+    fun isAgreed(slug: String): Boolean = agreedAtBySlug.containsKey(slug)
 
     fun toggle(slug: String) {
-        checked[slug] = !(checked[slug] ?: false)
+        if (agreedAtBySlug.containsKey(slug)) {
+            agreedAtBySlug.remove(slug)
+        } else {
+            agreedAtBySlug[slug] = isoUtcNow()
+        }
     }
 
     fun setAll(value: Boolean) {
-        AppDocuments.requiredSlugs.forEach { checked[it] = value }
+        if (value) {
+            val now = isoUtcNow()
+            // 이미 동의한 항목은 원래 동의 시각을 유지한다
+            AppDocuments.requiredSlugs.forEach { slug ->
+                if (!agreedAtBySlug.containsKey(slug)) agreedAtBySlug[slug] = now
+            }
+        } else {
+            agreedAtBySlug.clear()
+        }
     }
 
     fun versionOf(slug: String): String = versions[slug] ?: "-"
 
-    /** 서버로 보낼 동의 이력. 동의 시각은 전송 시점(UTC ISO-8601). */
+    /**
+     * 서버로 보낼 동의 이력.
+     * 미동의 항목도 agreed=false 로 함께 보낸다 — 서버가 필수 동의 여부를 검증할 수 있도록.
+     */
     fun toDtoList(): List<AgreementDto> {
         val now = isoUtcNow()
         return AppDocuments.requiredSlugs.map { slug ->
@@ -76,7 +96,7 @@ class AgreementState(
                 doc = slug,
                 version = versionOf(slug),
                 agreed = isAgreed(slug),
-                agreedAt = now
+                agreedAt = agreedAtBySlug[slug] ?: now
             )
         }
     }
@@ -90,18 +110,27 @@ class AgreementState(
     companion object {
         /**
          * 약관 '보기'로 문서 화면에 다녀오면 로그인 화면 컴포지션이 사라졌다 다시 만들어진다.
-         * 그때 체크가 풀리지 않도록 동의한 문서 목록을 저장/복원한다.
-         * (Bundle 에 안전하게 담기도록 쉼표로 이어붙인 문자열로 보관)
+         * 그때 체크가 풀리지 않도록 동의한 문서와 동의 시각을 저장/복원한다.
+         * (Bundle 에 안전하게 담기도록 "slug|시각" 을 쉼표로 이어붙인 문자열로 보관)
          */
         fun saver(versions: Map<String, String>): Saver<AgreementState, String> = Saver(
             save = { state ->
-                AppDocuments.requiredSlugs.filter { state.isAgreed(it) }.joinToString(",")
+                AppDocuments.requiredSlugs
+                    .filter { state.isAgreed(it) }
+                    .joinToString(",") { slug -> slug + "|" + state.agreedAtBySlug[slug] }
             },
             restore = { saved ->
                 AgreementState(versions).apply {
                     saved.split(",")
                         .filter { it.isNotBlank() }
-                        .forEach { slug -> checked[slug] = true }
+                        .forEach { entry ->
+                            val parts = entry.split("|")
+                            val slug = parts.getOrNull(0)
+                            val at = parts.getOrNull(1)
+                            if (!slug.isNullOrBlank() && !at.isNullOrBlank()) {
+                                agreedAtBySlug[slug] = at
+                            }
+                        }
                 }
             }
         )

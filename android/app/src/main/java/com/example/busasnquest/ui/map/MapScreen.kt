@@ -53,6 +53,17 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.busasnquest.ui.components.KakaoMapView
 import com.example.busasnquest.ui.theme.bottomBarSpacing
 
+/**
+ * 지도 깃발의 기준점 — 이미지에서 "깃대 밑동"이 있는 위치 비율.
+ * (0,0)=좌상단, (1,1)=우하단. 깃대가 이미지 왼쪽에 치우쳐 있어 0.5 가 아니다.
+ *
+ * ⚠️ 이 값을 지정하지 않으면 SDK 기본 기준점이 적용돼, 깃발이 실제 미션 좌표에서
+ *    화면상 일정 픽셀만큼 어긋난 채 그려진다. 화면 픽셀 오차는 확대할수록
+ *    지도상 거리로는 작아지므로 "줌할 때마다 가리키는 곳이 달라지는" 것처럼 보인다.
+ */
+private const val FLAG_ANCHOR_X = 0.108f
+private const val FLAG_ANCHOR_Y = 1.0f
+
 @Composable
 fun MapScreen(
     region: String,
@@ -129,10 +140,16 @@ fun MapScreen(
                 }
 
         val ongoingStyles = map.labelManager?.addLabelStyles(
-            LabelStyles.from(LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress)))
+            LabelStyles.from(
+                LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_progress))
+                    .setAnchorPoint(FLAG_ANCHOR_X, FLAG_ANCHOR_Y)
+            )
         )
         val savedStyles = map.labelManager?.addLabelStyles(
-            LabelStyles.from(LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved)))
+            LabelStyles.from(
+                LabelStyle.from(flagBitmap(R.drawable.ic_map_flag_saved))
+                    .setAnchorPoint(FLAG_ANCHOR_X, FLAG_ANCHOR_Y)
+            )
         )
 
         withCoordinate.forEach { item ->

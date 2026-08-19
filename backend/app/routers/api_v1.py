@@ -167,7 +167,7 @@ class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
 
 
-# --- 이메일 발송 함수 (IPv4 강제 우회 및 587 포트 적용) ---
+# --- 이메일 발송 함수 (465 SSL 포트 + IPv4 고정 패치 적용) ---
 def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
     sender_email = os.getenv("SMTP_EMAIL")
     sender_password = os.getenv("SMTP_PASSWORD")
@@ -181,20 +181,20 @@ def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
     msg["From"] = sender_email
     msg["To"] = receiver_email
 
-    # Render 서버의 IPv6 라우팅 오류 방지 패치
+    # IPv4 전용 소켓 패치 (Render IPv6 미지원 문제 우회)
     orig_getaddrinfo = socket.getaddrinfo
     def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
         return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
 
     try:
         socket.getaddrinfo = getaddrinfo_ipv4
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
-            server.starttls()
+        # 465 SSL 포트 사용 (timeout 10초)
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"이메일 발송 실패: {e}")
+        print(f"📧 이메일 발송 실패: {e}")
         return False
     finally:
         socket.getaddrinfo = orig_getaddrinfo
@@ -428,7 +428,7 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(
             status_code=500,
-            detail="이메일 발송에 실패했습니다. Render 환경변수또는 메일 주소를 확인해주세요."
+            detail="이메일 발송에 실패했습니다. Render 환경변수(SMTP) 또는 메일 주소를 확인해주세요."
         )
 
     # 발송 성공 시에만 DB 업데이트

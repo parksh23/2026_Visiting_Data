@@ -178,3 +178,48 @@ data class UploadResponseDto(
 data class UpdateNicknameRequestDto(
     val nickname: String
 )
+
+// ───────── 계정 보안·관리 ─────────
+
+// 아이디 찾기 요청 (POST /api/v1/auth/find-id) — 로그인 전이라 토큰 불필요
+data class FindIdRequestDto(
+    val nickname: String
+)
+
+// 아이디 찾기 응답. 서버가 이메일 앞 2자만 남기고 마스킹해서 준다.
+data class FindIdResponseDto(
+    val message: String? = null,
+
+    @SerializedName("masked_email")
+    val maskedEmail: String? = null
+)
+
+// 비밀번호 찾기 요청 (POST /api/v1/auth/find-password)
+// 서버가 임시 비밀번호를 만들어 해당 메일로 발송한다.
+data class FindPasswordRequestDto(
+    val email: String
+)
+
+/**
+ * 비밀번호 변경 요청 (PATCH /api/v1/users/me/password)
+ *
+ * 키 이름은 서버 계약 그대로 old_password / new_password 다.
+ */
+data class ChangePasswordRequestDto(
+    @SerializedName("old_password")
+    val oldPassword: String,
+
+    @SerializedName("new_password")
+    val newPassword: String
+)
+
+/**
+ * 성공 여부만 돌려주는 공통 응답 ({"success": true, "message": "..."}).
+ *
+ * 로그아웃·회원 탈퇴·비밀번호 변경·비밀번호 찾기가 모두 이 형태다.
+ * 서버가 본문 없이 204 를 주는 경우도 대비해 전부 nullable 로 둔다.
+ */
+data class SimpleResultDto(
+    val success: Boolean? = null,
+    val message: String? = null
+)

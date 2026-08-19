@@ -3,6 +3,8 @@ package com.example.busasnquest.data.repository
 import kotlinx.coroutines.delay
 import com.example.busasnquest.data.remote.AuthApi
 import com.example.busasnquest.data.remote.KakaoLoginRequestDto
+import com.example.busasnquest.data.remote.FindIdRequestDto
+import com.example.busasnquest.data.remote.FindPasswordRequestDto
 import com.example.busasnquest.data.remote.LoginRequestDto
 import com.example.busasnquest.data.remote.SignupRequestDto
 import org.json.JSONObject
@@ -21,6 +23,19 @@ private fun HttpException.serverDetail(fallback: String): String {
     } catch (e: Exception) {
         fallback
     }
+}
+
+/**
+ * 규격서 9장(오류 처리)의 상태 코드별 안내 문구.
+ *
+ * 404 = 닉네임/이메일과 일치하는 계정 없음
+ * 500 = 메일 발송 실패 등 서버 문제
+ * 그 외에는 서버가 준 detail 을 그대로 쓴다.
+ */
+private fun HttpException.accountLookupMessage(): String = when (code()) {
+    404 -> serverDetail("계정을 찾을 수 없습니다.")
+    500 -> "잠시 후 다시 시도해주세요."
+    else -> serverDetail("요청을 처리하지 못했습니다. (${code()})")
 }
 
 /**
@@ -47,6 +62,22 @@ interface AuthRepository {
         nickname: String,
         agreements: List<AgreementDto> = emptyList()
     ): Result<String>
+
+    /** 닉네임으로 가입 이메일 찾기. 성공 시 마스킹된 이메일("bu*****@gmail.com")을 돌려준다. */
+    suspend fun findId(nickname: String): Result<String>
+
+    /**
+     * 임시 비밀번호 메일 발송.
+     *
+     * ⚠️ 서버 응답의 message 를 일부러 버린다.
+     * 메일 발송이 실패하면 서버가 "[개발 모드] ... 비밀번호: xxxx" 처럼
+     * 임시 비밀번호 평문을 본문에 실어 보내는데, 그대로 화면에 띄우면 노출된다.
+     * 화면에는 고정 안내 문구만 보여준다.
+     */
+    suspend fun findPassword(email: String): Result<Unit>
+
+    /** 로그아웃 통보. 실패해도 앱은 로컬 토큰을 지우고 진행한다. */
+    suspend fun logout(): Result<Unit>
 }
 
 /**
@@ -82,6 +113,23 @@ class FakeAuthRepository : AuthRepository {
     ): Result<String> {
         delay(800)
         return Result.success("fake-signup-token-${System.currentTimeMillis()}")
+    }
+
+    override suspend fun findId(nickname: String): Result<String> {
+        delay(600)
+        return if (nickname.isNotBlank()) Result.success("bu*****@gmail.com")
+        else Result.failure(Exception("계정을 찾을 수 없습니다."))
+    }
+
+    override suspend fun findPassword(email: String): Result<Unit> {
+        delay(600)
+        return if (email.contains("@")) Result.success(Unit)
+        else Result.failure(Exception("계정을 찾을 수 없습니다."))
+    }
+
+    override suspend fun logout(): Result<Unit> {
+        delay(200)
+        return Result.success(Unit)
     }
 }
 
@@ -205,6 +253,53 @@ class RetrofitAuthRepository(
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
         } catch (e: Exception) {
             Result.failure(Exception("회원가입 중 오류가 발생했습니다."))
+        }
+    }
+
+    /** 닉네임 → 마스킹된 가입 이메일 */
+    override suspend fun findId(nickname: String): Result<String> {
+        return try {
+            val response = api.findId(FindIdRequestDto(nickname = nickname.trim()))
+            val masked = response.maskedEmail
+            if (masked.isNullOrBlank()) {
+                Result.failure(Exception("계정을 찾을 수 없습니다."))
+            } else {
+                Result.success(masked)
+            }
+        } catch (e: HttpException) {
+            Result.failure(Exception(e.accountLookupMessage()))
+        } catch (e: IOException) {
+            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        } catch (e: Exception) {
+            Result.failure(Exception("아이디 찾기 중 오류가 발생했습니다."))
+        }
+    }
+
+    /**
+     * 임시 비밀번호 메일 발송.
+     *
+     * ⚠️ 응답 본문(message)을 의도적으로 쓰지 않는다 — 인터페이스 주석 참고.
+     */
+    override suspend fun findPassword(email: String): Result<Unit> {
+        return try {
+            api.findPassword(FindPasswordRequestDto(email = email.trim().lowercase()))
+            Result.success(Unit)
+        } catch (e: HttpException) {
+            Result.failure(Exception(e.accountLookupMessage()))
+        } catch (e: IOException) {
+            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+        } catch (e: Exception) {
+            Result.failure(Exception("비밀번호 찾기 중 오류가 발생했습니다."))
+        }
+    }
+
+    /** 로그아웃 통보. 호출한 쪽은 실패해도 로컬 토큰을 지운다. */
+    override suspend fun logout(): Result<Unit> {
+        return try {
+            api.logout()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
+import com.example.busasnquest.data.remote.RetrofitInstance
+import com.example.busasnquest.data.repository.RetrofitAuthRepository
 import com.example.busasnquest.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +28,20 @@ data class ProfileUiState(
 
 // 닉네임 편집 다이얼로그 상태
 data class NicknameEditState(
+    val visible: Boolean = false,
+    val loading: Boolean = false,
+    val error: String? = null
+)
+
+// 비밀번호 변경 다이얼로그 상태
+data class PasswordEditState(
+    val visible: Boolean = false,
+    val loading: Boolean = false,
+    val error: String? = null
+)
+
+// 회원 탈퇴 확인 다이얼로그 상태
+data class WithdrawState(
     val visible: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null
@@ -121,6 +137,118 @@ class ProfileViewModel : ViewModel() {
                     _editState.value = _editState.value.copy(
                         loading = false,
                         error = e.message ?: "닉네임 변경에 실패했습니다."
+                    )
+                }
+        }
+    }
+
+    // ───────── 비밀번호 변경 ─────────
+    private val _passwordState = MutableStateFlow(PasswordEditState())
+    val passwordState: StateFlow<PasswordEditState> = _passwordState.asStateFlow()
+
+    /** 변경 성공 → 화면이 안내를 띄운 뒤 강제 로그아웃시킨다 */
+    private val _passwordChanged = MutableStateFlow(false)
+    val passwordChanged: StateFlow<Boolean> = _passwordChanged.asStateFlow()
+
+    fun openPasswordEditor() { _passwordState.value = PasswordEditState(visible = true) }
+    fun dismissPasswordEditor() { _passwordState.value = PasswordEditState(visible = false) }
+
+    /**
+     * 비밀번호 변경.
+     *
+     * 서버 규칙(회원가입과 동일)인 8자 이상 / 72바이트 이하를 앱에서 먼저 검사한다.
+     * 72바이트는 서버가 bcrypt 를 쓰기 때문의 제한이다 (한글 1자 = 3바이트).
+     */
+    fun submitPassword(oldPassword: String, newPassword: String, confirmPassword: String) {
+        if (_passwordState.value.loading) return   // 연타 방지
+
+        val validation = when {
+            oldPassword.isBlank() -> "현재 비밀번호를 입력해주세요."
+            newPassword.length < 8 -> "새 비밀번호는 8자 이상이어야 합니다."
+            newPassword.toByteArray(Charsets.UTF_8).size > 72 ->
+                "새 비밀번호가 너무 깁니다. (한글은 1자당 3바이트)"
+            newPassword.any { it.isWhitespace() } -> "비밀번호에는 공백을 사용할 수 없습니다."
+            newPassword == oldPassword -> "현재 비밀번호와 다른 비밀번호를 입력해주세요."
+            newPassword != confirmPassword -> "새 비밀번호가 서로 일치하지 않습니다."
+            else -> null
+        }
+        if (validation != null) {
+            _passwordState.value = _passwordState.value.copy(error = validation)
+            return
+        }
+
+        _passwordState.value = _passwordState.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            UserRepository.changePassword(oldPassword, newPassword)
+                .onSuccess {
+                    _passwordState.value = PasswordEditState(visible = false)
+                    _passwordChanged.value = true
+                }
+                .onFailure { e ->
+                    _passwordState.value = _passwordState.value.copy(
+                        loading = false,
+                        error = e.message ?: "비밀번호 변경에 실패했습니다."
+                    )
+                }
+        }
+    }
+
+    fun consumePasswordChanged() { _passwordChanged.value = false }
+
+    // ───────── 로그아웃 ─────────
+    private val _logoutVisible = MutableStateFlow(false)
+    val logoutVisible: StateFlow<Boolean> = _logoutVisible.asStateFlow()
+
+    private val _logoutLoading = MutableStateFlow(false)
+    val logoutLoading: StateFlow<Boolean> = _logoutLoading.asStateFlow()
+
+    fun openLogoutDialog() { _logoutVisible.value = true }
+    fun dismissLogoutDialog() { _logoutVisible.value = false }
+
+    /**
+     * 로그아웃.
+     *
+     * 서버에 통보는 하지만 JWT 는 stateless 라 서버가 토큰을 무효화하지 않는다.
+     * 규격대로 **결과와 무관하게** 로컬 토큰을 지우고 첫 화면으로 보낸다.
+     */
+    fun submitLogout(onDone: () -> Unit) {
+        if (_logoutLoading.value) return
+        _logoutLoading.value = true
+        viewModelScope.launch {
+            RetrofitAuthRepository(RetrofitInstance.authApi).logout()   // 실패해도 무시
+            UserRepository.clear()
+            _logoutLoading.value = false
+            _logoutVisible.value = false
+            onDone()
+        }
+    }
+
+    // ───────── 회원 탈퇴 ─────────
+    private val _withdrawState = MutableStateFlow(WithdrawState())
+    val withdrawState: StateFlow<WithdrawState> = _withdrawState.asStateFlow()
+
+    fun openWithdrawDialog() { _withdrawState.value = WithdrawState(visible = true) }
+    fun dismissWithdrawDialog() { _withdrawState.value = WithdrawState(visible = false) }
+
+    /**
+     * 회원 탈퇴.
+     *
+     * 로그아웃과 달리 **통신 성공 후에만** 토큰을 지운다.
+     * 실패했는데 로그아웃시키면 사용자는 탈퇴된 줄 알지만 계정이 남는다.
+     */
+    fun submitWithdraw(onWithdrawn: () -> Unit) {
+        if (_withdrawState.value.loading) return
+        _withdrawState.value = _withdrawState.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            UserRepository.withdraw()
+                .onSuccess {
+                    _withdrawState.value = WithdrawState(visible = false)
+                    onWithdrawn()
+                }
+                .onFailure { e ->
+                    _withdrawState.value = _withdrawState.value.copy(
+                        loading = false,
+                        error = e.message ?: "회원 탈퇴에 실패했습니다."
                     )
                 }
         }

@@ -19,6 +19,20 @@ interface BusanQuestApi {
     @PATCH("api/v1/users/me/nickname")
     suspend fun updateNickname(@Body request: UpdateNicknameRequestDto): UserProfileDto
 
+    /**
+     * 비밀번호 변경.
+     *
+     * 400 = 현재 비밀번호 불일치 / 새 비밀번호 길이 미달
+     * 401 = 토큰 만료 → 인터셉터가 토큰 삭제 후 로그인 화면으로 보낸다
+     */
+    @PATCH("api/v1/users/me/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequestDto): SimpleResultDto
+
+    // 회원 탈퇴 (서버는 ACCOUNT_STATUS 를 WITHDRAWN 으로 바꾸는 소프트 삭제).
+    // 성공 후 앱은 로컬 토큰을 지우고 로그인 화면으로 보낸다.
+    @DELETE("api/v1/users/me")
+    suspend fun withdraw(): SimpleResultDto
+
     @GET("api/v1/missions")
     suspend fun getMissions(): List<MissionDto>
 

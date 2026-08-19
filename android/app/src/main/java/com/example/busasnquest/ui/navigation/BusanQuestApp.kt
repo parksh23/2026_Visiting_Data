@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import com.example.busasnquest.ui.detail.MissionDetailScreen
 import com.example.busasnquest.ui.profile.MissionHistoryScreen
 import com.example.busasnquest.ui.profile.SavedMissionScreen
+import com.example.busasnquest.data.repository.UserRepository
 import com.example.busasnquest.ui.profile.AccountSettingsScreen
 import com.example.busasnquest.ui.profile.DocumentScreen
 import com.example.busasnquest.ui.profile.NotificationSettingsScreen
@@ -162,9 +163,13 @@ fun BusanQuestApp() {
                         ProfileScreen(
                             navController = navController,
                             onLogout = {
+                                UserRepository.clear()
                                 scope.launch { tokenStore.clear() }
+                                // popUpTo(0): 백스택을 통째로 비워 뒤로 가기로 로그인 이전 화면에
+                                // 돌아갈 수 없게 한다 (규격서 10장)
                                 navController.navigate("login") {
-                                    popUpTo("home") { inclusive = true }
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
                                 }
                             }
                         )
@@ -192,10 +197,14 @@ fun BusanQuestApp() {
                     composable("settings/account") {
                         AccountSettingsScreen(
                             navController = navController,
-                            onLogout = {
+                            // 비밀번호 변경 · 로그아웃 · 회원 탈퇴가 모두 이 콜백으로 끝난다.
+                            // 세 경우 모두 로컬 토큰 삭제가 반드시 동반돼야 한다 (규격서 8장).
+                            onSessionEnd = {
+                                UserRepository.clear()
                                 scope.launch { tokenStore.clear() }
                                 navController.navigate("login") {
-                                    popUpTo("home") { inclusive = true }
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
                                 }
                             }
                         )

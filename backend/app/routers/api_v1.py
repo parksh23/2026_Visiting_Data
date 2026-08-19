@@ -4,11 +4,8 @@ import math
 import os
 import re
 import uuid
-import smtplib
-import socket
 import random
 import string
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -167,37 +164,37 @@ class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
 
 
-# --- 이메일 발송 함수 (465 SSL 포트 + IPv4 고정 패치 적용) ---
+# --- 이메일 발송 함수 (Resend HTTPS API 활용하여 Render 포트 차단 회피) ---
 def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
-    sender_email = os.getenv("SMTP_EMAIL")
-    sender_password = os.getenv("SMTP_PASSWORD")
+    resend_api_key = os.getenv("RESEND_API_KEY")
 
-    if not sender_email or not sender_password:
-        print("⚠️ 환경변수에 SMTP_EMAIL 또는 SMTP_PASSWORD가 설정되지 않았습니다.")
+    if not resend_api_key:
+        print("⚠️ 환경변수에 RESEND_API_KEY가 설정되지 않았습니다.")
         return False
 
-    msg = MIMEText(f"요청하신 임시 비밀번호는 다음과 같습니다: {temp_pwd}\n\n임시 비밀번호로 로그인하신 후, 반드시 [내 정보] 탭에서 비밀번호를 변경해 주세요.")
-    msg["Subject"] = "[Busan Quest] 임시 비밀번호 발급 안내"
-    msg["From"] = sender_email
-    msg["To"] = receiver_email
+    payload = {
+        "from": "Busan Quest <onboarding@resend.dev>",
+        "to": [receiver_email],
+        "subject": "[Busan Quest] 임시 비밀번호 발급 안내",
+        "html": f"<p>요청하신 임시 비밀번호는 다음과 같습니다: <strong>{temp_pwd}</strong></p><p>임시 비밀번호로 로그인하신 후, 반드시 [내 정보] 탭에서 비밀번호를 변경해 주세요.</p>"
+    }
 
-    # IPv4 전용 소켓 패치 (Render IPv6 미지원 문제 우회)
-    orig_getaddrinfo = socket.getaddrinfo
-    def getaddrinfo_ipv4(host, port, family=0, type=0, proto=0, flags=0):
-        return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+    headers = {
+        "Authorization": f"Bearer {resend_api_key}",
+        "Content-Type": "application/json"
+    }
 
     try:
-        socket.getaddrinfo = getaddrinfo_ipv4
-        # 465 SSL 포트 사용 (timeout 10초)
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-        return True
+        # HTTPS(443) 통신을 사용하여 차단 없이 전송
+        response = httpx.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10)
+        if response.status_code in (200, 201):
+            return True
+        else:
+            print(f"📧 Resend API 발송 실패 ({response.status_code}): {response.text}")
+            return False
     except Exception as e:
-        print(f"📧 이메일 발송 실패: {e}")
+        print(f"📧 이메일 발송 예외 발생: {e}")
         return False
-    finally:
-        socket.getaddrinfo = orig_getaddrinfo
 # ----------------------------------------------------
 
 
@@ -428,7 +425,7 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(
             status_code=500,
-            detail="이메일 발송에 실패했습니다. Render 환경변수(SMTP) 또는 메일 주소를 확인해주세요."
+            detail="이메일 발송에 실패했습니다. 서버 환경변수 또는 메일 주소를 확인해주세요."
         )
 
     # 발송 성공 시에만 DB 업데이트

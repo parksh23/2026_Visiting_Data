@@ -164,40 +164,6 @@ class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
 
 
-# --- 이메일 발송 함수 (Resend HTTPS API 활용하여 Render 포트 차단 회피) ---
-def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
-    resend_api_key = os.getenv("RESEND_API_KEY")
-
-    if not resend_api_key:
-        print("⚠️ 환경변수에 RESEND_API_KEY가 설정되지 않았습니다.")
-        return False
-
-    payload = {
-        "from": "Busan Quest <onboarding@resend.dev>",
-        "to": [receiver_email],
-        "subject": "[Busan Quest] 임시 비밀번호 발급 안내",
-        "html": f"<p>요청하신 임시 비밀번호는 다음과 같습니다: <strong>{temp_pwd}</strong></p><p>임시 비밀번호로 로그인하신 후, 반드시 [내 정보] 탭에서 비밀번호를 변경해 주세요.</p>"
-    }
-
-    headers = {
-        "Authorization": f"Bearer {resend_api_key}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-        # HTTPS(443) 통신을 사용하여 차단 없이 전송
-        response = httpx.post("https://api.resend.com/emails", json=payload, headers=headers, timeout=10)
-        if response.status_code in (200, 201):
-            return True
-        else:
-            print(f"📧 Resend API 발송 실패 ({response.status_code}): {response.text}")
-            return False
-    except Exception as e:
-        print(f"📧 이메일 발송 예외 발생: {e}")
-        return False
-# ----------------------------------------------------
-
-
 def _get_saved_list(saved_missions_val) -> List[str]:
     if saved_missions_val is None:
         return []
@@ -416,23 +382,19 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="해당 이메일로 가입된 활성 계정을 찾을 수 없습니다.")
 
+    # 10자리 임시 비밀번호 생성
     chars = string.ascii_letters + string.digits + "!@#"
     temp_pwd = ''.join(random.choice(chars) for _ in range(10))
 
-    # 이메일 발송 시도 (DB 변경보다 먼저 실행)
-    success = _send_temp_password_email(user.email, temp_pwd)
-
-    if not success:
-        raise HTTPException(
-            status_code=500,
-            detail="이메일 발송에 실패했습니다. 서버 환경변수 또는 메일 주소를 확인해주세요."
-        )
-
-    # 발송 성공 시에만 DB 업데이트
+    # DB 비밀번호 변경 업데이트
     user.password_hash = hash_password(temp_pwd)
     db.commit()
 
-    return {"success": True, "message": "입력하신 이메일로 임시 비밀번호가 발송되었습니다."}
+    return {
+        "success": True,
+        "temp_password": temp_pwd,
+        "message": f"임시 비밀번호가 발급되었습니다: {temp_pwd}"
+    }
 # ---------------------------------------------
 
 

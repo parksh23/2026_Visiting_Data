@@ -4,6 +4,10 @@ import math
 import os
 import re
 import uuid
+import smtplib
+import random
+import string
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -78,6 +82,16 @@ class SignupRequest(BaseModel):
 class KakaoLoginRequest(BaseModel):
     access_token: str
 
+class FindIdRequest(BaseModel):
+    nickname: str
+
+class FindPasswordRequest(BaseModel):
+    email: str
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -89,10 +103,8 @@ class UserProfile(BaseModel):
     completed_missions: int
     saved_missions: int
 
-
 class NicknameUpdateRequest(BaseModel):
     nickname: str
-
 
 class MissionDto(BaseModel):
     mission_id: int
@@ -110,7 +122,6 @@ class MissionDto(BaseModel):
     target_text: Optional[str] = ""
     is_saved: bool = False
 
-
 class MissionSavedResponse(BaseModel):
     mission_id: int
     is_saved: bool
@@ -127,13 +138,11 @@ class MissionVerifyResponse(BaseModel):
     success: bool
     message: str
 
-
 class DistrictStatusDto(BaseModel):
     district_name: str
     completed_count: int
     total_count: int
     status: str
-
 
 class MyRank(BaseModel):
     rank: int
@@ -150,13 +159,36 @@ class RankingResponse(BaseModel):
     myRank: MyRank
     rankings: List[RankingItem]
 
-
 class UploadResponse(BaseModel):
     url: str
 
-
 class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
+
+
+# --- 이메일 발송 함수 ---
+def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
+    sender_email = os.getenv("SMTP_EMAIL")
+    sender_password = os.getenv("SMTP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        print("⚠️ 환경변수에 SMTP_EMAIL 또는 SMTP_PASSWORD가 설정되지 않았습니다.")
+        return False
+
+    msg = MIMEText(f"요청하신 임시 비밀번호는 다음과 같습니다: {temp_pwd}\n\n임시 비밀번호로 로그인하신 후, 반드시 [내 정보] 탭에서 비밀번호를 변경해 주세요.")
+    msg["Subject"] = "[Busan Quest] 임시 비밀번호 발급 안내"
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, receiver_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"📧 이메일 발송 실패: {e}")
+        return False
+# ------------------------------------
 
 
 def _get_saved_list(saved_missions_val) -> List[str]:
@@ -349,6 +381,59 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer", "token": token}
 
 
+# --- 아이디/비밀번호 찾기 ---
+@router.post("/auth/find-id")
+def find_id(req: FindIdRequest, db: Session = Depends(get_db)):
+    user = db.query(AppUser).filter(AppUser.nickname == req.nickname.strip()).first()
+    if not user or not user.email:
+        raise HTTPException(status_code=404, detail="해당 닉네임으로 가입된 계정을 찾을 수 없습니다.")
+
+    email_parts = user.email.split("@")
+    if len(email_parts) == 2:
+        id_part, domain = email_parts
+        if len(id_part) > 2:
+            masked_id = id_part[:2] + "*" * (len(id_part) - 2)
+        else:
+            masked_id = id_part[:1] + "*"
+        masked_email = f"{masked_id}@{domain}"
+    else:
+        masked_email = user.email
+
+    return {"message": "아이디를 찾았습니다.", "masked_email": masked_email}
+
+
+@router.post("/auth/find-password")
+def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
+    email = req.email.strip().lower()
+    user = db.query(AppUser).filter(AppUser.email == email, AppUser.account_status == "ACTIVE").first()
+    if not user:
+        raise HTTPException(status_code=404, detail="해당 이메일로 가입된 활성 계정을 찾을 수 없습니다.")
+
+    chars = string.ascii_letters + string.digits + "!@#"
+    temp_pwd = ''.join(random.choice(chars) for _ in range(10))
+
+    user.password_hash = hash_password(temp_pwd)
+    db.commit()
+
+    success = _send_temp_password_email(user.email, temp_pwd)
+
+    if not success:
+        return {
+            "success": True,
+            "message": f"[개발 모드] 이메일 발송에 실패하여 임시로 화면에 표시합니다. 비밀번호: {temp_pwd}"
+        }
+
+    return {"success": True, "message": "입력하신 이메일로 임시 비밀번호가 발송되었습니다."}
+# ---------------------------------------------
+
+
+# --- 로그아웃 ---
+@router.post("/auth/logout")
+def logout(subject: str = Depends(get_current_user_email)):
+    return {"success": True, "message": "성공적으로 로그아웃 되었습니다."}
+# ---------------------------------
+
+
 @router.get("/users/me", response_model=UserProfile)
 def get_my_profile(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
@@ -389,6 +474,40 @@ def update_my_nickname(
         ) from exc
     db.refresh(user)
     return _profile_dict(user)
+
+
+# --- 비밀번호 변경 및 회원탈퇴 ---
+@router.patch("/users/me/password")
+def change_password(
+    req: ChangePasswordRequest,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+
+    if not verify_password(req.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 일치하지 않습니다.")
+
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 8자 이상이어야 합니다.")
+
+    user.password_hash = hash_password(req.new_password)
+    db.commit()
+
+    return {"success": True, "message": "비밀번호가 성공적으로 변경되었습니다."}
+
+
+@router.delete("/users/me")
+def withdraw_account(
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+    user.account_status = "WITHDRAWN"
+    db.commit()
+
+    return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}
+# --------------------------------------------------
 
 
 @router.get("/missions", response_model=List[MissionDto])

@@ -22,11 +22,10 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 app = FastAPI()
 
-
 @app.on_event("startup")
 def start_background_jobs():
+    setup_logging()
     start_scheduler()
-
 
 @app.on_event("shutdown")
 def stop_background_jobs():

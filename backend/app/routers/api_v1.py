@@ -4,10 +4,8 @@ import math
 import os
 import re
 import uuid
-import smtplib
 import random
 import string
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -27,7 +25,7 @@ from fastapi import (
 from PIL import Image
 import google.generativeai as genai
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -164,31 +162,6 @@ class UploadResponse(BaseModel):
 
 class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
-
-
-# --- 이메일 발송 함수 ---
-def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
-    sender_email = os.getenv("SMTP_EMAIL")
-    sender_password = os.getenv("SMTP_PASSWORD")
-
-    if not sender_email or not sender_password:
-        print("⚠️ 환경변수에 SMTP_EMAIL 또는 SMTP_PASSWORD가 설정되지 않았습니다.")
-        return False
-
-    msg = MIMEText(f"요청하신 임시 비밀번호는 다음과 같습니다: {temp_pwd}\n\n임시 비밀번호로 로그인하신 후, 반드시 [내 정보] 탭에서 비밀번호를 변경해 주세요.")
-    msg["Subject"] = "[Busan Quest] 임시 비밀번호 발급 안내"
-    msg["From"] = sender_email
-    msg["To"] = receiver_email
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
-        return True
-    except Exception as e:
-        print(f"📧 이메일 발송 실패: {e}")
-        return False
-# ------------------------------------
 
 
 def _get_saved_list(saved_missions_val) -> List[str]:
@@ -409,21 +382,19 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="해당 이메일로 가입된 활성 계정을 찾을 수 없습니다.")
 
+    # 10자리 임시 비밀번호 생성
     chars = string.ascii_letters + string.digits + "!@#"
     temp_pwd = ''.join(random.choice(chars) for _ in range(10))
 
+    # DB 비밀번호 변경 업데이트
     user.password_hash = hash_password(temp_pwd)
     db.commit()
 
-    success = _send_temp_password_email(user.email, temp_pwd)
-
-    if not success:
-        return {
-            "success": True,
-            "message": f"[개발 모드] 이메일 발송에 실패하여 임시로 화면에 표시합니다. 비밀번호: {temp_pwd}"
-        }
-
-    return {"success": True, "message": "입력하신 이메일로 임시 비밀번호가 발송되었습니다."}
+    return {
+        "success": True,
+        "temp_password": temp_pwd,
+        "message": f"임시 비밀번호가 발급되었습니다: {temp_pwd}"
+    }
 # ---------------------------------------------
 
 
@@ -503,7 +474,15 @@ def withdraw_account(
     db: Session = Depends(get_db)
 ):
     user = _get_user(db, subject)
-    user.account_status = "WITHDRAWN"
+
+    # 1. 외래키 오류 방지를 위해 연관 데이터 삭제 (Hard Delete)
+    db.query(UserMission).filter(UserMission.user_code == user.user_code).delete()
+    db.query(Friendship).filter(
+        or_(Friendship.user_code == user.user_code, Friendship.friend_user_code == user.user_code)
+    ).delete()
+
+    # 2. 유저 정보 실제 삭제
+    db.delete(user)
     db.commit()
 
     return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}

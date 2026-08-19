@@ -35,6 +35,7 @@ import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextSub
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
@@ -55,7 +56,22 @@ fun LoginScreen(
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val findIdState by viewModel.findIdState.collectAsState()
+    val findPasswordState by viewModel.findPasswordState.collectAsState()
     val context = LocalContext.current
+
+    // 임시 비밀번호 발송 성공 → 토스트 1회 후 플래그 내림
+    // (서버 message 는 임시 비밀번호가 섞여 올 수 있어 쓰지 않고 고정 문구를 띄운다)
+    LaunchedEffect(findPasswordState.sent) {
+        if (findPasswordState.sent) {
+            Toast.makeText(
+                context,
+                "입력하신 이메일로 임시 비밀번호를 보냈어요.",
+                Toast.LENGTH_LONG
+            ).show()
+            viewModel.consumeFindPasswordSent()
+        }
+    }
 
     // 약관 동의 상태 (회원가입·카카오 로그인 공통)
     val agreements = rememberAgreementState()
@@ -211,18 +227,32 @@ fun LoginScreen(
 
             }   // showEmailForm 끝
 
-            // ── 비밀번호 찾기 (로그인 탭에서만 표시) ──
+            // ── 아이디 / 비밀번호 찾기 (로그인 탭에서만 표시) ──
             if (selectedTab == 0) {
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    "비밀번호를 잊으셨나요?",
-                    color = Indigo,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                Row(
                     modifier = Modifier
-                        .align(Alignment.End)
-                        .clickable { /* TODO: 비밀번호 찾기 (추후) */ }
-                )
+                        .fillMaxWidth()
+                        .align(Alignment.End),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "아이디 찾기",
+                        color = Indigo,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { viewModel.openFindId() }
+                    )
+                    Text("  |  ", color = HintGray, fontSize = 13.sp)
+                    Text(
+                        "비밀번호 찾기",
+                        color = Indigo,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { viewModel.openFindPassword() }
+                    )
+                }
             }
             // ── 회원가입 완료 안내 (로그인 탭에서만) ──
             if (infoMessage != null && selectedTab == 0) {
@@ -438,6 +468,162 @@ fun LoginScreen(
             }
         )
     }
+
+    // ── 아이디 찾기 ──
+    if (findIdState.visible) {
+        FindIdDialog(
+            state = findIdState,
+            onDismiss = { viewModel.dismissFindId() },
+            onSubmit = { viewModel.submitFindId(it) }
+        )
+    }
+
+    // ── 비밀번호 찾기 ──
+    if (findPasswordState.visible) {
+        FindPasswordDialog(
+            state = findPasswordState,
+            onDismiss = { viewModel.dismissFindPassword() },
+            onSubmit = { viewModel.submitFindPassword(it) }
+        )
+    }
+}
+
+/**
+ * 아이디 찾기 다이얼로그.
+ *
+ * 입력 → 성공하면 같은 창이 마스킹된 이메일을 보여주는 결과 화면으로 바뀐다.
+ */
+@Composable
+private fun FindIdDialog(
+    state: AccountFindState,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var nickname by remember { mutableStateOf("") }
+    val found = state.maskedEmail
+
+    AlertDialog(
+        onDismissRequest = { if (!state.loading) onDismiss() },
+        containerColor = LoginCard,
+        title = {
+            Text(
+                if (found != null) "가입된 이메일" else "아이디 찾기",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = LabelGray
+            )
+        },
+        text = {
+            Column {
+                if (found != null) {
+                    Text("이 닉네임으로 가입된 이메일이에요.", color = HintGray, fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text(found, color = LabelGray, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "개인정보 보호를 위해 일부만 표시됩니다.",
+                        color = HintGray,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    Text("가입할 때 쓴 닉네임을 입력해주세요.", color = HintGray, fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = nickname,
+                        onValueChange = { nickname = it },
+                        singleLine = true,
+                        enabled = !state.loading,
+                        label = { Text("닉네임") }
+                    )
+                    if (state.error != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(state.error, color = PointRed, fontSize = 12.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (found != null) {
+                TextButton(onClick = onDismiss) {
+                    Text("확인", color = Indigo, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                // 통신 중에는 비활성 — 연타로 중복 요청되지 않게 한다
+                TextButton(onClick = { onSubmit(nickname) }, enabled = !state.loading) {
+                    Text(
+                        if (state.loading) "찾는 중..." else "찾기",
+                        color = if (state.loading) HintGray else Indigo,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            if (found == null) {
+                TextButton(onClick = onDismiss, enabled = !state.loading) {
+                    Text("취소", color = HintGray)
+                }
+            }
+        }
+    )
+}
+
+/**
+ * 비밀번호 찾기 다이얼로그.
+ *
+ * 성공하면 창이 닫히고 화면이 토스트를 띄운다 (LoginScreen 의 LaunchedEffect).
+ */
+@Composable
+private fun FindPasswordDialog(
+    state: AccountFindState,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { if (!state.loading) onDismiss() },
+        containerColor = LoginCard,
+        title = {
+            Text("비밀번호 찾기", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = LabelGray)
+        },
+        text = {
+            Column {
+                Text(
+                    "가입한 이메일로 임시 비밀번호를 보내드려요.\n로그인한 뒤 계정 설정에서 꼭 바꿔주세요.",
+                    color = HintGray,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    singleLine = true,
+                    enabled = !state.loading,
+                    label = { Text("이메일") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                if (state.error != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(state.error, color = PointRed, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSubmit(email) }, enabled = !state.loading) {
+                Text(
+                    if (state.loading) "보내는 중..." else "임시 비밀번호 받기",
+                    color = if (state.loading) HintGray else Indigo,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.loading) {
+                Text("취소", color = HintGray)
+            }
+        }
+    )
 }
 
 @Composable

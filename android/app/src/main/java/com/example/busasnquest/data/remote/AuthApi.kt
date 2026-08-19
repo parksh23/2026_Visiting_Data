@@ -14,4 +14,19 @@ interface AuthApi {
     // 회원가입: 이메일/비밀번호로 계정 생성 후 JWT 를 받는다 (백엔드 준비 시 연결)
     @POST("api/v1/auth/signup")
     suspend fun signup(@Body request: SignupRequestDto): LoginResponseDto
+
+    // ───────── 아이디/비밀번호 찾기 (로그인 전 · 토큰 불필요) ─────────
+
+    // 닉네임으로 가입 이메일을 찾는다. 없으면 서버가 404.
+    @POST("api/v1/auth/find-id")
+    suspend fun findId(@Body request: FindIdRequestDto): FindIdResponseDto
+
+    // 임시 비밀번호를 만들어 해당 메일로 발송한다. 계정이 없으면 404.
+    @POST("api/v1/auth/find-password")
+    suspend fun findPassword(@Body request: FindPasswordRequestDto): SimpleResultDto
+
+    // 로그아웃. JWT 는 stateless 라 서버가 토큰을 무효화하진 않지만,
+    // 규격상 호출한 뒤 앱이 로컬 토큰을 지운다.
+    @POST("api/v1/auth/logout")
+    suspend fun logout(): SimpleResultDto
 }

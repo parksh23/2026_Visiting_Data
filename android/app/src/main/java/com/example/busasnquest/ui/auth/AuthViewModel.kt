@@ -26,6 +26,20 @@ sealed interface LoginUiState {
     data class Error(val message: String) : LoginUiState
 }
 
+/**
+ * 아이디/비밀번호 찾기 다이얼로그 상태.
+ *
+ * @param maskedEmail 아이디 찾기 성공 시 서버가 준 마스킹 이메일. 채워지면 결과 화면으로 바뀐다.
+ * @param sent        비밀번호 찾기 성공 여부. 화면은 이걸 보고 스낵바를 띄우고 다이얼로그를 닫는다.
+ */
+data class AccountFindState(
+    val visible: Boolean = false,
+    val loading: Boolean = false,
+    val error: String? = null,
+    val maskedEmail: String? = null,
+    val sent: Boolean = false
+)
+
 class AuthViewModel(
     private val repository: AuthRepository,
     private val tokenStore: TokenStore
@@ -124,6 +138,78 @@ class AuthViewModel(
     // 카카오 SDK 자체에서 로그인이 취소/실패했을 때 화면에 메시지를 표시
     fun onKakaoError(message: String) {
         _uiState.value = LoginUiState.Error(message)
+    }
+
+    // ───────── 아이디 찾기 ─────────
+    private val _findIdState = MutableStateFlow(AccountFindState())
+    val findIdState: StateFlow<AccountFindState> = _findIdState.asStateFlow()
+
+    fun openFindId() { _findIdState.value = AccountFindState(visible = true) }
+    fun dismissFindId() { _findIdState.value = AccountFindState(visible = false) }
+
+    fun submitFindId(nickname: String) {
+        val trimmed = nickname.trim()
+        if (trimmed.isBlank()) {
+            _findIdState.value = _findIdState.value.copy(error = "닉네임을 입력해주세요.")
+            return
+        }
+        // 이미 요청 중이면 무시 — 버튼 연타로 중복 호출되지 않도록
+        if (_findIdState.value.loading) return
+
+        _findIdState.value = _findIdState.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            repository.findId(trimmed)
+                .onSuccess { masked ->
+                    _findIdState.value = _findIdState.value.copy(
+                        loading = false,
+                        maskedEmail = masked
+                    )
+                }
+                .onFailure { e ->
+                    _findIdState.value = _findIdState.value.copy(
+                        loading = false,
+                        error = e.message ?: "아이디를 찾지 못했습니다."
+                    )
+                }
+        }
+    }
+
+    // ───────── 비밀번호 찾기 ─────────
+    private val _findPasswordState = MutableStateFlow(AccountFindState())
+    val findPasswordState: StateFlow<AccountFindState> = _findPasswordState.asStateFlow()
+
+    fun openFindPassword() { _findPasswordState.value = AccountFindState(visible = true) }
+    fun dismissFindPassword() { _findPasswordState.value = AccountFindState(visible = false) }
+
+    /** 스낵바를 한 번 띄운 뒤 화면이 호출해 sent 플래그를 내린다 */
+    fun consumeFindPasswordSent() {
+        _findPasswordState.value = _findPasswordState.value.copy(sent = false)
+    }
+
+    fun submitFindPassword(email: String) {
+        val trimmed = email.trim()
+        if (trimmed.isBlank() || !trimmed.contains("@")) {
+            _findPasswordState.value =
+                _findPasswordState.value.copy(error = "올바른 이메일 형식을 입력해주세요.")
+            return
+        }
+        if (_findPasswordState.value.loading) return
+
+        _findPasswordState.value = _findPasswordState.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            repository.findPassword(trimmed)
+                .onSuccess {
+                    // 다이얼로그는 닫고, sent 로 화면에 스낵바를 요청한다.
+                    // 서버 message 는 임시 비밀번호가 섞여 올 수 있어 쓰지 않는다 (Repository 주석 참고).
+                    _findPasswordState.value = AccountFindState(visible = false, sent = true)
+                }
+                .onFailure { e ->
+                    _findPasswordState.value = _findPasswordState.value.copy(
+                        loading = false,
+                        error = e.message ?: "임시 비밀번호를 발송하지 못했습니다."
+                    )
+                }
+        }
     }
 
     // 에러 메시지를 닫거나 다시 입력할 때 상태 초기화

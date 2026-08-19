@@ -27,7 +27,7 @@ from fastapi import (
 from PIL import Image
 import google.generativeai as genai
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -166,7 +166,7 @@ class TourismRefreshRequest(BaseModel):
     base_ym: Optional[str] = None
 
 
-# --- 이메일 발송 함수 ---
+# --- 이메일 발송 함수 (timeout 10초 추가로 무한 로딩 방지) ---
 def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
     sender_email = os.getenv("SMTP_EMAIL")
     sender_password = os.getenv("SMTP_PASSWORD")
@@ -181,14 +181,15 @@ def _send_temp_password_email(receiver_email: str, temp_pwd: str) -> bool:
     msg["To"] = receiver_email
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        # timeout=10 으로 무한 접속 대기 방지
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, receiver_email, msg.as_string())
         return True
     except Exception as e:
         print(f"📧 이메일 발송 실패: {e}")
         return False
-# ------------------------------------
+# ----------------------------------------------------
 
 
 def _get_saved_list(saved_missions_val) -> List[str]:
@@ -418,7 +419,7 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(
             status_code=500,
-            detail="이메일 발송에 실패했습니다. 유효한 메일 주소인지 확인하거나 잠시 후 다시 시도해 주세요."
+            detail="이메일 발송에 실패했습니다. Render 환경변수 또는 메일 주소를 확인해주세요."
         )
 
     # 발송 성공 시에만 DB 업데이트
@@ -505,7 +506,15 @@ def withdraw_account(
     db: Session = Depends(get_db)
 ):
     user = _get_user(db, subject)
-    user.account_status = "WITHDRAWN"
+
+    # 1. 외래키 오류 방지를 위해 연관 데이터 삭제 (Hard Delete)
+    db.query(UserMission).filter(UserMission.user_code == user.user_code).delete()
+    db.query(Friendship).filter(
+        or_(Friendship.user_code == user.user_code, Friendship.friend_user_code == user.user_code)
+    ).delete()
+
+    # 2. 유저 정보 실제 삭제
+    db.delete(user)
     db.commit()
 
     return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}

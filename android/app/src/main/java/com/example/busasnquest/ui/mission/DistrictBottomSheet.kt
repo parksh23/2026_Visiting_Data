@@ -1,6 +1,7 @@
 package com.example.busasnquest.ui.mission
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +30,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.busasnquest.data.model.MissionState
@@ -38,18 +41,23 @@ import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.ui.theme.CardWhite
 import com.example.busasnquest.ui.theme.Coral
+import com.example.busasnquest.ui.theme.CoralDark
 import com.example.busasnquest.ui.theme.CoralTint
 import com.example.busasnquest.ui.theme.Dimens
 import com.example.busasnquest.ui.theme.IconGreen
+import com.example.busasnquest.ui.theme.InkBorder
 import com.example.busasnquest.ui.theme.OnCoralTint
 import com.example.busasnquest.ui.theme.SurfaceGray
 import com.example.busasnquest.ui.theme.TextMain
 import com.example.busasnquest.ui.theme.TextSub
 import com.example.busasnquest.ui.theme.onFilled
 import com.example.busasnquest.ui.theme.pressable
+import coil.compose.AsyncImage
 
 /**
  * 구·군 박스를 탭했을 때 올라오는 바텀시트.
+ * 각 행은 56dp 썸네일 + 제목/보상 + 인라인 도전 버튼. 가로 캐러셀 대신 세로 리스트를 쓰는 이유는
+ * 이 화면이 "고르는 화면"이 아니라 "남은 걸 해치우는 화면"이라 한눈에 보이는 개수가 중요하기 때문.
  * 구 요약(점령률 배지) + 남은 미션 리스트. 화면 전환 없이 탐색 → 도전으로 이어진다.
  *
  * 시트 최대 높이는 화면의 55% — 뒤의 그리드(내 땅 현황)가 항상 보이게 유지.
@@ -159,30 +167,62 @@ private fun SheetMissionRow(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 타입 아이콘 타일
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(Dimens.radiusChip - 2.dp))
-                .background(CoralTint),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = when (mission.type) {
-                    MissionType.IMAGE_LOCATION -> Icons.Filled.CameraAlt
-                    MissionType.CURRENT_LOCATION -> Icons.Filled.LocationOn
-                    MissionType.RECEIPT -> Icons.Filled.Receipt
-                },
-                contentDescription = null,
-                tint = Coral,
-                modifier = Modifier.size(20.dp)
-            )
+        // 썸네일 — 서버 대표 사진이 있으면 사진, 없으면 인증 타입 아이콘
+        val typeIcon = when (mission.type) {
+            MissionType.IMAGE_LOCATION -> Icons.Filled.CameraAlt
+            MissionType.CURRENT_LOCATION -> Icons.Filled.LocationOn
+            MissionType.RECEIPT -> Icons.Filled.Receipt
+        }
+        val thumbShape = RoundedCornerShape(Dimens.radiusChip - 2.dp)
+        Box(modifier = Modifier.size(56.dp)) {
+            if (!mission.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = mission.imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(thumbShape)
+                        .border(1.dp, InkBorder, thumbShape)
+                )
+                // 사진 위에서도 인증 방식이 읽히게 흰 원 배지로 겹친다
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(CardWhite)
+                        .border(1.dp, InkBorder, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(typeIcon, contentDescription = null, tint = CoralDark,
+                        modifier = Modifier.size(12.dp))
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(thumbShape)
+                        .background(CoralTint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(typeIcon, contentDescription = null, tint = Coral,
+                        modifier = Modifier.size(24.dp))
+                }
+            }
         }
 
         Spacer(Modifier.width(10.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(mission.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextMain)
+            Text(
+                mission.title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextMain,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(missionTypeLabel(mission.type), fontSize = 11.sp, color = TextSub)
                 Spacer(Modifier.width(6.dp))

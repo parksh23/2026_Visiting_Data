@@ -71,7 +71,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(Dimens.sectionGap))
 
-        // 메뉴 카드 (미션 내역 / 찜한 미션 / 사진 관리)
+        // 메뉴 카드 (미션 내역 / 찜한 미션)
         Column(
             modifier = Modifier
                 .padding(horizontal = Dimens.screenPadding)

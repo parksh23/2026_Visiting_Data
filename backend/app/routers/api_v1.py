@@ -412,16 +412,18 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     chars = string.ascii_letters + string.digits + "!@#"
     temp_pwd = ''.join(random.choice(chars) for _ in range(10))
 
-    user.password_hash = hash_password(temp_pwd)
-    db.commit()
-
+    # 이메일 발송 시도 (DB 변경보다 먼저 실행)
     success = _send_temp_password_email(user.email, temp_pwd)
 
     if not success:
-        return {
-            "success": True,
-            "message": f"[개발 모드] 이메일 발송에 실패하여 임시로 화면에 표시합니다. 비밀번호: {temp_pwd}"
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="이메일 발송에 실패했습니다. 유효한 메일 주소인지 확인하거나 잠시 후 다시 시도해 주세요."
+        )
+
+    # 발송 성공 시에만 DB 업데이트
+    user.password_hash = hash_password(temp_pwd)
+    db.commit()
 
     return {"success": True, "message": "입력하신 이메일로 임시 비밀번호가 발송되었습니다."}
 # ---------------------------------------------

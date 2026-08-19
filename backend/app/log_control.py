@@ -2,9 +2,11 @@ import os
 import sys
 import logging
 from loguru import logger
+from pathlib import Path
 
 # 1. 저장 경로 설정
-LOG_DIR = "./logs"
+BASE_DIR = Path(__file__).resolve().parents[1]
+LOG_DIR = BASE_DIR / "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE_PATH = os.path.join(LOG_DIR, "server_logs.txt")
 

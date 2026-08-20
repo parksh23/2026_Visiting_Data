@@ -48,3 +48,8 @@ render.experimental.xml
 
 # Mac OS X
 .DS_Store
+
+# Firebase — 프로젝트 식별자와 API 키가 들어 있어 커밋하지 않는다
+google-services.json
+app/google-services.json
+firebase-service-account*.json

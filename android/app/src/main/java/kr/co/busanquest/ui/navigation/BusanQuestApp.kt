@@ -37,7 +37,9 @@ import kotlinx.coroutines.launch
 import kr.co.busanquest.ui.detail.MissionDetailScreen
 import kr.co.busanquest.ui.profile.MissionHistoryScreen
 import kr.co.busanquest.ui.profile.SavedMissionScreen
+import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.data.repository.UserRepository
+import kr.co.busanquest.util.PushRegistrar
 import kr.co.busanquest.ui.profile.AccountSettingsScreen
 import kr.co.busanquest.ui.profile.DocumentScreen
 import kr.co.busanquest.ui.profile.NotificationSettingsScreen
@@ -58,6 +60,17 @@ fun BusanQuestApp() {
     val status by produceState(initialValue = AuthStatus.Loading, tokenStore) {
         tokenStore.tokenFlow.collect { token ->
             value = if (token.isNullOrBlank()) AuthStatus.LoggedOut else AuthStatus.LoggedIn
+        }
+    }
+
+    // 로그인 상태가 되면(직접 로그인 · 자동 로그인 모두) 서버와 알림 관련 상태를 맞춘다.
+    //   1) FCM 토큰 등록 — 서버는 PUSH_TOKENS 에 있는 토큰으로만 푸시를 보낼 수 있다
+    //   2) 알림 설정 내려받기 — 서버가 원본이라 다른 기기에서 바꾼 설정도 여기 반영된다
+    // 둘 다 실패해도 앱 흐름을 막지 않는다 (푸시만 안 올 뿐이다).
+    LaunchedEffect(status) {
+        if (status == AuthStatus.LoggedIn) {
+            PushRegistrar.register()
+            NotificationSettingsRepository.refresh(context)
         }
     }
 

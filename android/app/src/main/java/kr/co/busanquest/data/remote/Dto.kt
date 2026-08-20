@@ -242,3 +242,56 @@ data class SimpleResultDto(
     val success: Boolean? = null,
     val message: String? = null
 )
+
+/**
+ * 알림 설정 (GET/PATCH /api/v1/users/me/notifications).
+ *
+ * 키 이름과 기본값은 서버 USER_SETTINGS 와 1:1 이다.
+ * 서버도 푸시를 보낼지 말지 이 값으로 판단하므로, 기기 설정만 바꾸면 서버 푸시는 그대로 온다.
+ */
+data class NotificationSettingsDto(
+    @SerializedName("mission_result")
+    val missionResult: Boolean = true,
+
+    @SerializedName("new_mission")
+    val newMission: Boolean = true,
+
+    @SerializedName("ranking_change")
+    val rankingChange: Boolean = false,
+
+    @SerializedName("night_mute")
+    val nightMute: Boolean = true,
+
+    val marketing: Boolean = false
+)
+
+/**
+ * 알림 설정 부분 변경 (PATCH).
+ * 서버가 null 인 필드는 건드리지 않으므로, 바꾼 항목 하나만 채워 보낸다.
+ */
+data class NotificationSettingsUpdateDto(
+    @SerializedName("mission_result")
+    val missionResult: Boolean? = null,
+
+    @SerializedName("new_mission")
+    val newMission: Boolean? = null,
+
+    @SerializedName("ranking_change")
+    val rankingChange: Boolean? = null,
+
+    @SerializedName("night_mute")
+    val nightMute: Boolean? = null,
+
+    val marketing: Boolean? = null
+)
+
+/** FCM 토큰 등록 (POST /api/v1/users/me/push-token) */
+data class PushTokenRequestDto(
+    val token: String,
+    val platform: String = "android"
+)
+
+/** FCM 토큰 해제 (DELETE /api/v1/users/me/push-token) — 로그아웃 시 호출 */
+data class PushTokenDeleteRequestDto(
+    val token: String
+)

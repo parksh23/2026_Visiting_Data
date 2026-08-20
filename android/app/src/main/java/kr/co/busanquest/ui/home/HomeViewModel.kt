@@ -45,8 +45,8 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { MissionRepository.refreshMissionsFromServer() }
             runCatching { UserRepository.refreshProfile() }
-            // 서버 목록을 받은 뒤 "이전에 못 보던 미션"이 있으면 알림
-            Notifier.checkNewMissions(MissionRepository.missions.value.map { it.mission })
+            // 새 미션 알림은 서버 FCM 푸시가 담당한다(매일 18:00 발송).
+            // 여기서 로컬 알림까지 띄우면 같은 소식이 두 번 온다.
         }
     }
 

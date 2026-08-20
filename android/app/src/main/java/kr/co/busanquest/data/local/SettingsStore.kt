@@ -24,10 +24,11 @@ enum class NotificationKey(val storeKey: String, val default: Boolean) {
 }
 
 /**
- * 알림 설정 저장소.
+ * 알림 설정의 기기 캐시 (DataStore).
  *
- * 지금은 기기 로컬(DataStore)에만 저장한다. 서버에 USER_SETTINGS 가 생기면
- * 이 클래스 내부만 서버 호출로 바꾸면 되고 화면 코드는 그대로 둘 수 있다.
+ * 원본은 서버 USER_SETTINGS 이고 읽기/쓰기는 NotificationSettingsRepository 를 거친다.
+ * 이 클래스를 남겨 둔 이유는, Notifier 가 알림을 띄우기 직전에
+ * 스위치와 야간 방해 금지를 확인해야 하는데 그때 네트워크를 탈 수 없기 때문이다.
  */
 class SettingsStore(private val context: Context) {
 
@@ -41,6 +42,20 @@ class SettingsStore(private val context: Context) {
     suspend fun setNotification(key: NotificationKey, value: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[booleanPreferencesKey(key.storeKey)] = value
+        }
+    }
+
+    /**
+     * 서버에서 받은 설정을 한 번에 덮어쓴다.
+     *
+     * 항목별로 setNotification 을 반복하면 그 사이사이 값이 화면에 보여
+     * 스위치가 차례로 튀는 것처럼 보인다. 한 번의 edit 으로 묶는다.
+     */
+    suspend fun setAllNotifications(values: Map<NotificationKey, Boolean>) {
+        context.settingsDataStore.edit { prefs ->
+            values.forEach { (key, value) ->
+                prefs[booleanPreferencesKey(key.storeKey)] = value
+            }
         }
     }
 

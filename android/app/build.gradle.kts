@@ -1,6 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    // google-services 는 여기서 선언하지 않는다.
+    // 루트 build.gradle.kts 가 apply false 로 클래스패스에만 올려 두었고,
+    // 실제 적용은 아래 android{} 블록 뒤에서 조건부로 한다 (google-services.json 유무).
 }
 
 android {
@@ -44,6 +47,19 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+// google-services 플러그인은 app/google-services.json 이 없으면 빌드를 실패시킨다.
+// Firebase 콘솔에서 파일을 받기 전에도 프로젝트가 빌드되어야 하므로, 파일이 있을 때만 적용한다.
+// 파일을 app/ 아래에 넣는 순간 자동으로 켜지고, FCM 토큰 등록이 동작하기 시작한다.
+val googleServicesJson = project.file("google-services.json")
+if (googleServicesJson.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle(
+        "[BusanQuest] app/google-services.json 이 없어 FCM 설정을 건너뜁니다. " +
+            "서버 푸시는 파일을 넣고 다시 빌드하면 켜집니다."
+    )
 }
 
 dependencies {
@@ -93,5 +109,10 @@ dependencies {
 
     // 이미지 로딩 (미션 히어로 카드 image_url)
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // FCM 서버 푸시 — google-services.json 이 없어도 컴파일은 된다.
+    // (없으면 런타임에 FirebaseApp 초기화가 실패할 뿐이라 PushRegistrar 가 조용히 넘어간다)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 }
 

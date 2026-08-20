@@ -36,6 +36,9 @@ class MainActivity : ComponentActivity() {
         // 알림 채널 생성 + 앱 Context 보관 (알림 설정 스위치는 Notifier 내부에서 확인)
         kr.co.busanquest.util.Notifier.init(this)
 
+        // FCM 토큰 등록/해제에 앱 Context 가 필요하다 (등록 시점은 BusanQuestApp 이 잡는다)
+        kr.co.busanquest.util.PushRegistrar.init(this)
+
         // 카카오맵 초기화 (네이티브 앱 키)
         KakaoMapSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
 

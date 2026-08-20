@@ -10,6 +10,7 @@ import kr.co.busanquest.data.local.TokenStore
 import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.repository.AuthRepository
 import kr.co.busanquest.data.repository.RetrofitAuthRepository
+import kr.co.busanquest.data.repository.KakaoAgreementRequiredException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,13 +79,54 @@ class AuthViewModel(
         viewModelScope.launch {
             repository.loginWithKakao(kakaoAccessToken, agreements)
                 .onSuccess { token ->
+                    _kakaoAgreementToken.value = null
                     tokenStore.saveToken(token)
                     _uiState.value = LoginUiState.Success
                 }
                 .onFailure { e ->
-                    _uiState.value = LoginUiState.Error(e.message ?: "카카오 로그인에 실패했습니다.")
+                    if (e is KakaoAgreementRequiredException) {
+                        // 카카오 인증은 성공했는데 우리 서비스에는 처음 오는 사람.
+                        // 로그인 탭에서 눌렀어도 회원가입 탭으로 쫓아내지 않고,
+                        // 이 자리에서 약관 동의를 받아 같은 토큰으로 다시 시도한다.
+                        _kakaoAgreementToken.value = kakaoAccessToken
+                        _uiState.value = LoginUiState.Idle
+                    } else {
+                        _uiState.value =
+                            LoginUiState.Error(e.message ?: "카카오 로그인에 실패했습니다.")
+                    }
                 }
         }
+    }
+
+    // ───────── 신규 카카오 사용자 약관 동의 ─────────
+
+    /**
+     * 값이 있으면 "이 카카오 토큰으로 가입하려면 약관 동의가 필요하다"는 뜻.
+     * 화면은 이 값이 null 이 아닐 때 약관 동의 시트를 띄운다.
+     *
+     * 토큰을 ViewModel 에 들고 있는 이유 — 약관 '보기'로 문서 화면에 다녀오면
+     * 로그인 화면 컴포지션은 사라지지만 ViewModel 은 살아 있어서 흐름이 끊기지 않는다.
+     */
+    private val _kakaoAgreementToken = MutableStateFlow<String?>(null)
+    val kakaoAgreementToken: StateFlow<String?> = _kakaoAgreementToken.asStateFlow()
+
+    /** 사용자가 약관 동의 시트를 닫았다 — 가입을 포기한 것으로 본다. */
+    fun dismissKakaoAgreement() {
+        _kakaoAgreementToken.value = null
+        _uiState.value = LoginUiState.Idle
+    }
+
+    /** 시트에서 필수 약관에 동의하고 '동의하고 시작하기'를 눌렀을 때. */
+    fun submitKakaoAgreement(agreements: List<AgreementDto>) {
+        val token = _kakaoAgreementToken.value ?: return
+        if (!agreements.filter { it.agreed }.map { it.doc }
+                .containsAll(AppDocuments.requiredSlugs)
+        ) {
+            _uiState.value = LoginUiState.Error("필수 약관에 모두 동의해주세요.")
+            return
+        }
+        _kakaoAgreementToken.value = null
+        loginWithKakao(token, agreements)
     }
 
     /**
@@ -139,6 +181,7 @@ class AuthViewModel(
 
     // 카카오 SDK 자체에서 로그인이 취소/실패했을 때 화면에 메시지를 표시
     fun onKakaoError(message: String) {
+        _kakaoAgreementToken.value = null
         _uiState.value = LoginUiState.Error(message)
     }
 

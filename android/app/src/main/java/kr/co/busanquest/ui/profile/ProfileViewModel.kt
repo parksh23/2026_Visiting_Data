@@ -8,6 +8,8 @@ import kr.co.busanquest.data.repository.MissionWithState
 import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.repository.RetrofitAuthRepository
 import kr.co.busanquest.data.repository.UserRepository
+import kr.co.busanquest.util.KakaoSession
+import kr.co.busanquest.util.PushRegistrar
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -215,7 +217,13 @@ class ProfileViewModel : ViewModel() {
         if (_logoutLoading.value) return
         _logoutLoading.value = true
         viewModelScope.launch {
+            // ⚠️ 순서 주의 — 로컬 JWT 가 살아 있을 때 불러야 인증이 통과한다.
+            //    이걸 놓치면 서버에 이 기기 토큰이 남아, 로그아웃한 기기로 푸시가 계속 간다.
+            PushRegistrar.unregister()
             RetrofitAuthRepository(RetrofitInstance.authApi).logout()   // 실패해도 무시
+            // 카카오 세션도 함께 끊는다. 안 그러면 다음에 카카오 버튼을 눌렀을 때
+            // 계정 선택 없이 방금 로그아웃한 계정으로 그대로 다시 들어간다.
+            KakaoSession.logout()
             UserRepository.clear()
             _logoutLoading.value = false
             _logoutVisible.value = false
@@ -242,6 +250,9 @@ class ProfileViewModel : ViewModel() {
         viewModelScope.launch {
             UserRepository.withdraw()
                 .onSuccess {
+                    // 탈퇴는 연결 끊기까지 한다 — 카카오 계정에 남은 앱 연결도 회수해야
+                    // "탈퇴했다"는 말과 실제 상태가 맞는다. (이메일 가입자면 그냥 실패하고 넘어간다)
+                    KakaoSession.unlink()
                     _withdrawState.value = WithdrawState(visible = false)
                     onWithdrawn()
                 }

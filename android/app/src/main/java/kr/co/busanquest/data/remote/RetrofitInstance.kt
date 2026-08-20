@@ -1,6 +1,7 @@
 package kr.co.busanquest.data.remote
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import kr.co.busanquest.data.local.TokenStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -25,9 +26,40 @@ object RetrofitInstance {
         appContext = context.applicationContext
     }
 
-    // HTTP 요청/응답 내용을 Logcat에 보여주는 로거
-    private val logger = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+    /**
+     * 디버그 빌드인지 — 통신 로그를 남길지 판단하는 기준.
+     *
+     * BuildConfig.DEBUG 대신 매니페스트 플래그를 보는 이유는,
+     * 이 프로젝트가 buildFeatures 에 buildConfig 를 켜 두지 않아
+     * BuildConfig 클래스 자체가 생성되지 않기 때문이다.
+     *
+     * appContext 가 필요하므로 lazy — RetrofitInstance.init() 이후에만 평가된다.
+     * (client 도 lazy 라 첫 네트워크 호출 시점에 함께 만들어진다)
+     */
+    private val isDebugBuild: Boolean by lazy {
+        (appContext.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
+    /**
+     * HTTP 요청/응답 내용을 Logcat 에 보여주는 로거.
+     *
+     * ⚠️ 릴리스 빌드에서는 반드시 꺼야 한다.
+     *    BODY 레벨은 요청·응답 본문을 통째로 찍기 때문에
+     *    JWT·이메일·닉네임·인증 위치 좌표가 그대로 Logcat 에 남는다.
+     *    설치된 앱의 로그는 다른 앱이나 adb 로 열람될 수 있다.
+     *
+     * Authorization 헤더는 디버그 빌드에서도 가린다.
+     * 토큰 유무는 아래 인터셉터가 tokenEmpty 로 따로 찍어주므로 디버깅에 지장이 없다.
+     */
+    private val logger: HttpLoggingInterceptor by lazy {
+        HttpLoggingInterceptor().apply {
+            level = if (isDebugBuild) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+            redactHeader("Authorization")
+        }
     }
 
     // OkHttpClient
@@ -45,10 +77,12 @@ object RetrofitInstance {
                     TokenStore(appContext).tokenFlow.first()
                 }
 
-                Log.d(
-                    "AUTH_INTERCEPTOR",
-                    "url=${originalRequest.url}, tokenEmpty=${token.isNullOrBlank()}"
-                )
+                if (isDebugBuild) {
+                    Log.d(
+                        "AUTH_INTERCEPTOR",
+                        "url=${originalRequest.url}, tokenEmpty=${token.isNullOrBlank()}"
+                    )
+                }
 
                 // 토큰이 있으면 Authorization: Bearer <token> 헤더 추가
                 val newRequest = if (!token.isNullOrBlank()) {
@@ -73,7 +107,12 @@ object RetrofitInstance {
                 val isAuthCall = request.url.encodedPath.contains("/auth/")
 
                 if (response.code == 401 && !isAuthCall) {
-                    Log.w("AUTH_INTERCEPTOR", "401 발생 → 토큰 삭제 후 로그인 화면 이동: ${request.url}")
+                    if (isDebugBuild) {
+                        Log.w(
+                            "AUTH_INTERCEPTOR",
+                            "401 발생 → 토큰 삭제 후 로그인 화면 이동: ${request.url}"
+                        )
+                    }
 
                     // 저장된 JWT 삭제 (인터셉터는 suspend 불가 → runBlocking)
                     runBlocking {

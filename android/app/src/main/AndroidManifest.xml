@@ -43,6 +43,29 @@
             </intent-filter>
         </activity>
 
+        <!-- 서버 푸시(FCM) 수신.
+             앱이 꺼져 있어도 시스템이 이 서비스를 깨워 알림을 전달한다.
+             exported="false" — 다른 앱이 직접 호출할 수 없어야 한다. -->
+        <service
+            android:name=".util.BusanQuestMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- 서버가 channel_id 를 지정하지 못한 경우에 쓰일 기본 채널.
+             Notifier 가 만드는 채널 ID 와 같은 값이라 별도 채널이 생기지 않는다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="new_mission" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_nav_flag" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

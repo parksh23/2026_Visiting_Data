@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 서버 푸시 알림의 강조색 (Notifier 가 쓰는 Coral 과 같은 값) -->
+    <color name="notification_accent">#FFE8635F</color>
 </resources>

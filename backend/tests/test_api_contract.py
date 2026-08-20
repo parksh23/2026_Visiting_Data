@@ -61,6 +61,7 @@ from routers.api_v1 import (
     update_my_nickname,
     update_notification_settings,
     verify_mission,
+    withdraw_account,
 )
 from tourism_scoring import (
     DistrictScore,
@@ -403,6 +404,110 @@ def test_kakao_signup_without_email():
 
         kakao_login(KakaoLoginRequest(access_token="valid-token"), db)
         assert db.query(UserAgreement).filter_by(user_code=user.user_code).count() == 3
+    finally:
+        api_v1_module.httpx.get = original_get
+        db.close()
+
+
+def _fake_kakao(kakao_id: int, nickname: str, email=None):
+    """카카오 /v2/user/me 응답을 흉내내는 객체."""
+    account = {"profile": {"nickname": nickname}}
+    if email:
+        account["email"] = email
+
+    class KakaoResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"id": kakao_id, "kakao_account": account}
+
+    return lambda *args, **kwargs: KakaoResponse()
+
+
+def test_kakao_duplicate_nickname():
+    """카카오 프로필 닉네임이 이미 쓰이고 있어도 500이 아니라 접미사가 붙어야 한다.
+
+    APP_USERS.NICKNAME 에 UNIQUE 제약(005)이 걸려 있어서, 예전에는 흔한 닉네임을 쓰는
+    두 번째 카카오 사용자가 IntegrityError → 500 을 받았다.
+    """
+    original_get = api_v1_module.httpx.get
+    db = SessionLocal()
+    try:
+        api_v1_module.httpx.get = _fake_kakao(811111111, "민수")
+        kakao_login(
+            KakaoLoginRequest(access_token="t1", agreements=_required_agreements()), db
+        )
+        first = db.query(AppUser).filter(AppUser.kakao_id == "811111111").one()
+        assert first.nickname == "민수"
+
+        # 같은 닉네임을 가진 다른 카카오 계정
+        api_v1_module.httpx.get = _fake_kakao(822222222, "민수")
+        kakao_login(
+            KakaoLoginRequest(access_token="t2", agreements=_required_agreements()), db
+        )
+        second = db.query(AppUser).filter(AppUser.kakao_id == "822222222").one()
+        assert second.nickname != first.nickname
+        assert second.nickname.startswith("민수")
+        assert db.query(UserAgreement).filter_by(user_code=second.user_code).count() == 3
+    finally:
+        api_v1_module.httpx.get = original_get
+        db.close()
+
+
+def test_withdrawal_keeps_agreements_and_blocks_relogin():
+    """탈퇴는 소프트 삭제 — 동의 이력은 남고, 식별 정보는 지워진다."""
+    original_get = api_v1_module.httpx.get
+    db = SessionLocal()
+    try:
+        api_v1_module.httpx.get = _fake_kakao(
+            833333333, "탈퇴예정", email="bye@example.com"
+        )
+        kakao_login(
+            KakaoLoginRequest(access_token="t3", agreements=_required_agreements()), db
+        )
+        user = db.query(AppUser).filter(AppUser.kakao_id == "833333333").one()
+        user_code = user.user_code
+        db.add(UserSettings(user_code=user_code))
+        db.add(PushToken(user_code=user_code, token="fcm-withdraw-test"))
+        db.commit()
+
+        # 하드 삭제였다면 USER_AGREEMENTS FK 때문에 여기서 터졌다
+        result = withdraw_account(subject=user_code, db=db)
+        assert result["success"] is True
+
+        withdrawn = db.query(AppUser).filter(AppUser.user_code == user_code).one()
+        assert withdrawn.account_status == "WITHDRAWN"
+        assert withdrawn.email is None
+        assert withdrawn.kakao_id is None
+        assert withdrawn.password_hash is None
+        assert withdrawn.nickname == f"탈퇴한사용자_{user_code}"
+        # 동의 이력은 증빙으로 보존
+        assert db.query(UserAgreement).filter_by(user_code=user_code).count() == 3
+        # 기기 토큰·알림 설정은 실제로 삭제
+        assert db.query(PushToken).filter_by(user_code=user_code).count() == 0
+        assert db.query(UserSettings).filter_by(user_code=user_code).count() == 0
+
+        # 탈퇴 계정의 토큰으로는 아무 API 도 못 쓴다
+        try:
+            api_v1_module._get_user(db, user_code)
+            raise AssertionError("탈퇴 계정은 403이어야 합니다.")
+        except HTTPException as exc:
+            assert exc.status_code == 403
+
+        # 같은 카카오 계정으로 다시 들어오면 '신규 가입'이라 약관 동의가 다시 필요하다
+        try:
+            kakao_login(KakaoLoginRequest(access_token="t3"), db)
+            raise AssertionError("재가입은 약관 동의 없이는 400이어야 합니다.")
+        except HTTPException as exc:
+            assert exc.status_code == 400
+
+        kakao_login(
+            KakaoLoginRequest(access_token="t3", agreements=_required_agreements()), db
+        )
+        rejoined = db.query(AppUser).filter(AppUser.kakao_id == "833333333").one()
+        assert rejoined.user_code != user_code
+        assert rejoined.account_status == "ACTIVE"
     finally:
         api_v1_module.httpx.get = original_get
         db.close()
@@ -784,6 +889,8 @@ if __name__ == "__main__":
     test_tourism_score_formula()
     test_monthly_update_preserves_existing_user_total()
     test_kakao_signup_without_email()
+    test_kakao_duplicate_nickname()
+    test_withdrawal_keeps_agreements_and_blocks_relogin()
     test_signup_agreement_validation_and_timestamp_fallback()
     test_nickname_update_contract()
     test_settings_documents_and_push_token_contract()

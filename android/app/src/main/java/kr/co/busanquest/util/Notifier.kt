@@ -86,7 +86,35 @@ object Notifier {
     }
 
     /**
+     * 서버(FCM) 푸시를 앱이 떠 있는 동안 받았을 때 띄운다.
+     *
+     * 앱이 백그라운드면 시스템이 알아서 띄우므로 이 함수는 호출되지 않는다.
+     * type 은 서버 push_notifications.CHANNELS 의 키와 같다.
+     *
+     * post() 가 스위치·야간 방해 금지를 다시 확인하지만, 서버도 같은 검사를 이미 했다.
+     * 설정이 서버와 동기화되어 있어 두 판단이 어긋나지 않는다.
+     */
+    fun showRemote(type: String?, title: String?, body: String?) {
+        if (title.isNullOrBlank() && body.isNullOrBlank()) return
+        val target = when (type) {
+            "NEW_MISSION" -> Triple(NotificationKey.NEW_MISSION, CH_NEW_MISSION, ID_NEW_MISSION)
+            "RANKING_CHANGE" -> Triple(NotificationKey.RANKING_CHANGE, CH_RANKING, ID_RANKING)
+            else -> return          // 모르는 종류는 무시 (서버가 새 타입을 추가한 경우)
+        }
+        post(
+            key = target.first,
+            channelId = target.second,
+            notificationId = target.third,
+            title = title.orEmpty(),
+            body = body.orEmpty()
+        )
+    }
+
+    /**
      * 새 미션 감지.
+     *
+     * ⚠️ 서버 FCM 푸시로 일원화하면서 호출부를 제거했다. 지금은 쓰이지 않는다.
+     *    (남겨 둔 이유: 푸시 없이 동작하는 로컬 전용 빌드로 되돌릴 때 필요하다)
      * 서버에서 받은 미션 목록과 "이미 알린 목록"을 비교해 새 것만 알린다.
      * 첫 실행에는 전부 새 미션이므로 알리지 않고 기준만 저장한다.
      */
@@ -120,6 +148,8 @@ object Notifier {
     /**
      * 랭킹 변동 감지.
      * 마지막으로 알린 순위와 다를 때만 알린다. 첫 조회는 기준만 저장.
+     *
+     * ⚠️ 서버 FCM 푸시로 일원화하면서 호출부를 제거했다. 지금은 쓰이지 않는다.
      */
     fun checkRankChange(currentRank: Int) {
         val ctx = appContext ?: return

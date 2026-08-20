@@ -12,6 +12,14 @@ import retrofit2.HttpException
 import java.io.IOException
 import kr.co.busanquest.data.remote.AgreementDto
 
+/**
+ * 카카오 로그인인데 아직 우리 서비스 회원이 아니고, 약관 동의 이력도 안 보낸 경우.
+ *
+ * 서버는 이때 400 을 준다(신규 가입이므로 필수 약관 동의가 필요하다).
+ * 화면이 "그냥 실패"와 구분해서 약관 동의 시트를 띄울 수 있도록 별도 타입으로 올린다.
+ */
+class KakaoAgreementRequiredException(message: String) : Exception(message)
+
 // 서버가 내려준 에러 응답에서 detail 메시지를 뽑아낸다.
 // FastAPI 는 오류 시 {"detail": "..."} 형태로 응답한다.
 // 뽑아내지 못하면 fallback 문구를 사용한다.
@@ -205,8 +213,18 @@ class RetrofitAuthRepository(
             )
             Result.success(response.token)
         } catch (e: HttpException) {
-            // 서버가 내려준 실패 사유(detail)가 있으면 그대로 보여준다
-            Result.failure(Exception(e.serverDetail("카카오 로그인에 실패했습니다. 다시 시도해주세요.")))
+            // 400 = 신규 가입인데 필수 약관 동의가 없다는 뜻.
+            // 화면이 약관 동의를 받아 같은 토큰으로 다시 호출할 수 있게 전용 예외로 올린다.
+            if (e.code() == 400) {
+                Result.failure(
+                    KakaoAgreementRequiredException(
+                        e.serverDetail("가입을 위해 약관 동의가 필요합니다.")
+                    )
+                )
+            } else {
+                // 서버가 내려준 실패 사유(detail)가 있으면 그대로 보여준다
+                Result.failure(Exception(e.serverDetail("카카오 로그인에 실패했습니다. 다시 시도해주세요.")))
+            }
         } catch (e: IOException) {
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
         } catch (e: Exception) {

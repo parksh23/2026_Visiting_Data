@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import kr.co.busanquest.data.local.NotificationKey
 import kr.co.busanquest.data.local.SettingsStore
+import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.ui.theme.*
 import kr.co.busanquest.util.Notifier
 import kotlinx.coroutines.launch
@@ -40,8 +41,11 @@ import kotlinx.coroutines.launch
 /**
  * 알림 설정.
  *
- * 저장 위치: 기기 로컬(DataStore). 서버에 USER_SETTINGS 가 생기기 전까지는
- * "이 기기에서만" 적용되며, 화면 하단에 그 사실을 명시한다.
+ * 저장 위치: 서버(USER_SETTINGS). 기기 DataStore 는 화면 표시와
+ * Notifier 의 즉시 확인을 위한 캐시다.
+ *
+ * 서버에 저장해야 하는 이유 — 서버가 FCM 을 보낼지 말지를 이 값으로 판단한다.
+ * 기기에만 두면 스위치를 꺼도 푸시가 계속 온다.
  */
 @Composable
 fun NotificationSettingsScreen(navController: NavHostController) {
@@ -52,6 +56,15 @@ fun NotificationSettingsScreen(navController: NavHostController) {
     val prefs by store.notificationFlow.collectAsStateWithLifecycle(
         initialValue = NotificationKey.entries.associateWith { it.default }
     )
+
+    // 화면에 들어올 때 서버 값을 한 번 받아온다 (다른 기기에서 바꿨을 수 있다).
+    // 실패하면 캐시에 있던 값을 그대로 보여준다.
+    LaunchedEffect(Unit) { NotificationSettingsRepository.refresh(context) }
+
+    // 스위치 하나를 바꾼다. 화면은 즉시 반응하고, 서버 저장이 실패하면 되돌아온다.
+    fun toggle(key: NotificationKey, value: Boolean) {
+        scope.launch { NotificationSettingsRepository.set(context, key, value) }
+    }
 
     // 기기 알림이 꺼져 있으면 앱 내 스위치는 의미가 없다 → 배너로 안내
     var systemEnabled by remember {
@@ -135,19 +148,19 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                 title = "미션 인증 결과",
                 description = "사진·위치 인증이 통과했는지 알려드려요",
                 checked = prefs[NotificationKey.MISSION_RESULT] ?: true
-            ) { scope.launch { store.setNotification(NotificationKey.MISSION_RESULT, it) } }
+            ) { toggle(NotificationKey.MISSION_RESULT, it) }
             SettingsDivider()
             ToggleRow(
                 title = "새 미션·이벤트",
                 description = "내 주변에 새 미션이 열리면 알려드려요",
                 checked = prefs[NotificationKey.NEW_MISSION] ?: true
-            ) { scope.launch { store.setNotification(NotificationKey.NEW_MISSION, it) } }
+            ) { toggle(NotificationKey.NEW_MISSION, it) }
             SettingsDivider()
             ToggleRow(
                 title = "랭킹 변동",
                 description = "내 순위가 바뀌면 알려드려요",
                 checked = prefs[NotificationKey.RANKING_CHANGE] ?: false
-            ) { scope.launch { store.setNotification(NotificationKey.RANKING_CHANGE, it) } }
+            ) { toggle(NotificationKey.RANKING_CHANGE, it) }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -157,7 +170,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                 title = "야간 방해 금지",
                 description = "21:00 ~ 08:00 에는 알림을 보내지 않아요",
                 checked = prefs[NotificationKey.NIGHT_MUTE] ?: true
-            ) { scope.launch { store.setNotification(NotificationKey.NIGHT_MUTE, it) } }
+            ) { toggle(NotificationKey.NIGHT_MUTE, it) }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -167,7 +180,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                 title = "마케팅 정보 수신",
                 description = "혜택·이벤트 소식을 받아볼게요 (선택)",
                 checked = prefs[NotificationKey.MARKETING] ?: false
-            ) { scope.launch { store.setNotification(NotificationKey.MARKETING, it) } }
+            ) { toggle(NotificationKey.MARKETING, it) }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -190,7 +203,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
         Spacer(Modifier.height(16.dp))
         Text(
             "테스트 알림은 위의 '미션 인증 결과' 스위치와 야간 방해 금지 설정을 그대로 따라요.\n" +
-                "알림 설정은 현재 이 기기에만 저장돼요.\n다른 기기에서 로그인하면 기본값으로 시작합니다.",
+                "알림 설정은 계정에 저장돼요. 다른 기기에서 로그인해도 그대로 적용됩니다.",
             fontSize = 12.sp,
             color = TextSub,
             modifier = Modifier.padding(horizontal = 24.dp)

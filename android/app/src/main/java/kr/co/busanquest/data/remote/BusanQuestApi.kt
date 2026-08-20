@@ -2,6 +2,7 @@ package kr.co.busanquest.data.remote
 
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Body
 import retrofit2.http.Multipart
 import retrofit2.http.Part
@@ -32,6 +33,27 @@ interface BusanQuestApi {
     // 성공 후 앱은 로컬 토큰을 지우고 로그인 화면으로 보낸다.
     @DELETE("api/v1/users/me")
     suspend fun withdraw(): SimpleResultDto
+
+    // ───────── 알림 설정 (서버 저장) ─────────
+    // 기기 DataStore 는 캐시일 뿐이고, 서버 푸시 발송 여부는 이 값이 결정한다.
+
+    @GET("api/v1/users/me/notifications")
+    suspend fun getNotificationSettings(): NotificationSettingsDto
+
+    @PATCH("api/v1/users/me/notifications")
+    suspend fun updateNotificationSettings(
+        @Body request: NotificationSettingsUpdateDto
+    ): NotificationSettingsDto
+
+    // ───────── FCM 푸시 토큰 ─────────
+
+    @POST("api/v1/users/me/push-token")
+    suspend fun registerPushToken(@Body request: PushTokenRequestDto): SimpleResultDto
+
+    // ⚠️ @DELETE 는 본문을 실을 수 없다(Retrofit 이 hasBody=false 로 만든다).
+    //    서버가 어떤 토큰을 지울지 알아야 하므로 @HTTP 로 hasBody 를 켜서 보낸다.
+    @HTTP(method = "DELETE", path = "api/v1/users/me/push-token", hasBody = true)
+    suspend fun unregisterPushToken(@Body request: PushTokenDeleteRequestDto): SimpleResultDto
 
     @GET("api/v1/missions")
     suspend fun getMissions(): List<MissionDto>

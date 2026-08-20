@@ -8,7 +8,6 @@ import kr.co.busanquest.data.model.RankEntry
 import kr.co.busanquest.data.model.RankingResponse
 import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.repository.RankingRepository
-import kr.co.busanquest.util.Notifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -101,10 +100,8 @@ class RankingViewModel(
                 val res = repository.fetchRankings(type.query)
                 cache[type] = res
                 _uiState.value = res.toSuccessState()
-                // 순위 변동 알림은 "전체 랭킹" 기준으로만 (탭 전환마다 울리지 않게)
-                if (type == RankingType.ALL) {
-                    Notifier.checkRankChange(res.myRank.rank)
-                }
+                // 순위 변동 알림은 서버 FCM 푸시가 담당한다(매일 18:10, 상승 시에만).
+                // 여기서 로컬 알림까지 띄우면 같은 소식이 두 번 온다.
             } catch (e: HttpException) {
                 _uiState.value = RankingUiState.Error("랭킹을 불러오지 못했습니다. (${e.code()})")
             } catch (e: IOException) {

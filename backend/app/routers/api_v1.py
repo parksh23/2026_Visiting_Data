@@ -230,10 +230,13 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+# 수정됨: completed_ids 대신 user_statuses(딕셔너리)를 받아서 실제 상태값을 반영합니다.
 def _mission_dict(
-    mission: Mission, completed_ids: set[int], saved_ids: Optional[set[int]] = None
+    mission: Mission, user_statuses: dict, saved_ids: Optional[set[int]] = None
 ) -> dict:
-    completed = mission.mission_id in completed_ids
+    mission_status = user_statuses.get(mission.mission_id, "not_started")
+    completed = (mission_status == "completed")
+
     return {
         "mission_id": mission.mission_id,
         "title": getattr(mission, "title", ""),
@@ -244,7 +247,7 @@ def _mission_dict(
         "reward_points": getattr(mission, "reward_points", 0),
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
-        "status": "completed" if completed else "not_started",
+        "status": mission_status,
         "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
         "is_saved": mission.mission_id in (saved_ids or set()),
@@ -494,19 +497,18 @@ def get_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
     user = _get_user(db, subject)
-    completed_ids = {
-        mission_id
-        for (mission_id,) in db.query(UserMission.mission_id)
-        .filter(
-            UserMission.user_code == user.user_code,
-            UserMission.status == "completed",
-        )
+
+    # 수정됨: 사용자의 모든 미션 상태를 딕셔너리로 가져옵니다. (completed, ongoing 등 모두 포함)
+    user_statuses = dict(
+        db.query(UserMission.mission_id, UserMission.status)
+        .filter(UserMission.user_code == user.user_code)
         .all()
-    }
+    )
+
     saved_ids = {int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()}
 
     return [
-        _mission_dict(mission, completed_ids, saved_ids)
+        _mission_dict(mission, user_statuses, saved_ids)
         for mission in db.query(Mission).order_by(Mission.mission_id).all()
     ]
 
@@ -515,6 +517,7 @@ def get_missions(
 def get_ongoing_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
+    # 위에서 수정한 get_missions 덕분에 이제 필터링이 정상 동작합니다.
     return [
         mission
         for mission in get_missions(subject, db)
@@ -527,15 +530,13 @@ def get_saved_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
     user = _get_user(db, subject)
-    completed_ids = {
-        mission_id
-        for (mission_id,) in db.query(UserMission.mission_id)
-        .filter(
-            UserMission.user_code == user.user_code,
-            UserMission.status == "completed",
-        )
+
+    # 수정됨: 저장된 미션에서도 동일하게 전체 상태 딕셔너리를 가져옵니다.
+    user_statuses = dict(
+        db.query(UserMission.mission_id, UserMission.status)
+        .filter(UserMission.user_code == user.user_code)
         .all()
-    }
+    )
 
     saved_ids_list = [int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()]
     saved_ids = set(saved_ids_list)
@@ -552,7 +553,7 @@ def get_saved_missions(
     mission_map = {m.mission_id: m for m in missions_db}
     missions = [mission_map[mid] for mid in saved_ids_list if mid in mission_map]
 
-    return [_mission_dict(mission, completed_ids, saved_ids) for mission in missions]
+    return [_mission_dict(mission, user_statuses, saved_ids) for mission in missions]
 
 
 @router.post(

@@ -1,14 +1,6 @@
-import os
 import sys
 import logging
 from loguru import logger
-from pathlib import Path
-
-# 1. 저장 경로 설정
-BASE_DIR = Path(__file__).resolve().parents[1]
-LOG_DIR = BASE_DIR / "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
-LOG_FILE_PATH = os.path.join(LOG_DIR, "server_logs.txt")
 
 # 2. Loguru 설정 (콘솔 + TXT 파일 동시 출력 및 자동 삭제)
 logger.remove()
@@ -16,18 +8,7 @@ logger.remove()
 # 개발 시 터미널 확인용
 logger.add(sys.stdout, level="INFO", format="{time:YYYY-MM-DD HH:mm:ss} | <level>{level: <8}</level> | {message}")
 
-# TXT 파일 저장 (50MB 도달 시 분리, 30일 경과 시 자동 삭제)
-logger.add(
-    LOG_FILE_PATH,
-    rotation="50 MB",
-    retention="30 days",
-    compression="zip",
-    encoding="utf-8",
-    level="INFO",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}"
-)
-
-# 3. Uvicorn/FastAPI 기본 시스템 로그 가로채기
+# Render 등 운영 환경이 수집할 수 있도록 로그는 stdout으로만 보낸다.
 class InterceptHandler(logging.Handler):
     def emit(self, record):
         try:

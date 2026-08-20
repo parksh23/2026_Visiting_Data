@@ -70,6 +70,7 @@ fun DistrictBottomSheet(
     onDismiss: () -> Unit,
     onMissionClick: (Int) -> Unit,
     onChallenge: (Int) -> Unit,
+    onCancel: (Int) -> Unit,
     onVerify: (Int, MissionType) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -140,6 +141,7 @@ fun DistrictBottomSheet(
                         item = item,
                         onClick = { onMissionClick(item.mission.id) },
                         onChallenge = { onChallenge(item.mission.id) },
+                        onCancel = { onCancel(item.mission.id) },
                         onVerify = { onVerify(item.mission.id, item.mission.type) }
                     )
                 }
@@ -154,6 +156,7 @@ private fun SheetMissionRow(
     item: MissionWithState,
     onClick: () -> Unit,
     onChallenge: () -> Unit,
+    onCancel: () -> Unit,
     onVerify: () -> Unit
 ) {
     val mission = item.mission
@@ -246,20 +249,32 @@ private fun SheetMissionRow(
             MissionState.COMPLETED -> "완료" to IconGreen
         }
         val actionable = item.state == MissionState.NOT_STARTED || item.state == MissionState.IN_PROGRESS
-        Box(
-            modifier = Modifier
-                .pressable(enabled = actionable) {
-                    when (item.state) {
-                        MissionState.NOT_STARTED -> onChallenge()
-                        MissionState.IN_PROGRESS -> onVerify()
-                        else -> Unit
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (item.state == MissionState.IN_PROGRESS) {
+                Text(
+                    "취소",
+                    fontSize = 11.sp,
+                    color = TextSub,
+                    modifier = Modifier
+                        .pressable(onClick = onCancel)
+                        .padding(horizontal = 8.dp, vertical = 7.dp)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .pressable(enabled = actionable) {
+                        when (item.state) {
+                            MissionState.NOT_STARTED -> onChallenge()
+                            MissionState.IN_PROGRESS -> onVerify()
+                            else -> Unit
+                        }
                     }
-                }
-                .clip(CircleShape)
-                .background(bg)
-                .padding(horizontal = 14.dp, vertical = 7.dp)
-        ) {
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onFilled(bg))
+                    .clip(CircleShape)
+                    .background(bg)
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onFilled(bg))
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     CheckConstraint,
@@ -8,20 +8,15 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Text,
     UniqueConstraint,
 )
 
 from database import Base
 
 
-class TextFile(Base):
-    __tablename__ = "TEXT_FILES"
-
-    id = Column("ID", Integer, primary_key=True)
-    filename = Column("FILENAME", String(255), nullable=False)
-    content = Column("CONTENT", Text, nullable=False)  # DB의 CLOB 타입에 대응
-    created_at = Column("CREATED_AT", DateTime, default=datetime.utcnow)
+def utc_now() -> datetime:
+    """Oracle TIMESTAMP와 호환되는 timezone-naive UTC 시각을 반환한다."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class AppUser(Base):
@@ -40,7 +35,7 @@ class AppUser(Base):
     saved_missions = Column("SAVED_MISSIONS", String(1000), nullable=True, default="")
 
     conquered_districts = Column("CONQUERED_DISTRICTS", Integer, nullable=False, default=0)
-    created_at = Column("CREATED_AT", DateTime, default=datetime.utcnow)
+    created_at = Column("CREATED_AT", DateTime, default=utc_now)
     district_name = Column(
         "DISTRICT_NAME",
         String(100),
@@ -96,7 +91,42 @@ class UserMission(Base):
         "MISSION_ID", Integer, ForeignKey("MISSIONS.MISSION_ID"), nullable=False, index=True
     )
     status = Column("STATUS", String(20), nullable=False, default="completed")
-    verified_at = Column("ASSIGNED_AT", DateTime, nullable=False, default=datetime.utcnow)
+    verified_at = Column("ASSIGNED_AT", DateTime, nullable=False, default=utc_now)
+
+
+class SavedMission(Base):
+    __tablename__ = "SAVED_MISSIONS"
+    __table_args__ = (
+        UniqueConstraint("USER_CODE", "MISSION_ID", name="UQ_SAVED_MISSION"),
+    )
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE", String(20), ForeignKey("APP_USERS.USER_CODE"), nullable=False, index=True
+    )
+    mission_id = Column(
+        "MISSION_ID", Integer, ForeignKey("MISSIONS.MISSION_ID"), nullable=False, index=True
+    )
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=utc_now)
+
+
+class UserAgreement(Base):
+    __tablename__ = "USER_AGREEMENTS"
+    __table_args__ = (
+        UniqueConstraint("USER_CODE", "DOCUMENT_SLUG", "VERSION", name="UQ_USER_AGREEMENT"),
+        CheckConstraint(
+            '"DOCUMENT_SLUG" IN (\'terms\',\'privacy\',\'location\')',
+            name="CK_USER_AGREEMENTS_DOCUMENT",
+        ),
+    )
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE", String(20), ForeignKey("APP_USERS.USER_CODE"), nullable=False, index=True
+    )
+    document_slug = Column("DOCUMENT_SLUG", String(20), nullable=False)
+    version = Column("VERSION", String(20), nullable=False)
+    agreed_at = Column("AGREED_AT", DateTime, nullable=False)
 
 
 class Friendship(Base):
@@ -126,15 +156,12 @@ class Friendship(Base):
     )
 
 
-class AppRanking(Base):
-    __tablename__ = "APP_RANKINGS"
-
-    user_code = Column(
-        "USER_CODE",
-        String(20),
-        ForeignKey("APP_USERS.USER_CODE"),
-        primary_key=True
-    )
-    nickname = Column("NICKNAME", String(50), nullable=False)
-    total_points = Column("TOTAL_POINTS", Integer, nullable=False, default=0)
-    rank_num = Column("RANK_NUM", Integer, nullable=False)
+__all__ = [
+    "AppUser",
+    "District",
+    "Friendship",
+    "Mission",
+    "SavedMission",
+    "UserAgreement",
+    "UserMission",
+]

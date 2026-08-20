@@ -178,7 +178,7 @@ fun BusanMap(
                     val exitX = lerpX(i, i + 1, r)
                     val exitY = lerpY(i, i + 1, r)
                     if (i == 0) moveTo(entryX, entryY) else lineTo(entryX, entryY)
-                    quadraticBezierTo(x(i), y(i), exitX, exitY)
+                    quadraticTo(x(i), y(i), exitX, exitY)
                 }
                 close()
             }

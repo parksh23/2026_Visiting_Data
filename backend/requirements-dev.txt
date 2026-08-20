@@ -1,1 +1,2 @@
 -r app/requirements.txt
+pytest>=8,<10

@@ -3,6 +3,17 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val apiBaseUrl = providers.gradleProperty("BUSANQUEST_API_BASE_URL")
+    .orElse("https://visiting-data.onrender.com/")
+    .get()
+val kakaoNativeAppKey = providers.gradleProperty("BUSANQUEST_KAKAO_NATIVE_APP_KEY")
+    .orElse("5f26abd73b4e5c4273ed4ba4ea26aa7e")
+    .get()
+val releaseStoreFile = providers.gradleProperty("BUSANQUEST_STORE_FILE").orNull
+val releaseStorePassword = providers.gradleProperty("BUSANQUEST_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.gradleProperty("BUSANQUEST_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.gradleProperty("BUSANQUEST_KEY_PASSWORD").orNull
+
 android {
     namespace = "com.example.busasnquest"
     compileSdk {
@@ -18,12 +29,33 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", "\"$kakaoNativeAppKey\"")
+        manifestPlaceholders["kakaoNativeAppKey"] = kakaoNativeAppKey
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (
+            releaseStoreFile != null &&
+            releaseStorePassword != null &&
+            releaseKeyAlias != null &&
+            releaseKeyPassword != null
+        ) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -36,6 +68,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         jniLibs {
@@ -74,6 +107,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
 
+    // 로그인 상태에서도 순위 변동을 주기적으로 확인하는 백그라운드 작업
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+
     // Retrofit / 네트워크
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
@@ -83,7 +119,6 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
     // 사진 / 위치 (CurrentLocation, PhotoLocation 용)
-    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("com.kakao.maps.open:android:2.12.18")

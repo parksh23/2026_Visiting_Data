@@ -1,40 +1,33 @@
 import logging
+import time
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import text
 from database import SessionLocal
 from tourism_scoring import refresh_tourism_scores
 
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
+UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads"
+UPLOAD_RETENTION_SECONDS = 24 * 60 * 60
 
-def update_rankings_job():
-    db = SessionLocal()
-    try:
-        # 1. 기존 데이터를 통째로 날립니다 (속도가 매우 빠름)
-        db.execute(text("TRUNCATE TABLE APP_RANKINGS"))
 
-        # 2. APP_USERS 테이블에서 순위를 계산한 뒤 APP_RANKINGS에 한 번에 삽입합니다
-        insert_query = text("""
-            INSERT INTO APP_RANKINGS (USER_CODE, NICKNAME, TOTAL_POINTS, RANK_NUM)
-            SELECT
-                USER_CODE,
-                NICKNAME,
-                TOTAL_POINTS,
-                RANK() OVER (ORDER BY TOTAL_POINTS DESC, USER_CODE ASC) AS RANK_NUM
-            FROM APP_USERS
-        """)
-        db.execute(insert_query)
-        db.commit()
-        print("✅ [배치] 랭킹 업데이트 성공")
-
-    except Exception as e:
-        db.rollback()
-        print(f"❌ [배치] 랭킹 업데이트 실패: {e}")
-    finally:
-        db.close()
-
+def cleanup_stale_uploads_job():
+    """인증 요청으로 이어지지 않은 임시 JPG를 24시간 뒤 삭제한다."""
+    if not UPLOAD_DIR.exists():
+        return
+    cutoff = time.time() - UPLOAD_RETENTION_SECONDS
+    removed = 0
+    for path in UPLOAD_DIR.glob("*.jpg"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except OSError:
+            logger.exception("임시 업로드 삭제 실패: %s", path.name)
+    if removed:
+        logger.info("만료된 임시 업로드 %s개 삭제", removed)
 
 def refresh_tourism_scores_job():
     db = SessionLocal()
@@ -55,6 +48,15 @@ def start_scheduler():
         refresh_tourism_scores_job,
         CronTrigger(day=1, hour=3, minute=0, timezone="Asia/Seoul"),
         id="monthly-tourism-score-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        cleanup_stale_uploads_job,
+        "interval",
+        hours=1,
+        id="stale-upload-cleanup",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

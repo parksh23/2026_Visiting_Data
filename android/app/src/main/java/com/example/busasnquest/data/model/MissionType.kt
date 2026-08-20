@@ -9,10 +9,10 @@ enum class MissionType {
 
 /**
  * 인증 제출 시 서버에 보내는 mission_type 문자열.
- * 백엔드가 미션을 내려줄 때 사진 미션을 "IMAGE" 로 주므로, 제출 방향도 "IMAGE" 로 맞춘다.
+ * 서버 계약의 PHOTO/CURRENT_LOCATION/RECEIPT 값을 사용한다.
  */
 fun MissionType.toServerType(): String = when (this) {
-    MissionType.IMAGE_LOCATION -> "IMAGE"
+    MissionType.IMAGE_LOCATION -> "PHOTO"
     MissionType.CURRENT_LOCATION -> "CURRENT_LOCATION"
     MissionType.RECEIPT -> "RECEIPT"
 }

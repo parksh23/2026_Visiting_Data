@@ -1,6 +1,5 @@
 package com.example.busasnquest.data.repository
 
-import kotlinx.coroutines.delay
 import com.example.busasnquest.data.remote.AuthApi
 import com.example.busasnquest.data.remote.KakaoLoginRequestDto
 import com.example.busasnquest.data.remote.FindIdRequestDto
@@ -40,8 +39,7 @@ private fun HttpException.accountLookupMessage(): String = when (code()) {
 
 /**
  * 인증 데이터 계층의 추상화.
- * 화면/ViewModel 은 이 인터페이스만 알면 되고,
- * 서버가 생기면 RetrofitAuthRepository 로 갈아끼우기만 하면 된다.
+ * 화면/ViewModel 은 이 인터페이스만 알고 실제 서버 구현을 주입받는다.
  *
  * 성공 시 토큰 문자열을 담은 Result 를 돌려준다.
  */
@@ -69,10 +67,7 @@ interface AuthRepository {
     /**
      * 임시 비밀번호 메일 발송.
      *
-     * ⚠️ 서버 응답의 message 를 일부러 버린다.
-     * 메일 발송이 실패하면 서버가 "[개발 모드] ... 비밀번호: xxxx" 처럼
-     * 임시 비밀번호 평문을 본문에 실어 보내는데, 그대로 화면에 띄우면 노출된다.
-     * 화면에는 고정 안내 문구만 보여준다.
+     * 계정 존재 여부가 노출되지 않도록 화면에는 고정 안내 문구만 보여준다.
      */
     suspend fun findPassword(email: String): Result<Unit>
 
@@ -80,74 +75,16 @@ interface AuthRepository {
     suspend fun logout(): Result<Unit>
 }
 
-/**
- * 서버가 아직 없으므로 사용하는 가짜 구현.
- * - 이메일이 비어있지 않고 비밀번호가 4자 이상이면 성공
- * - 그 외에는 실패
- * 네트워크 지연을 흉내내려고 delay 를 둔다.
- */
-class FakeAuthRepository : AuthRepository {
-    override suspend fun login(email: String, password: String): Result<String> {
-        delay(800) // 서버 응답 기다리는 느낌
-
-        return if (email.isNotBlank() && password.length >= 4) {
-            Result.success("fake-token-${System.currentTimeMillis()}")
-        } else {
-            Result.failure(Exception("이메일 또는 비밀번호를 확인해주세요."))
-        }
-    }
-
-    override suspend fun loginWithKakao(
-        kakaoAccessToken: String,
-        agreements: List<AgreementDto>
-    ): Result<String> {
-        delay(500)
-        return Result.success("fake-kakao-token-${System.currentTimeMillis()}")
-    }
-
-    override suspend fun signup(
-        email: String,
-        password: String,
-        nickname: String,
-        agreements: List<AgreementDto>
-    ): Result<String> {
-        delay(800)
-        return Result.success("fake-signup-token-${System.currentTimeMillis()}")
-    }
-
-    override suspend fun findId(nickname: String): Result<String> {
-        delay(600)
-        return if (nickname.isNotBlank()) Result.success("bu*****@gmail.com")
-        else Result.failure(Exception("계정을 찾을 수 없습니다."))
-    }
-
-    override suspend fun findPassword(email: String): Result<Unit> {
-        delay(600)
-        return if (email.contains("@")) Result.success(Unit)
-        else Result.failure(Exception("계정을 찾을 수 없습니다."))
-    }
-
-    override suspend fun logout(): Result<Unit> {
-        delay(200)
-        return Result.success(Unit)
-    }
-}
-
 class RetrofitAuthRepository(
     private val api: AuthApi
 ) : AuthRepository {
-        /**
-        * 이메일/비밀번호 로그인.
-        * 아직 백엔드에 이메일 로그인 엔드포인트가 없으므로 기존 동작(가짜 검증)을 유지한다.
-        * 서버에 /api/v1/auth/login 이 준비되면 아래 주석 처리된 실제 호출로 교체하면 된다.
-        */
-        /**
+    /**
     * 이메일/비밀번호 로그인.
     * 앱에서 입력한 email, password를 FastAPI 백엔드로 전송하고,
     * 성공하면 백엔드가 내려준 JWT token 문자열을 반환한다.
     *
     * 호출되는 백엔드 API:
-    * POST http://10.0.2.2:8000/api/v1/auth/login
+    * POST /api/v1/auth/login
     *
     * 요청 JSON:
     * {
@@ -218,7 +155,7 @@ class RetrofitAuthRepository(
     * 앱에서는 이 token을 저장해서 자동 로그인처럼 처리할 수 있다.
     *
     * 호출되는 백엔드 API:
-    * POST http://10.0.2.2:8000/api/v1/auth/signup
+    * POST /api/v1/auth/signup
     *
     * 요청 JSON:
     * {

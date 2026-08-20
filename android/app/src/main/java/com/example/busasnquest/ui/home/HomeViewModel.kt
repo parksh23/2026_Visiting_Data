@@ -10,7 +10,6 @@ import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.data.repository.UserRepository
 import com.example.busasnquest.util.getCurrentLocation
-import com.example.busasnquest.util.readImageLocation
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,6 +93,7 @@ class HomeViewModel : ViewModel() {
 
     // 보유 포인트 (홈 헤더 칩용)
     val points: StateFlow<Int> = UserRepository.points
+    val name: StateFlow<String> = UserRepository.name
 
     // ── 미션 찜 ──
 
@@ -108,6 +108,20 @@ class HomeViewModel : ViewModel() {
         _saveError.value = null
     }
 
+    fun startMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.startMissionOnServer(id)
+                .onFailure { _saveError.value = it.message }
+        }
+    }
+
+    fun cancelMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.cancelMissionOnServer(id)
+                .onFailure { _saveError.value = it.message }
+        }
+    }
+
     // POST/DELETE /api/v1/missions/{id}/saved → 응답의 is_saved 로 화면 갱신
     fun toggleSaved(id: Int) {
         viewModelScope.launch {
@@ -119,15 +133,16 @@ class HomeViewModel : ViewModel() {
 
     // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
 
-    // IMAGE: 사진을 골랐을 때 → 사진 GPS 확인 후 image + 좌표 전송
-    fun onImagePicked(id: Int, context: Context, uri: Uri) {
-        val location = readImageLocation(context, uri)
-        if (location == null) {
-            MissionRepository.setError(id, "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
-            return
-        }
+    // PHOTO: 이미지 자체의 EXIF가 아닌 인증 시점의 현재 위치를 함께 전송한다.
+    // Android Photo Picker가 위치 메타데이터를 제거해 인증이 막히는 기기에서도 동작한다.
+    fun onPhotoSelected(id: Int, context: Context, uri: Uri) {
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
+            val location = getCurrentLocation(context)
+            if (location == null) {
+                MissionRepository.setError(id, "현재 위치를 확인하지 못했어요. 위치 서비스를 켜고 다시 시도해주세요.")
+                return@launch
+            }
             val imageUrl = MissionRepository.uploadImage(context, uri)
                 .getOrElse { error ->
                     MissionRepository.setError(
@@ -143,7 +158,8 @@ class HomeViewModel : ViewModel() {
                     missionType = serverTypeOf(id, MissionType.IMAGE_LOCATION),
                     imageUrl = imageUrl,
                     latitude = location.latitude,
-                    longitude = location.longitude
+                    longitude = location.longitude,
+                    locationAccuracyMeters = location.accuracyMeters
                 )
             )
         }
@@ -164,7 +180,8 @@ class HomeViewModel : ViewModel() {
                     missionId = id,
                     missionType = serverTypeOf(id, MissionType.CURRENT_LOCATION),
                     latitude = location.latitude,
-                    longitude = location.longitude
+                    longitude = location.longitude,
+                    locationAccuracyMeters = location.accuracyMeters
                 )
             )
         }

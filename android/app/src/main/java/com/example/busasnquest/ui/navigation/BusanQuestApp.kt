@@ -38,11 +38,14 @@ import com.example.busasnquest.ui.detail.MissionDetailScreen
 import com.example.busasnquest.ui.profile.MissionHistoryScreen
 import com.example.busasnquest.ui.profile.SavedMissionScreen
 import com.example.busasnquest.data.repository.UserRepository
+import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.ui.profile.AccountSettingsScreen
 import com.example.busasnquest.ui.profile.DocumentScreen
-import com.example.busasnquest.ui.profile.NotificationSettingsScreen
 import com.example.busasnquest.ui.profile.SupportScreen
+import com.example.busasnquest.ui.profile.RankingNotificationSettingsScreen
 import com.example.busasnquest.ui.ranking.DistrictRankingScreen
+import com.example.busasnquest.notification.RankingNotificationNavigation
+import com.example.busasnquest.notification.RankingNotificationScheduler
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
@@ -58,6 +61,14 @@ fun BusanQuestApp() {
     val status by produceState(initialValue = AuthStatus.Loading, tokenStore) {
         tokenStore.tokenFlow.collect { token ->
             value = if (token.isNullOrBlank()) AuthStatus.LoggedOut else AuthStatus.LoggedIn
+        }
+    }
+
+    LaunchedEffect(status) {
+        when (status) {
+            AuthStatus.LoggedIn -> RankingNotificationScheduler.start(context)
+            AuthStatus.LoggedOut -> RankingNotificationScheduler.stopAndClearRank(context)
+            AuthStatus.Loading -> Unit
         }
     }
 
@@ -88,9 +99,21 @@ fun BusanQuestApp() {
             // 백스택을 전부 비우고 로그인 화면으로 보낸다.
             LaunchedEffect(navController) {
                 SessionManager.sessionExpired.collect {
+                    UserRepository.clear()
+                    MissionRepository.resetForSession()
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
+                    }
+                }
+            }
+
+            LaunchedEffect(navController, status) {
+                if (status == AuthStatus.LoggedIn) {
+                    RankingNotificationNavigation.openRanking.collect {
+                        navController.navigate("ranking") {
+                            launchSingleTop = true
+                        }
                     }
                 }
             }
@@ -132,6 +155,8 @@ fun BusanQuestApp() {
                     composable("login") {
                         LoginScreen(
                             onLoginSuccess = {
+                                UserRepository.clear()
+                                MissionRepository.resetForSession()
                                 navController.navigate("home") {
                                     popUpTo("login") { inclusive = true }
                                 }
@@ -164,6 +189,7 @@ fun BusanQuestApp() {
                             navController = navController,
                             onLogout = {
                                 UserRepository.clear()
+                                MissionRepository.resetForSession()
                                 scope.launch { tokenStore.clear() }
                                 // popUpTo(0): 백스택을 통째로 비워 뒤로 가기로 로그인 이전 화면에
                                 // 돌아갈 수 없게 한다 (규격서 10장)
@@ -191,9 +217,6 @@ fun BusanQuestApp() {
                     }
 
                     // ── 내 정보 > 설정 ──
-                    composable("settings/notification") {
-                        NotificationSettingsScreen(navController = navController)
-                    }
                     composable("settings/account") {
                         AccountSettingsScreen(
                             navController = navController,
@@ -201,6 +224,7 @@ fun BusanQuestApp() {
                             // 세 경우 모두 로컬 토큰 삭제가 반드시 동반돼야 한다 (규격서 8장).
                             onSessionEnd = {
                                 UserRepository.clear()
+                                MissionRepository.resetForSession()
                                 scope.launch { tokenStore.clear() }
                                 navController.navigate("login") {
                                     popUpTo(0) { inclusive = true }
@@ -211,6 +235,9 @@ fun BusanQuestApp() {
                     }
                     composable("support") {
                         SupportScreen(navController = navController)
+                    }
+                    composable("settings/notifications") {
+                        RankingNotificationSettingsScreen(navController = navController)
                     }
                     // 이용약관 / 개인정보처리방침 / 위치기반서비스 이용약관 공용 뷰어
                     composable(

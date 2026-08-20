@@ -23,7 +23,10 @@ data class MyRankDto(
     val topPercent: Int,
 
     @SerializedName("point")
-    val point: Int
+    val point: Int,
+
+    @SerializedName("userId")
+    val userId: String
 )
 
 // 랭킹 한 줄

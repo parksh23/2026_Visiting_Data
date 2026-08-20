@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +69,7 @@ fun MissionCard(
     onChallenge: () -> Unit,
     onClick: () -> Unit = {},
     onVerify: () -> Unit = {},
+    onCancel: () -> Unit = {},
     onToggleSaved: () -> Unit = {},
     savePending: Boolean = false      // 찜 요청 중 → 하트 잠금 (중복 요청 방지)
 ) {
@@ -166,8 +168,20 @@ fun MissionCard(
                 }
             }
             MissionState.IN_PROGRESS -> {
-                Button(onClick = onVerify, modifier = Modifier.fillMaxWidth()) {
-                    Text("인증하기")
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(0.38f)
+                    ) {
+                        Text("도전 취소")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onVerify,
+                        modifier = Modifier.weight(0.62f)
+                    ) {
+                        Text("인증하기")
+                    }
                 }
                 if (item.error != null) {
                     Spacer(modifier = Modifier.height(8.dp))

@@ -74,6 +74,10 @@ class RankingViewModel(
         loadRankings(RankingType.fromTabIndex(_selectedTab.value), force = true)
     }
 
+    fun refresh() {
+        loadRankings(RankingType.fromTabIndex(_selectedTab.value), force = true)
+    }
+
     private fun loadRankings(type: RankingType, force: Boolean = false) {
         // 캐시가 있으면 바로 표시 (force 면 무시하고 재요청)
         if (!force) {
@@ -140,8 +144,8 @@ class RankingViewModel(
                     name = it.name,
                     // "P" 없이 숫자만 — 화면에서 공통 포인트 뱃지를 붙인다
                     score = "%,d".format(it.score),
-                    // 서버가 내 순위(rank)를 함께 주므로 rank 일치 여부로 내 행 표시
-                    isMe = it.rank == myRank.rank
+                    // 공동 순위가 있어도 userId로 내 행 하나만 정확히 표시한다.
+                    isMe = it.userId == myRank.userId
                 )
             }
         )

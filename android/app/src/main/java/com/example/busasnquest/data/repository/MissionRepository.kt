@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import com.example.busasnquest.BuildConfig
 import com.example.busasnquest.data.model.MissionState
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
@@ -12,6 +13,7 @@ import com.example.busasnquest.data.remote.MissionDto
 import com.example.busasnquest.data.remote.RetrofitInstance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,7 +72,9 @@ object MissionRepository {
     private const val MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
     // StateFlow를 stateIn으로 만들 때 필요한 CoroutineScope
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var repositoryJob: Job = SupervisorJob()
+    private val scope: CoroutineScope
+        get() = CoroutineScope(repositoryJob + Dispatchers.Default)
 
     // 서버 시드와 같은 규칙의 임시 대표 이미지 (서버 연결 전 폴백)
     private const val FALLBACK_IMAGE_URL =
@@ -96,7 +100,11 @@ object MissionRepository {
 
     // 미션 + 상태 목록
     private val _missions = MutableStateFlow(
-        allMissions.map { MissionWithState(mission = it) }
+        if (BuildConfig.DEBUG) {
+            allMissions.map { MissionWithState(mission = it) }
+        } else {
+            emptyList()
+        }
     )
 
     val missions: StateFlow<List<MissionWithState>> = _missions.asStateFlow()
@@ -120,6 +128,21 @@ object MissionRepository {
     // 요청 중인 미션 id 목록 — 하트를 연속으로 눌러도 중복 요청이 나가지 않게 한다
     private val _savedPending = MutableStateFlow<Set<Int>>(emptySet())
     val savedPending: StateFlow<Set<Int>> = _savedPending.asStateFlow()
+
+    /** 로그아웃·계정 전환 시 사용자별 캐시와 진행 중 요청을 모두 폐기한다. */
+    fun resetForSession() {
+        repositoryJob.cancel()
+        repositoryJob = SupervisorJob()
+        loadedFromServer = false
+        _serverDistrictProgress.value = null
+        _savedMissions.value = emptyList()
+        _savedPending.value = emptySet()
+        _missions.value = if (BuildConfig.DEBUG) {
+            allMissions.map { MissionWithState(mission = it) }
+        } else {
+            emptyList()
+        }
+    }
 
     /**
      * ⚠️ 이 두 함수는 절대 suspend 로 만들지 말 것.
@@ -262,6 +285,67 @@ object MissionRepository {
         }
     }
 
+    /** 인증을 제출하기 전의 진행 중 미션만 도전 전 상태로 되돌린다. */
+    fun cancelMission(id: Int): Boolean {
+        var cancelled = false
+        updateMission(id) {
+            if (it.state == MissionState.IN_PROGRESS) {
+                cancelled = true
+                it.copy(state = MissionState.NOT_STARTED, error = null)
+            } else {
+                it
+            }
+        }
+        return cancelled
+    }
+
+    suspend fun startMissionOnServer(id: Int): Result<Unit> {
+        startMission(id)
+        return try {
+            val response = RetrofitInstance.api.startMission(id)
+            if (response.status != "in_progress") {
+                cancelMission(id)
+                Result.failure(Exception("미션 진행 상태를 확인하지 못했습니다."))
+            } else {
+                Result.success(Unit)
+            }
+        } catch (error: Exception) {
+            cancelMission(id)
+            Result.failure(Exception(error.toMissionActionError("도전을 시작하지 못했어요.")))
+        }
+    }
+
+    suspend fun cancelMissionOnServer(id: Int): Result<Unit> {
+        if (!cancelMission(id)) {
+            return Result.failure(Exception("인증 전의 진행 중 미션만 취소할 수 있어요."))
+        }
+        return try {
+            val response = RetrofitInstance.api.cancelMission(id)
+            if (response.status == "not_started") {
+                Result.success(Unit)
+            } else {
+                startMission(id)
+                Result.failure(Exception("미션 취소 상태를 확인하지 못했습니다."))
+            }
+        } catch (error: Exception) {
+            startMission(id)
+            setError(id, error.toMissionActionError("도전을 취소하지 못했어요."))
+            Result.failure(Exception(error.toMissionActionError("도전을 취소하지 못했어요.")))
+        }
+    }
+
+    private fun Throwable.toMissionActionError(fallback: String): String = when (this) {
+        is retrofit2.HttpException -> serverDetail() ?: when (code()) {
+            401 -> "로그인이 필요해요. 다시 로그인해주세요."
+            404 -> "미션을 찾을 수 없어요."
+            409 -> "현재 상태에서는 처리할 수 없는 미션이에요."
+            in 500..599 -> "서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+            else -> "$fallback (${code()})"
+        }
+        is java.io.IOException -> "네트워크 연결을 확인해주세요."
+        else -> fallback
+    }
+
 
     // 인증 시작 → 확인 중 상태로 변경
     fun setVerifying(id: Int) {
@@ -308,7 +392,14 @@ object MissionRepository {
                 Result.failure(Exception(response.message.ifBlank { "인증에 실패했습니다." }))
             }
         } catch (e: retrofit2.HttpException) {
-            Result.failure(Exception("인증 요청이 실패했습니다. (${e.code()})"))
+            val message = e.serverDetail() ?: when (e.code()) {
+                401 -> "로그인이 필요해요. 다시 로그인해주세요."
+                413 -> "사진 용량이 너무 큽니다."
+                422 -> "인증 정보를 확인해주세요."
+                in 500..599 -> "인증 서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+                else -> "인증 요청이 실패했습니다. (${e.code()})"
+            }
+            Result.failure(Exception(message))
         } catch (e: java.io.IOException) {
             Result.failure(Exception("네트워크 연결을 확인해주세요."))
         } catch (e: Exception) {
@@ -492,6 +583,7 @@ object MissionRepository {
         imageUrl: String? = null,
         latitude: Double? = null,
         longitude: Double? = null,
+        locationAccuracyMeters: Float? = null,
         receiptImageUrl: String? = null
     ): Boolean {
         // 앱에서 받은 값을 서버 요청 DTO로 변환
@@ -501,6 +593,7 @@ object MissionRepository {
             imageUrl = imageUrl,
             latitude = latitude,
             longitude = longitude,
+            locationAccuracyMeters = locationAccuracyMeters,
             receiptImageUrl = receiptImageUrl
         )
 

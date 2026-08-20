@@ -1,6 +1,7 @@
 package com.example.busasnquest.data.remote
 
 import android.content.Context
+import com.example.busasnquest.BuildConfig
 import com.example.busasnquest.data.local.TokenStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -11,9 +12,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import android.util.Log
 
 object RetrofitInstance {
-
-    // 에뮬레이터에서 PC localhost로 접근하는 주소
-    private const val BASE_URL = "https://visiting-data.onrender.com/"
 
     // 앱 Context 저장용
     // TokenStore를 만들 때 필요함
@@ -27,7 +25,12 @@ object RetrofitInstance {
 
     // HTTP 요청/응답 내용을 Logcat에 보여주는 로거
     private val logger = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        redactHeader("Authorization")
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BASIC
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
     }
 
     // OkHttpClient
@@ -44,11 +47,6 @@ object RetrofitInstance {
                 val token = runBlocking {
                     TokenStore(appContext).tokenFlow.first()
                 }
-
-                Log.d(
-                    "AUTH_INTERCEPTOR",
-                    "url=${originalRequest.url}, tokenEmpty=${token.isNullOrBlank()}"
-                )
 
                 // 토큰이 있으면 Authorization: Bearer <token> 헤더 추가
                 val newRequest = if (!token.isNullOrBlank()) {
@@ -73,7 +71,9 @@ object RetrofitInstance {
                 val isAuthCall = request.url.encodedPath.contains("/auth/")
 
                 if (response.code == 401 && !isAuthCall) {
-                    Log.w("AUTH_INTERCEPTOR", "401 발생 → 토큰 삭제 후 로그인 화면 이동: ${request.url}")
+                    if (BuildConfig.DEBUG) {
+                        Log.w("AUTH_INTERCEPTOR", "401 발생 → 로그인 화면 이동")
+                    }
 
                     // 저장된 JWT 삭제 (인터셉터는 suspend 불가 → runBlocking)
                     runBlocking {
@@ -95,7 +95,7 @@ object RetrofitInstance {
     // Retrofit 객체
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

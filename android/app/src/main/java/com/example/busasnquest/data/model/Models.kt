@@ -49,7 +49,7 @@ data class RankEntry(
 data class MenuItem(
     val title: String,
     val subtitle: String,
-    @androidx.annotation.DrawableRes val icon: Int,
+    @field:androidx.annotation.DrawableRes val icon: Int,
     val tint: Color,
     val bg: Color
 )

@@ -81,7 +81,7 @@ fun LoginScreen(
     // ⚠️ rememberSaveable — 약관 '보기'로 문서 화면에 다녀오면 이 화면의 컴포지션이
     //    사라졌다 다시 만들어진다. remember 로 두면 탭과 입력값이 전부 초기화된다.
     //    돌아왔을 때 처음부터 다시 입력하지 않도록 입력값을 모두 보존한다.
-    var selectedTab by rememberSaveable { mutableStateOf(0) }   // 0=Log in, 1=Sign up
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }   // 0=Log in, 1=Sign up
     var email by rememberSaveable { mutableStateOf("") }
     var nickname by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -716,7 +716,9 @@ private fun startKakaoLogin(
         when {
             error != null -> {
                 // 실제 카카오 에러(KOE006=키해시 미등록 등)를 Logcat 에 남긴다
-                Log.e("KAKAO_LOGIN", "계정 로그인 실패: ${error.message}", error)
+                if (com.example.busasnquest.BuildConfig.DEBUG) {
+                    Log.e("KAKAO_LOGIN", "계정 로그인 실패: ${error.message}", error)
+                }
                 onError("카카오 로그인에 실패했습니다.")
             }
             token != null -> onToken(token.accessToken)
@@ -726,7 +728,9 @@ private fun startKakaoLogin(
     if (UserApiClient.instance.isKakaoTalkLoginAvailable(context)) {
         UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
             if (error != null) {
-                Log.e("KAKAO_LOGIN", "카카오톡 로그인 실패: ${error.message}", error)
+                if (com.example.busasnquest.BuildConfig.DEBUG) {
+                    Log.e("KAKAO_LOGIN", "카카오톡 로그인 실패: ${error.message}", error)
+                }
                 // 사용자가 직접 취소한 경우엔 계정 로그인으로 넘어가지 않는다
                 if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
                     onError("로그인이 취소되었습니다.")

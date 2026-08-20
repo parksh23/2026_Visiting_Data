@@ -195,18 +195,27 @@ fun MissionDetailScreen(
             when (item.state) {
                 MissionState.NOT_STARTED -> {
                     Button(
-                        onClick = { MissionRepository.startMission(mission.id) },
+                        onClick = { viewModel.startMission(mission.id) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("도전하기")
                     }
                 }
                 MissionState.IN_PROGRESS -> {
-                    Button(
-                        onClick = { verify(mission.id, mission.type) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(verifyButtonLabelDetail(mission.type))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { viewModel.cancelMission(mission.id) },
+                            modifier = Modifier.weight(0.38f)
+                        ) {
+                            Text("도전 취소")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { verify(mission.id, mission.type) },
+                            modifier = Modifier.weight(0.62f)
+                        ) {
+                            Text(verifyButtonLabelDetail(mission.type))
+                        }
                     }
                     if (item.error != null) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -246,7 +255,7 @@ fun missionTypeLabelDetail(type: MissionType): String = when (type) {
 }
 
 fun missionGuide(type: MissionType): String = when (type) {
-    MissionType.IMAGE_LOCATION   -> "이 미션은 사진의 위치정보로 인증합니다. 미션 장소에서 위치 기록을 켜고 촬영한 사진을 올려주세요."
+    MissionType.IMAGE_LOCATION   -> "이 미션은 사진 내용과 제출 시점의 현재 위치로 인증합니다. 미션 장소에서 촬영하거나 사진을 선택해주세요."
     MissionType.CURRENT_LOCATION -> "이 미션은 현재 위치로 인증합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요."
     MissionType.RECEIPT          -> "이 미션은 결제 영수증으로 인증합니다. 해당 장소에서 결제 후 영수증을 촬영해주세요."
 }

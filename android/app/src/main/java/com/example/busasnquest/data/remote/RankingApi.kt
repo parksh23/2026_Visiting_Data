@@ -7,6 +7,7 @@ import retrofit2.http.Query
 interface RankingApi {
     @GET("api/v1/rankings")
     suspend fun getRankings(
-        @Query("type") type: String
+        @Query("type") type: String,
+        @Query("district") district: String? = null
     ): RankingResponse
 }

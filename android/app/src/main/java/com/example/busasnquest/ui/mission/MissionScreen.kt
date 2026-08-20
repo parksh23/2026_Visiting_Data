@@ -146,6 +146,7 @@ fun MissionScreen(
                             onChallenge = { viewModel.startMission(item.mission.id) },
                             onClick = { navController.navigate("missionDetail/${item.mission.id}") },
                             onVerify = { verify(item.mission.id, item.mission.type) },
+                            onCancel = { viewModel.cancelMission(item.mission.id) },
                             onToggleSaved = { viewModel.toggleSaved(item.mission.id) },
                             savePending = uiState.savePending.contains(item.mission.id)
                         )
@@ -167,6 +168,7 @@ fun MissionScreen(
                     navController.navigate("missionDetail/$id")
                 },
                 onChallenge = { id -> viewModel.startMission(id) },
+                onCancel = { id -> viewModel.cancelMission(id) },
                 onVerify = { id, type -> verify(id, type) }
             )
         }

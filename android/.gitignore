@@ -17,6 +17,8 @@ out/
   
 # Gradle files
 .gradle/
+.gradle-user/
+.android-user/
 build/
 */build/
 

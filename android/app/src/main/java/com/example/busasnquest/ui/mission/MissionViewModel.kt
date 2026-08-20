@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import com.example.busasnquest.data.repository.OccupationStat
+import com.example.busasnquest.BuildConfig
 
 data class MissionUiState(
     val selectedTab: Int = 0,                              // 0 = 지역별, 1 = 종류별
@@ -56,7 +57,11 @@ class MissionViewModel : ViewModel() {
                 MissionRepository.refreshDistrictProgressFromServer()
                 _loadError.value = null
             } catch (e: java.io.IOException) {
-                _loadError.value = "네트워크 연결을 확인해주세요. 임시 데이터를 표시합니다."
+                _loadError.value = if (BuildConfig.DEBUG) {
+                    "네트워크 연결을 확인해주세요. 개발용 미션을 표시합니다."
+                } else {
+                    "네트워크 연결을 확인한 뒤 다시 시도해주세요."
+                }
             } catch (e: retrofit2.HttpException) {
                 _loadError.value = "미션을 불러오지 못했습니다. (${e.code()})"
             } catch (e: Exception) {
@@ -124,7 +129,17 @@ class MissionViewModel : ViewModel() {
     }
 
     fun startMission(id: Int) {
-        MissionRepository.startMission(id)
+        viewModelScope.launch {
+            MissionRepository.startMissionOnServer(id)
+                .onFailure { _saveError.value = it.message }
+        }
+    }
+
+    fun cancelMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.cancelMissionOnServer(id)
+                .onFailure { _saveError.value = it.message }
+        }
     }
     // 하트 클릭 → 서버에 찜 추가/해제 요청. 성공하면 응답의 is_saved 로 화면이 갱신된다.
     // 요청 중에는 Repository 가 중복 요청을 막고, 화면은 savePending 으로 버튼을 잠근다.

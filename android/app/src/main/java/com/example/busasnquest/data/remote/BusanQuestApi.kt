@@ -36,8 +36,15 @@ interface BusanQuestApi {
     @GET("api/v1/missions")
     suspend fun getMissions(): List<MissionDto>
 
-    @GET("api/v1/missions/ongoing")
-    suspend fun getOngoingMissions(): List<MissionDto>
+    @POST("api/v1/missions/{mission_id}/start")
+    suspend fun startMission(
+        @Path("mission_id") missionId: Int
+    ): MissionProgressResponseDto
+
+    @DELETE("api/v1/missions/{mission_id}/start")
+    suspend fun cancelMission(
+        @Path("mission_id") missionId: Int
+    ): MissionProgressResponseDto
 
     // ───────── 미션 찜 ─────────
 

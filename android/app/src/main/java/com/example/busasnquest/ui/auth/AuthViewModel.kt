@@ -219,8 +219,7 @@ class AuthViewModel(
 
     companion object {
         // Application Context 로 TokenStore 를 만들어 주입한다.
-        // 카카오 로그인은 백엔드(RetrofitInstance.authApi)로 연동한다.
-        // 이메일 로그인은 아직 백엔드가 없어 RetrofitAuthRepository 내부에서 기존 방식(가짜)을 유지한다.
+        // 카카오·이메일 로그인 모두 FastAPI 백엔드로 연동한다.
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as Application

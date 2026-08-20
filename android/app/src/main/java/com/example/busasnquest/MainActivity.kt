@@ -2,6 +2,7 @@ package com.example.busasnquest
 
 import android.graphics.Color as AndroidColor
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -19,6 +20,8 @@ import com.example.busasnquest.ui.theme.Coral
 import com.example.busasnquest.data.remote.RetrofitInstance
 import com.kakao.sdk.common.KakaoSdk
 import com.kakao.vectormap.KakaoMapSdk
+import com.example.busasnquest.notification.EXTRA_OPEN_RANKING
+import com.example.busasnquest.notification.RankingNotificationNavigation
 
 class MainActivity : ComponentActivity() {
 
@@ -34,10 +37,12 @@ class MainActivity : ComponentActivity() {
         RetrofitInstance.init(this)
 
         // 카카오맵 초기화 (네이티브 앱 키)
-        KakaoMapSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
+        KakaoMapSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
 
         // 카카오 로그인 초기화 (동일한 네이티브 앱 키)
-        KakaoSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
+        KakaoSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+
+        handleNotificationIntent(intent)
 
         setContent {
             // 배민식 타이포/형태 토큰을 앱 전체에 적용 (색상은 기존 유지)
@@ -60,6 +65,19 @@ class MainActivity : ComponentActivity() {
                     BusanQuestApp()
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_RANKING, false) == true) {
+            intent.removeExtra(EXTRA_OPEN_RANKING)
+            RankingNotificationNavigation.requestOpenRanking()
         }
     }
 }

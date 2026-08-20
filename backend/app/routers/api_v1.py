@@ -63,7 +63,9 @@ BUSAN_DISTRICTS = [
     "남구",
     "영도구",
 ]
-MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+
+# 💡 수정됨: LOCATION 타입이 허용 목록에 추가되었습니다.
+MISSION_TYPES = {"PHOTO", "LOCATION", "CURRENT_LOCATION", "RECEIPT"}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 
@@ -230,7 +232,6 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-# 수정됨: completed_ids 대신 user_statuses(딕셔너리)를 받아서 실제 상태값을 반영합니다.
 def _mission_dict(
     mission: Mission, user_statuses: dict, saved_ids: Optional[set[int]] = None
 ) -> dict:
@@ -498,7 +499,6 @@ def get_missions(
 ):
     user = _get_user(db, subject)
 
-    # 수정됨: 사용자의 모든 미션 상태를 딕셔너리로 가져옵니다. (completed, ongoing 등 모두 포함)
     user_statuses = dict(
         db.query(UserMission.mission_id, UserMission.status)
         .filter(UserMission.user_code == user.user_code)
@@ -517,7 +517,6 @@ def get_missions(
 def get_ongoing_missions(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
-    # 위에서 수정한 get_missions 덕분에 이제 필터링이 정상 동작합니다.
     return [
         mission
         for mission in get_missions(subject, db)
@@ -531,7 +530,6 @@ def get_saved_missions(
 ):
     user = _get_user(db, subject)
 
-    # 수정됨: 저장된 미션에서도 동일하게 전체 상태 딕셔너리를 가져옵니다.
     user_statuses = dict(
         db.query(UserMission.mission_id, UserMission.status)
         .filter(UserMission.user_code == user.user_code)
@@ -611,22 +609,28 @@ def verify_mission(
     if mission is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-    requested_type = req.mission_type.upper()
+    # 💡 수정됨: 앱 요청 타입과 DB 저장 타입의 공백을 제거하고 대문자로 통일하여 비교합니다.
+    requested_type = req.mission_type.strip().upper()
+    db_mission_type = mission.mission_type.strip().upper() if mission.mission_type else ""
 
-    print(f"🔍 디버깅 - 요청한 타입: [{requested_type}], DB에 저장된 타입: [{mission.mission_type}]")
-    if requested_type not in MISSION_TYPES or requested_type != mission.mission_type:
+    print(f"🔍 디버깅 - 앱 요청 타입: [{requested_type}], DB 저장 타입: [{db_mission_type}]")
+
+    if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
-    duplicate = (
+
+    # 💡 수정됨: 유저의 기존 미션 기록을 가져와서 상태를 확인합니다.
+    user_mission = (
         db.query(UserMission)
         .filter(
             UserMission.user_code == user.user_code,
             UserMission.mission_id == mission.mission_id,
-            UserMission.status == "completed",
         )
         .first()
     )
-    if duplicate:
+
+    if user_mission and user_mission.status == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
+
     if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
         return {
             "success": False,
@@ -640,11 +644,13 @@ def verify_mission(
             "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
         }
 
-    if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
+    # 💡 수정됨: LOCATION 타입이 위치(거리) 검증 로직에 포함되었습니다.
+    if requested_type in {"PHOTO", "LOCATION", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return {"success": False, "message": "현재 위치 정보가 필요합니다."}
         if mission.latitude is None or mission.longitude is None:
             return {"success": False, "message": "미션 장소 좌표가 등록되지 않았습니다."}
+
         distance = _haversine_m(
             req.latitude, req.longitude, mission.latitude, mission.longitude
         )
@@ -708,17 +714,23 @@ def verify_mission(
             raise HTTPException(status_code=500, detail=f"AI 분석 중 오류가 발생했습니다: {str(e)}")
 
     reward = getattr(mission, "reward_points", 0)
-    db.add(
-        UserMission(
-            user_code=user.user_code,
-            mission_id=mission.mission_id,
-            status="completed",
+
+    # 💡 수정됨: 기존 기록(ongoing)이 있으면 상태를 업데이트하고, 없으면 새로 추가합니다.
+    if user_mission:
+        user_mission.status = "completed"
+    else:
+        db.add(
+            UserMission(
+                user_code=user.user_code,
+                mission_id=mission.mission_id,
+                status="completed",
+            )
         )
-    )
 
     user.total_points += reward
     user.completed_missions += 1
     db.commit()
+
     return {
         "success": True,
         "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",

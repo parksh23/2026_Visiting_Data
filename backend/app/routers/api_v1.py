@@ -225,7 +225,7 @@ def _token_for(user: AppUser) -> str:
 
 def _profile_dict(user: AppUser, db: Session) -> dict:
     saved_count = (
-        db.query(func.count(SavedMission.id))
+        db.query(func.count(SavedMission.mission_id))
         .filter(SavedMission.user_code == user.user_code)
         .scalar()
         or 0
@@ -663,7 +663,7 @@ def get_saved_missions(
         mission_id
         for (mission_id,) in db.query(SavedMission.mission_id)
         .filter(SavedMission.user_code == user.user_code)
-        .order_by(SavedMission.created_at.desc(), SavedMission.id.desc())
+        .order_by(SavedMission.created_at.desc(), SavedMission.mission_id.desc())
         .all()
     ]
     saved_ids = set(saved_ids_list)
@@ -761,7 +761,7 @@ def save_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     existing = (
-        db.query(SavedMission.id)
+        db.query(SavedMission.mission_id)
         .filter(
             SavedMission.user_code == user.user_code,
             SavedMission.mission_id == mission_id,

@@ -15,6 +15,7 @@ from database import Base, engine
 import models
 from routers import text_files
 from routers import api_v1
+from routers import internal_jobs
 from log_control import setup_logging
 from scheduler import shutdown_scheduler, start_scheduler
 
@@ -45,6 +46,7 @@ Base.metadata.create_all(bind=engine)
 # 라우터 등록
 app.include_router(text_files.router)
 app.include_router(api_v1.router)
+app.include_router(internal_jobs.router)
 
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)

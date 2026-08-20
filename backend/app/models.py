@@ -48,6 +48,7 @@ class AppUser(Base):
         nullable=True,
     )
     kakao_id = Column("KAKAO_ID", String(255), nullable=True, unique=True, index=True)
+    last_notified_rank = Column("LAST_NOTIFIED_RANK", Integer, nullable=True)
 
 
 class District(Base):
@@ -80,6 +81,7 @@ class Mission(Base):
     image_url = Column("IMAGE_URL", String(500), nullable=True)
     latitude = Column("LATITUDE", Float, nullable=True)
     longitude = Column("LONGITUDE", Float, nullable=True)
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
 
 
 class UserMission(Base):
@@ -97,6 +99,30 @@ class UserMission(Base):
     )
     status = Column("STATUS", String(20), nullable=False, default="completed")
     verified_at = Column("ASSIGNED_AT", DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SavedMission(Base):
+    __tablename__ = "SAVED_MISSIONS"
+    __table_args__ = (
+        UniqueConstraint("USER_CODE", "MISSION_ID", name="UQ_SAVED_MISSION"),
+    )
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    mission_id = Column(
+        "MISSION_ID",
+        Integer,
+        ForeignKey("MISSIONS.MISSION_ID"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
 
 
 class Friendship(Base):
@@ -138,3 +164,108 @@ class AppRanking(Base):
     nickname = Column("NICKNAME", String(50), nullable=False)
     total_points = Column("TOTAL_POINTS", Integer, nullable=False, default=0)
     rank_num = Column("RANK_NUM", Integer, nullable=False)
+
+
+class UserAgreement(Base):
+    __tablename__ = "USER_AGREEMENTS"
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    doc_slug = Column("DOC_SLUG", String(30), nullable=False)
+    doc_version = Column("DOC_VERSION", String(20), nullable=False)
+    agreed = Column("AGREED", Integer, nullable=False, default=1)
+    agreed_at = Column("AGREED_AT", DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
+
+
+class UserSettings(Base):
+    __tablename__ = "USER_SETTINGS"
+
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        primary_key=True,
+    )
+    mission_result = Column("MISSION_RESULT", Integer, nullable=False, default=1)
+    new_mission = Column("NEW_MISSION", Integer, nullable=False, default=1)
+    ranking_change = Column("RANKING_CHANGE", Integer, nullable=False, default=0)
+    night_mute = Column("NIGHT_MUTE", Integer, nullable=False, default=1)
+    marketing = Column("MARKETING", Integer, nullable=False, default=0)
+    marketing_agreed_at = Column("MARKETING_AGREED_AT", DateTime, nullable=True)
+
+
+class PushToken(Base):
+    __tablename__ = "PUSH_TOKENS"
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    token = Column("TOKEN", String(512), nullable=False, unique=True)
+    platform = Column("PLATFORM", String(20), nullable=False, default="android")
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        "UPDATED_AT", DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class PendingPush(Base):
+    __tablename__ = "PENDING_PUSHES"
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    title = Column("TITLE", String(200), nullable=False)
+    body = Column("BODY", String(1000), nullable=False)
+    notification_type = Column("NOTIFICATION_TYPE", String(30), nullable=False)
+    idempotency_key = Column("IDEMPOTENCY_KEY", String(200), nullable=False, unique=True)
+    data_json = Column("DATA_JSON", Text, nullable=True)
+    scheduled_at = Column("SCHEDULED_AT", DateTime, nullable=False, index=True)
+    sent_at = Column("SENT_AT", DateTime, nullable=True)
+    status = Column("STATUS", String(20), nullable=False, default="pending")
+    attempts = Column("ATTEMPTS", Integer, nullable=False, default=0)
+    last_error = Column("LAST_ERROR", String(1000), nullable=True)
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PushDeliveryLog(Base):
+    __tablename__ = "PUSH_DELIVERY_LOGS"
+
+    id = Column("ID", Integer, primary_key=True, autoincrement=True)
+    idempotency_key = Column("IDEMPOTENCY_KEY", String(200), nullable=False, unique=True)
+    user_code = Column(
+        "USER_CODE",
+        String(20),
+        ForeignKey("APP_USERS.USER_CODE"),
+        nullable=False,
+        index=True,
+    )
+    notification_type = Column("NOTIFICATION_TYPE", String(30), nullable=False)
+    success_count = Column("SUCCESS_COUNT", Integer, nullable=False, default=0)
+    failure_count = Column("FAILURE_COUNT", Integer, nullable=False, default=0)
+    status = Column("STATUS", String(20), nullable=False)
+    error_message = Column("ERROR_MESSAGE", String(1000), nullable=True)
+    created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
+
+
+class NotificationJobState(Base):
+    __tablename__ = "NOTIFICATION_JOB_STATE"
+
+    job_name = Column("JOB_NAME", String(50), primary_key=True)
+    last_run_at = Column("LAST_RUN_AT", DateTime, nullable=False)

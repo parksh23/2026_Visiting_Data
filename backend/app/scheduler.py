@@ -2,9 +2,10 @@ import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import text
 from database import SessionLocal
+from notification_jobs import run_new_mission_notifications, run_ranking_notifications
 from tourism_scoring import refresh_tourism_scores
+from push_notifications import process_pending_pushes
 
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler(timezone="Asia/Seoul")
@@ -12,26 +13,23 @@ scheduler = BackgroundScheduler(timezone="Asia/Seoul")
 def update_rankings_job():
     db = SessionLocal()
     try:
-        # 1. 기존 데이터를 통째로 날립니다 (속도가 매우 빠름)
-        db.execute(text("TRUNCATE TABLE APP_RANKINGS"))
-
-        # 2. APP_USERS 테이블에서 순위를 계산한 뒤 APP_RANKINGS에 한 번에 삽입합니다
-        insert_query = text("""
-            INSERT INTO APP_RANKINGS (USER_CODE, NICKNAME, TOTAL_POINTS, RANK_NUM)
-            SELECT
-                USER_CODE,
-                NICKNAME,
-                TOTAL_POINTS,
-                RANK() OVER (ORDER BY TOTAL_POINTS DESC, USER_CODE ASC) AS RANK_NUM
-            FROM APP_USERS
-        """)
-        db.execute(insert_query)
-        db.commit()
-        print("✅ [배치] 랭킹 업데이트 성공")
-
-    except Exception as e:
+        result = run_ranking_notifications(db)
+        logger.info("랭킹 갱신 및 상승 알림 처리 결과: %s", result)
+    except Exception:
         db.rollback()
-        print(f"❌ [배치] 랭킹 업데이트 실패: {e}")
+        logger.exception("랭킹 갱신 및 상승 알림 처리에 실패했습니다.")
+    finally:
+        db.close()
+
+
+def new_mission_notifications_job():
+    db = SessionLocal()
+    try:
+        result = run_new_mission_notifications(db)
+        logger.info("새 미션 알림 처리 결과: %s", result)
+    except Exception:
+        db.rollback()
+        logger.exception("새 미션 알림 처리에 실패했습니다.")
     finally:
         db.close()
 
@@ -48,6 +46,19 @@ def refresh_tourism_scores_job():
         db.close()
 
 
+def process_pending_pushes_job():
+    db = SessionLocal()
+    try:
+        result = process_pending_pushes(db)
+        if result["processed"]:
+            logger.info("예약 푸시 처리 결과: %s", result)
+    except Exception:
+        db.rollback()
+        logger.exception("예약 푸시 처리에 실패했습니다.")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     if scheduler.running:
         return
@@ -55,6 +66,31 @@ def start_scheduler():
         refresh_tourism_scores_job,
         CronTrigger(day=1, hour=3, minute=0, timezone="Asia/Seoul"),
         id="monthly-tourism-score-refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        new_mission_notifications_job,
+        CronTrigger(hour=18, minute=0, timezone="Asia/Seoul"),
+        id="daily-new-mission-notifications",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        update_rankings_job,
+        CronTrigger(hour=18, minute=10, timezone="Asia/Seoul"),
+        id="daily-ranking-notifications",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        process_pending_pushes_job,
+        "interval",
+        minutes=1,
+        id="pending-push-delivery",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

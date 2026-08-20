@@ -6,6 +6,7 @@ import re
 import uuid
 import random
 import string
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -24,7 +25,7 @@ from fastapi import (
 )
 from PIL import Image
 import google.generativeai as genai
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -36,7 +37,17 @@ from auth_utils import (
     verify_password,
 )
 from database import get_db
-from models import AppUser, District, Friendship, Mission, UserMission
+from models import (
+    AppUser,
+    District,
+    Friendship,
+    Mission,
+    PushToken,
+    TextFile,
+    UserAgreement,
+    UserMission,
+    UserSettings,
+)
 from tourism_scoring import refresh_tourism_scores
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
@@ -63,10 +74,23 @@ BUSAN_DISTRICTS = [
     "남구",
     "영도구",
 ]
-
 MISSION_TYPES = {"PHOTO", "LOCATION", "CURRENT_LOCATION", "RECEIPT"}
+REQUIRED_AGREEMENT_DOCS = {"terms", "privacy", "location"}
+DOCUMENT_TITLES = {
+    "terms": "이용약관",
+    "privacy": "개인정보처리방침",
+    "location": "위치기반서비스 이용약관",
+    "faq": "자주 묻는 질문",
+}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+
+
+class AgreementInput(BaseModel):
+    doc: str
+    version: str = "-"
+    agreed: bool = False
+    agreed_at: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -77,9 +101,11 @@ class SignupRequest(BaseModel):
     email: str
     password: str
     nickname: str
+    agreements: List[AgreementInput] = Field(default_factory=list)
 
 class KakaoLoginRequest(BaseModel):
     access_token: str
+    agreements: List[AgreementInput] = Field(default_factory=list)
 
 class FindIdRequest(BaseModel):
     nickname: str
@@ -99,11 +125,54 @@ class TokenResponse(BaseModel):
 class UserProfile(BaseModel):
     name: str
     points: str
+    total_points: int
+    email: Optional[str] = None
+    login_provider: str
     completed_missions: int
     saved_missions: int
 
 class NicknameUpdateRequest(BaseModel):
     nickname: str
+
+
+class AgreementRecord(BaseModel):
+    doc: str
+    version: str
+    agreed: bool
+    agreed_at: datetime
+
+
+class DocumentResponse(BaseModel):
+    slug: str
+    title: str
+    version: str
+    effective_date: str
+    content: str
+
+
+class NotificationSettingsResponse(BaseModel):
+    mission_result: bool
+    new_mission: bool
+    ranking_change: bool
+    night_mute: bool
+    marketing: bool
+
+
+class NotificationSettingsUpdate(BaseModel):
+    mission_result: Optional[bool] = None
+    new_mission: Optional[bool] = None
+    ranking_change: Optional[bool] = None
+    night_mute: Optional[bool] = None
+    marketing: Optional[bool] = None
+
+
+class PushTokenRequest(BaseModel):
+    token: str
+    platform: str = "android"
+
+
+class PushTokenDeleteRequest(BaseModel):
+    token: str
 
 class MissionDto(BaseModel):
     mission_id: int
@@ -213,6 +282,9 @@ def _profile_dict(user: AppUser) -> dict:
     return {
         "name": user.nickname,
         "points": f"{user.total_points:,}P",
+        "total_points": user.total_points,
+        "email": user.email,
+        "login_provider": "KAKAO" if user.kakao_id else "EMAIL",
         "completed_missions": user.completed_missions,
         "saved_missions": len(saved_list),
     }
@@ -225,6 +297,85 @@ def _validate_nickname(nickname: str) -> None:
         )
     if any(character.isspace() for character in nickname):
         raise HTTPException(status_code=400, detail="닉네임에는 공백을 사용할 수 없습니다.")
+
+
+def _parse_agreed_at(raw: Optional[str]) -> datetime:
+    """Convert an ISO-8601 timestamp to a naive UTC datetime."""
+    if not raw:
+        return datetime.utcnow()
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.utcnow()
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+def _require_agreements(agreements: List[AgreementInput]) -> None:
+    agreed_docs = {item.doc for item in agreements if item.agreed}
+    if REQUIRED_AGREEMENT_DOCS - agreed_docs:
+        raise HTTPException(
+            status_code=400,
+            detail="필수 약관에 모두 동의해야 가입할 수 있습니다.",
+        )
+
+
+def _save_agreements(
+    db: Session, user_code: str, agreements: List[AgreementInput]
+) -> None:
+    for item in agreements:
+        if item.doc not in REQUIRED_AGREEMENT_DOCS:
+            continue
+        db.add(
+            UserAgreement(
+                user_code=user_code,
+                doc_slug=item.doc,
+                doc_version=(item.version or "-")[:20],
+                agreed=1 if item.agreed else 0,
+                agreed_at=_parse_agreed_at(item.agreed_at),
+            )
+        )
+
+
+def _notification_dict(settings: Optional[UserSettings]) -> dict:
+    return {
+        "mission_result": True if settings is None else bool(settings.mission_result),
+        "new_mission": True if settings is None else bool(settings.new_mission),
+        "ranking_change": False if settings is None else bool(settings.ranking_change),
+        "night_mute": True if settings is None else bool(settings.night_mute),
+        "marketing": False if settings is None else bool(settings.marketing),
+    }
+
+
+def _parse_document(text_file: TextFile, slug: str) -> dict:
+    lines = text_file.content.splitlines()
+    title = DOCUMENT_TITLES[slug]
+    version = "-"
+    effective_date = "-"
+    content_start = 0
+    if lines and lines[0].startswith("# "):
+        title = lines[0][2:].strip() or title
+        content_start = 1
+    while content_start < len(lines):
+        line = lines[content_start].strip()
+        if line.startswith("version:"):
+            version = line.split(":", 1)[1].strip() or "-"
+        elif line.startswith("effective:"):
+            effective_date = line.split(":", 1)[1].strip() or "-"
+        elif line == "---":
+            content_start += 1
+            break
+        elif line:
+            break
+        content_start += 1
+    return {
+        "slug": slug,
+        "title": title,
+        "version": version,
+        "effective_date": effective_date,
+        "content": "\n".join(lines[content_start:]).strip(),
+    }
 
 
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -301,6 +452,7 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
     nickname = req.nickname.strip()
     if not nickname:
         raise HTTPException(status_code=400, detail="닉네임을 입력해주세요.")
+    _require_agreements(req.agreements)
     if db.query(AppUser).filter(AppUser.email == email).first():
         raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다.")
     if db.query(AppUser).filter(AppUser.nickname == nickname).first():
@@ -315,6 +467,8 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
         account_status="ACTIVE",
     )
     db.add(user)
+    db.flush()
+    _save_agreements(db, user.user_code, req.agreements)
     db.commit()
     db.refresh(user)
 
@@ -346,7 +500,9 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     user = db.query(AppUser).filter(AppUser.kakao_id == kakao_id).first()
     if user is None and email:
         user = db.query(AppUser).filter(AppUser.email == email).first()
-    if user is None:
+    is_new_user = user is None
+    if is_new_user:
+        _require_agreements(req.agreements)
         user = AppUser(
             user_code=_next_user_code(db),
             login_id=f"kakao:{kakao_id}",
@@ -356,6 +512,8 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
             account_status="ACTIVE",
         )
         db.add(user)
+        db.flush()
+        _save_agreements(db, user.user_code, req.agreements)
     elif not user.kakao_id:
         user.kakao_id = kakao_id
     db.commit()
@@ -418,6 +576,121 @@ def get_my_profile(
 ):
     user = _get_user(db, subject)
     return _profile_dict(user)
+
+
+@router.get("/users/me/agreements", response_model=List[AgreementRecord])
+def get_my_agreements(
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+    rows = (
+        db.query(UserAgreement)
+        .filter(UserAgreement.user_code == user.user_code)
+        .order_by(UserAgreement.agreed_at.desc())
+        .all()
+    )
+    return [
+        {
+            "doc": row.doc_slug,
+            "version": row.doc_version,
+            "agreed": bool(row.agreed),
+            "agreed_at": row.agreed_at,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/documents/{slug}", response_model=DocumentResponse)
+def get_document(slug: str, db: Session = Depends(get_db)):
+    normalized = slug.strip().lower()
+    if normalized not in DOCUMENT_TITLES:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    filenames = [normalized, f"{normalized}.md", f"{normalized}.txt"]
+    text_file = (
+        db.query(TextFile)
+        .filter(func.lower(TextFile.filename).in_(filenames))
+        .order_by(TextFile.created_at.desc())
+        .first()
+    )
+    if text_file is None:
+        raise HTTPException(status_code=404, detail="문서를 찾을 수 없습니다.")
+    return _parse_document(text_file, normalized)
+
+
+@router.get(
+    "/users/me/notifications", response_model=NotificationSettingsResponse
+)
+def get_notification_settings(
+    subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
+):
+    user = _get_user(db, subject)
+    return _notification_dict(db.get(UserSettings, user.user_code))
+
+
+@router.patch(
+    "/users/me/notifications", response_model=NotificationSettingsResponse
+)
+def update_notification_settings(
+    req: NotificationSettingsUpdate,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    settings = db.get(UserSettings, user.user_code)
+    if settings is None:
+        settings = UserSettings(user_code=user.user_code)
+        db.add(settings)
+    updates = req.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        if field == "marketing" and value and not bool(settings.marketing):
+            settings.marketing_agreed_at = datetime.utcnow()
+        setattr(settings, field, 1 if value else 0)
+    db.commit()
+    db.refresh(settings)
+    return _notification_dict(settings)
+
+
+@router.post("/users/me/push-token", status_code=201)
+def register_push_token(
+    req: PushTokenRequest,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    token = req.token.strip()
+    platform = req.platform.strip().lower()
+    if not token:
+        raise HTTPException(status_code=400, detail="푸시 토큰을 입력해주세요.")
+    if platform not in {"android", "ios"}:
+        raise HTTPException(status_code=400, detail="지원하지 않는 플랫폼입니다.")
+    row = db.query(PushToken).filter(PushToken.token == token).first()
+    if row is None:
+        row = PushToken(user_code=user.user_code, token=token, platform=platform)
+        db.add(row)
+    else:
+        row.user_code = user.user_code
+        row.platform = platform
+        row.updated_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+
+@router.delete("/users/me/push-token")
+def unregister_push_token(
+    req: PushTokenDeleteRequest,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    token = req.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="푸시 토큰을 입력해주세요.")
+    db.query(PushToken).filter(
+        PushToken.user_code == user.user_code,
+        PushToken.token == token,
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"success": True}
 
 
 @router.patch("/users/me/nickname", response_model=UserProfile)
@@ -673,6 +946,10 @@ def verify_mission(
     db: Session = Depends(get_db),
 ):
     user = _get_user(db, subject)
+
+    def finish(success: bool, message: str) -> dict:
+        return {"success": success, "message": message}
+
     mission = db.query(Mission).filter(Mission.mission_id == req.mission_id).first()
     if mission is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
@@ -691,29 +968,21 @@ def verify_mission(
         )
         .first()
     )
-
     if user_mission and user_mission.status.lower() == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
     if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
-        return {
-            "success": False,
-            "message": "서버에 업로드된 인증 사진을 확인할 수 없습니다.",
-        }
+        return finish(False, "서버에 업로드된 인증 사진을 확인할 수 없습니다.")
     if requested_type == "RECEIPT" and not _uploaded_image_exists(
         req.receipt_image_url
     ):
-        return {
-            "success": False,
-            "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
-        }
+        return finish(False, "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.")
 
     if requested_type in {"PHOTO", "LOCATION", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
-            return {"success": False, "message": "현재 위치 정보가 필요합니다."}
+            return finish(False, "현재 위치 정보가 필요합니다.")
         if mission.latitude is None or mission.longitude is None:
-            return {"success": False, "message": "미션 장소 좌표가 등록되지 않았습니다."}
-
+            return finish(False, "미션 장소 좌표가 등록되지 않았습니다.")
         distance = _haversine_m(
             req.latitude, req.longitude, mission.latitude, mission.longitude
         )
@@ -721,10 +990,10 @@ def verify_mission(
         mission_radius = getattr(mission, "radius_m", 300)
 
         if distance > mission_radius:
-            return {
-                "success": False,
-                "message": f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
-            }
+            return finish(
+                False,
+                f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
+            )
 
     ai_extracted_text = ""
     if requested_type in {"PHOTO", "RECEIPT"}:
@@ -766,10 +1035,12 @@ def verify_mission(
             ai_extracted_text = result_data.get("extracted_text", "")
 
             if not is_success:
-                return {
-                    "success": False,
-                    "message": ai_extracted_text if ai_extracted_text else "사진이 미션 조건과 일치하지 않습니다."
-                }
+                return finish(
+                    False,
+                    ai_extracted_text
+                    if ai_extracted_text
+                    else "사진이 미션 조건과 일치하지 않습니다.",
+                )
 
         except json.JSONDecodeError:
             raise HTTPException(status_code=502, detail="AI 응답을 해석할 수 없습니다.")
@@ -792,7 +1063,6 @@ def verify_mission(
     user.total_points += reward
     user.completed_missions += 1
     db.commit()
-
     return {
         "success": True,
         "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",

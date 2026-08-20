@@ -1,6 +1,9 @@
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret"
@@ -14,25 +17,49 @@ from auth_utils import get_current_user_email
 from database import Base, SessionLocal, engine
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from models import AppUser, District, Friendship, Mission, SavedMission, UserMission
+from models import (
+    AppUser,
+    District,
+    Friendship,
+    Mission,
+    SavedMission,
+    PushToken,
+    PushDeliveryLog,
+    TextFile,
+    UserAgreement,
+    UserMission,
+    UserSettings,
+)
 import routers.api_v1 as api_v1_module
+import notification_jobs as notification_jobs_module
+import push_notifications as push_notifications_module
 from routers.api_v1 import (
     BUSAN_DISTRICTS,
+    AgreementInput,
     KakaoLoginRequest,
     MissionVerifyRequestDto,
     NicknameUpdateRequest,
+    NotificationSettingsUpdate,
+    PushTokenRequest,
+    PushTokenDeleteRequest,
     SignupRequest,
     UPLOAD_DIR,
     get_district_progress,
     get_missions,
+    get_document,
+    get_my_agreements,
     get_my_profile,
+    get_notification_settings,
     get_rankings,
     get_saved_missions,
     kakao_login,
     signup,
     save_mission,
+    register_push_token,
+    unregister_push_token,
     unsave_mission,
     update_my_nickname,
+    update_notification_settings,
     verify_mission,
 )
 from tourism_scoring import (
@@ -42,6 +69,13 @@ from tourism_scoring import (
     calculate_reward_points,
     update_mission_rewards,
 )
+
+
+def _required_agreements(agreed_at: str = "2026-08-16T05:12:44Z"):
+    return [
+        AgreementInput(doc=doc, version="1.0", agreed=True, agreed_at=agreed_at)
+        for doc in ("terms", "privacy", "location")
+    ]
 
 
 def _seed_minimum():
@@ -59,7 +93,7 @@ def _seed_minimum():
                     longitude=129.03,
                     reward_points=100,
                     mission_type="CURRENT_LOCATION",
-                    mission_category="관광지방문",
+                    mission_category="장소탐방",
                     image_url="https://example.com/images/junggu.jpg",
                 ),
                 Mission(
@@ -70,7 +104,7 @@ def _seed_minimum():
                     longitude=129.03,
                     reward_points=120,
                     mission_type="PHOTO",
-                    mission_category="관광지방문",
+                    mission_category="장소탐방",
                 ),
             ]
         )
@@ -96,6 +130,7 @@ def test_frontend_contract():
                 email="tester@example.com",
                 password="testpass123",
                 nickname=" 부산탐험가 ",
+                agreements=_required_agreements(),
             ),
             db,
         )
@@ -104,8 +139,18 @@ def test_frontend_contract():
                 scheme="Bearer", credentials=signup_response["token"]
             )
         )
+        agreements = get_my_agreements(subject, db)
+        assert len(agreements) == 3
+        assert {item["doc"] for item in agreements} == {
+            "terms",
+            "privacy",
+            "location",
+        }
+        assert {item["agreed_at"] for item in agreements} == {
+            api_v1_module.datetime(2026, 8, 16, 5, 12, 44)
+        }
 
-        rankings = get_rankings("all", subject, db)
+        rankings = get_rankings(type="all", district=None, subject=subject, db=db)
         assert set(rankings) == {"myRank", "rankings"}
 
         progress = get_district_progress(subject, db)
@@ -161,7 +206,9 @@ def test_frontend_contract():
         db.add(Friendship(user_code=subject, friend_user_code=friend.user_code))
         db.commit()
 
-        friend_rankings = get_rankings("friend", subject, db)
+        friend_rankings = get_rankings(
+            type="friend", district=None, subject=subject, db=db
+        )
         assert [item["userId"] for item in friend_rankings["rankings"]] == [
             "U999",
             subject,
@@ -171,7 +218,9 @@ def test_frontend_contract():
         user.district_name = "중구"
         friend.district_name = "중구"
         db.commit()
-        region_rankings = get_rankings("region", subject, db)
+        region_rankings = get_rankings(
+            type="region", district=None, subject=subject, db=db
+        )
         assert {item["userId"] for item in region_rankings["rankings"]} == {
             "U999",
             subject,
@@ -246,6 +295,9 @@ def test_frontend_contract():
         profile = get_my_profile(subject, db)
         assert profile["name"] == "부산탐험가"
         assert profile["points"] == "220P"
+        assert profile["total_points"] == 220
+        assert profile["email"] == "tester@example.com"
+        assert profile["login_provider"] == "EMAIL"
 
         try:
             signup(
@@ -253,6 +305,7 @@ def test_frontend_contract():
                     email="another@example.com",
                     password="testpass123",
                     nickname="부산탐험가",
+                    agreements=_required_agreements(),
                 ),
                 db,
             )
@@ -285,16 +338,15 @@ def test_tourism_score_formula():
     }
     scores = calculate_district_scores(raw_values)
 
-    assert scores["중구"].activity_score == 0.0
-    assert scores["중구"].difficulty_score == 1.0
-    assert scores["중구"].difficulty_level == "어려움"
-    assert scores["해운대구"].activity_score == 1.0
-    assert scores["해운대구"].difficulty_score == 0.0
-    assert scores["해운대구"].difficulty_level == "쉬움"
+    assert scores["중구"].tourism_activity == 0.0
+    assert scores["중구"].activation_need == 1.0
+    assert scores["중구"].region_bonus == 30
+    assert scores["해운대구"].tourism_activity == 1.0
+    assert scores["해운대구"].activation_need == 0.0
+    assert scores["해운대구"].region_bonus == 0
 
-    assert calculate_reward_points("식당방문", 1.0) == 150
-    assert calculate_reward_points("관광지방문", 0.0) == 120
-    assert calculate_reward_points("식당방문", 0.25) == 113
+    assert calculate_reward_points("장소탐방", 20, 10) == 130
+    assert calculate_reward_points("등산", 30, 20) == 200
 
 
 def test_monthly_update_preserves_existing_user_total():
@@ -305,16 +357,18 @@ def test_monthly_update_preserves_existing_user_total():
             {
                 "중구": DistrictScore(
                     district_name="중구",
-                    spending_total=10.0,
-                    search_total=20.0,
-                    activity_score=0.0,
-                    difficulty_score=1.0,
-                    difficulty_level="어려움",
+                    stay_intensity=10.0,
+                    consumption_intensity=20.0,
+                    tourism_activity=0.0,
+                    activation_need=1.0,
+                    region_bonus=20,
                 )
             },
+            bus_locations=[(35.1, 129.031)],
+            rail_locations=[(35.1, 129.035)],
         )
         assert result == {"updated_missions": 2, "skipped_missions": 0}
-        assert db.get(Mission, 1).reward_points == 180
+        assert db.get(Mission, 1).reward_points == 130
         completion = db.query(UserMission).filter(UserMission.mission_id == 1).one()
         user = db.query(AppUser).filter(AppUser.user_code == completion.user_code).one()
         assert user.total_points == 220
@@ -337,13 +391,77 @@ def test_kakao_signup_without_email():
     api_v1_module.httpx.get = lambda *args, **kwargs: KakaoResponse()
     db = SessionLocal()
     try:
-        response = kakao_login(KakaoLoginRequest(access_token="valid-token"), db)
+        request = KakaoLoginRequest(
+            access_token="valid-token", agreements=_required_agreements()
+        )
+        response = kakao_login(request, db)
         assert response["token"]
         user = db.query(AppUser).filter(AppUser.kakao_id == "123456789").one()
         assert user.email is None
         assert user.login_id == "kakao:123456789"
+        assert db.query(UserAgreement).filter_by(user_code=user.user_code).count() == 3
+
+        kakao_login(KakaoLoginRequest(access_token="valid-token"), db)
+        assert db.query(UserAgreement).filter_by(user_code=user.user_code).count() == 3
     finally:
         api_v1_module.httpx.get = original_get
+        db.close()
+
+
+def test_signup_agreement_validation_and_timestamp_fallback():
+    db = SessionLocal()
+    try:
+        try:
+            signup(
+                SignupRequest(
+                    email="missing-agreements@example.com",
+                    password="testpass123",
+                    nickname="약관누락",
+                ),
+                db,
+            )
+            raise AssertionError("필수 약관 누락은 400이어야 합니다.")
+        except HTTPException as exc:
+            assert exc.status_code == 400
+            assert exc.detail == "필수 약관에 모두 동의해야 가입할 수 있습니다."
+
+        declined = _required_agreements()
+        declined[-1] = AgreementInput(
+            doc="location",
+            version="1.0",
+            agreed=False,
+            agreed_at="2026-08-16T05:12:51Z",
+        )
+        try:
+            signup(
+                SignupRequest(
+                    email="declined-location@example.com",
+                    password="testpass123",
+                    nickname="위치거절",
+                    agreements=declined,
+                ),
+                db,
+            )
+            raise AssertionError("필수 약관 거절은 400이어야 합니다.")
+        except HTTPException as exc:
+            assert exc.status_code == 400
+
+        before = api_v1_module.datetime.utcnow()
+        signup(
+            SignupRequest(
+                email="invalid-time@example.com",
+                password="testpass123",
+                nickname="시간대체",
+                agreements=_required_agreements("abc"),
+            ),
+            db,
+        )
+        after = api_v1_module.datetime.utcnow()
+        user = db.query(AppUser).filter_by(email="invalid-time@example.com").one()
+        rows = db.query(UserAgreement).filter_by(user_code=user.user_code).all()
+        assert len(rows) == 3
+        assert all(before <= row.agreed_at <= after for row in rows)
+    finally:
         db.close()
 
 
@@ -357,6 +475,9 @@ def test_nickname_update_contract():
         assert updated == {
             "name": "새닉네임",
             "points": "220P",
+            "total_points": 220,
+            "email": "tester@example.com",
+            "login_provider": "EMAIL",
             "completed_missions": 2,
             "saved_missions": 0,
         }
@@ -382,10 +503,290 @@ def test_nickname_update_contract():
         db.close()
 
 
+def test_settings_documents_and_push_token_contract():
+    db = SessionLocal()
+    try:
+        signup(
+            SignupRequest(
+                email="settings@example.com",
+                password="testpass123",
+                nickname="설정테스터",
+                agreements=_required_agreements(),
+            ),
+            db,
+        )
+        user = db.query(AppUser).filter(AppUser.email == "settings@example.com").one()
+        profile = get_my_profile(user.user_code, db)
+        assert profile["total_points"] == 0
+        assert profile["email"] == "settings@example.com"
+        assert profile["login_provider"] == "EMAIL"
+        defaults = get_notification_settings(user.user_code, db)
+        assert defaults == {
+            "mission_result": True,
+            "new_mission": True,
+            "ranking_change": False,
+            "night_mute": True,
+            "marketing": False,
+        }
+
+        updated = update_notification_settings(
+            NotificationSettingsUpdate(
+                ranking_change=True,
+                night_mute=False,
+                marketing=True,
+            ),
+            user.user_code,
+            db,
+        )
+        assert updated["ranking_change"] is True
+        assert updated["night_mute"] is False
+        assert updated["marketing"] is True
+        settings = db.get(UserSettings, user.user_code)
+        assert settings.marketing_agreed_at is not None
+
+        register_push_token(
+            PushTokenRequest(token="test-fcm-token", platform="android"),
+            user.user_code,
+            db,
+        )
+        register_push_token(
+            PushTokenRequest(token="test-fcm-token", platform="android"),
+            user.user_code,
+            db,
+        )
+        assert db.query(PushToken).filter_by(token="test-fcm-token").count() == 1
+        unregister_push_token(
+            PushTokenDeleteRequest(token="test-fcm-token"), user.user_code, db
+        )
+        assert db.query(PushToken).filter_by(token="test-fcm-token").count() == 0
+
+        db.add(
+            TextFile(
+                filename="terms.md",
+                content=(
+                    "# 이용약관\n"
+                    "version: 1.0\n"
+                    "effective: 2026-08-11\n"
+                    "---\n"
+                    "## 제1조\n약관 본문"
+                ),
+            )
+        )
+        db.commit()
+        document = get_document("terms", db)
+        assert document == {
+            "slug": "terms",
+            "title": "이용약관",
+            "version": "1.0",
+            "effective_date": "2026-08-11",
+            "content": "## 제1조\n약관 본문",
+        }
+    finally:
+        db.close()
+
+
+def test_new_mission_region_filter_and_ranking_rise_only():
+    db = SessionLocal()
+    original_dispatch = notification_jobs_module.dispatch_notification
+    calls = []
+
+    def record_dispatch(**kwargs):
+        calls.append(kwargs)
+        return "sent"
+
+    notification_jobs_module.dispatch_notification = record_dispatch
+    try:
+        for email, nickname, district in (
+            ("junggu@example.com", "중구사용자", "중구"),
+            ("haeundae@example.com", "해운대사용자", "해운대구"),
+            ("all-busan@example.com", "전체사용자", None),
+        ):
+            signup(
+                SignupRequest(
+                    email=email,
+                    password="testpass123",
+                    nickname=nickname,
+                    agreements=_required_agreements(),
+                ),
+                db,
+            )
+            user = db.query(AppUser).filter_by(email=email).one()
+            user.district_name = district
+        db.commit()
+
+        kst = ZoneInfo("Asia/Seoul")
+        initialized_at = datetime(2026, 8, 20, 17, 59, tzinfo=kst)
+        initialized = notification_jobs_module.run_new_mission_notifications(
+            db, initialized_at
+        )
+        assert initialized["initialized"] is True
+
+        created_at = datetime(2026, 8, 20, 9, 0)
+        db.add(
+            Mission(
+                mission_id=3,
+                title="중구 신규 미션",
+                district_name="중구",
+                latitude=35.1,
+                longitude=129.03,
+                reward_points=100,
+                mission_type="CURRENT_LOCATION",
+                mission_category="관광지방문",
+                created_at=created_at,
+            )
+        )
+        db.commit()
+        result = notification_jobs_module.run_new_mission_notifications(
+            db, datetime(2026, 8, 20, 18, 1, tzinfo=kst)
+        )
+        assert result["missions"] == 1
+        notified_users = {call["user_code"] for call in calls}
+        junggu = db.query(AppUser).filter_by(email="junggu@example.com").one()
+        haeundae = db.query(AppUser).filter_by(email="haeundae@example.com").one()
+        all_busan = db.query(AppUser).filter_by(email="all-busan@example.com").one()
+        assert junggu.user_code in notified_users
+        assert all_busan.user_code in notified_users
+        assert haeundae.user_code not in notified_users
+        assert all(call["notification_type"] == "NEW_MISSION" for call in calls)
+
+        calls.clear()
+        junggu.total_points = 100
+        haeundae.total_points = 50
+        db.commit()
+        notification_jobs_module.run_ranking_notifications(
+            db, datetime(2026, 8, 20, 18, 10, tzinfo=kst)
+        )
+        assert calls == []
+
+        haeundae.total_points = 200
+        db.commit()
+        notification_jobs_module.run_ranking_notifications(
+            db, datetime(2026, 8, 21, 18, 10, tzinfo=kst)
+        )
+        ranking_calls = [
+            call for call in calls if call["notification_type"] == "RANKING_CHANGE"
+        ]
+        assert [call["user_code"] for call in ranking_calls] == [haeundae.user_code]
+        assert "2위 → 1위" in ranking_calls[0]["body"]
+    finally:
+        notification_jobs_module.dispatch_notification = original_dispatch
+        db.close()
+
+
+def test_fcm_payload_and_invalid_token_cleanup():
+    class UnregisteredError(Exception):
+        pass
+
+    class FakeMessaging:
+        captured = None
+
+        @staticmethod
+        def Notification(**kwargs):
+            return kwargs
+
+        @staticmethod
+        def AndroidNotification(**kwargs):
+            return kwargs
+
+        @staticmethod
+        def AndroidConfig(**kwargs):
+            return kwargs
+
+        @staticmethod
+        def MulticastMessage(**kwargs):
+            FakeMessaging.captured = kwargs
+            return kwargs
+
+        @staticmethod
+        def send_each_for_multicast(_message):
+            return SimpleNamespace(
+                success_count=1,
+                failure_count=1,
+                responses=[
+                    SimpleNamespace(success=True, exception=None),
+                    SimpleNamespace(success=False, exception=UnregisteredError()),
+                ],
+            )
+
+    db = SessionLocal()
+    original_firebase = push_notifications_module._firebase_messaging
+    push_notifications_module._firebase_messaging = lambda: FakeMessaging
+    try:
+        signup(
+            SignupRequest(
+                email="fcm@example.com",
+                password="testpass123",
+                nickname="푸시테스터",
+                agreements=_required_agreements(),
+            ),
+            db,
+        )
+        user = db.query(AppUser).filter_by(email="fcm@example.com").one()
+        db.add_all(
+            [
+                PushToken(user_code=user.user_code, token="valid-token"),
+                PushToken(user_code=user.user_code, token="dead-token"),
+            ]
+        )
+        db.commit()
+        result = push_notifications_module.send_to_user(
+            db,
+            user.user_code,
+            "NEW_MISSION",
+            "새 미션이 열렸어요",
+            "새로운 미션이 추가됐어요.",
+            {"mission_id": 12},
+        )
+        assert result.success_count == 1
+        assert result.failure_count == 1
+        payload = FakeMessaging.captured
+        assert payload["android"]["priority"] == "high"
+        assert payload["android"]["collapse_key"] == "new_mission"
+        assert payload["android"]["notification"]["channel_id"] == "new_mission"
+        assert payload["data"] == {"mission_id": "12", "type": "NEW_MISSION"}
+        assert db.query(PushToken).filter_by(token="dead-token").count() == 0
+        assert db.query(PushToken).filter_by(token="valid-token").count() == 1
+        first = push_notifications_module.dispatch_notification(
+            db=db,
+            user_code=user.user_code,
+            notification_type="NEW_MISSION",
+            title="새 미션이 열렸어요",
+            body="새로운 미션이 추가됐어요.",
+            data={"mission_id": "12"},
+            idempotency_key="test:new-mission:12",
+            now_kst=datetime(2026, 8, 20, 18, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+        )
+        second = push_notifications_module.dispatch_notification(
+            db=db,
+            user_code=user.user_code,
+            notification_type="NEW_MISSION",
+            title="새 미션이 열렸어요",
+            body="새로운 미션이 추가됐어요.",
+            data={"mission_id": "12"},
+            idempotency_key="test:new-mission:12",
+            now_kst=datetime(2026, 8, 20, 18, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+        )
+        assert first == "partial"
+        assert second == "duplicate"
+        assert (
+            db.query(PushDeliveryLog)
+            .filter_by(idempotency_key="test:new-mission:12")
+            .count()
+            == 1
+        )
+    finally:
+        push_notifications_module._firebase_messaging = original_firebase
+        db.close()
+
+
 if __name__ == "__main__":
     test_frontend_contract()
     test_tourism_score_formula()
     test_monthly_update_preserves_existing_user_total()
     test_kakao_signup_without_email()
+    test_signup_agreement_validation_and_timestamp_fallback()
     test_nickname_update_contract()
+    test_settings_documents_and_push_token_contract()
+    test_new_mission_region_filter_and_ranking_rise_only()
+    test_fcm_payload_and_invalid_token_cleanup()
     print("API contract test passed")

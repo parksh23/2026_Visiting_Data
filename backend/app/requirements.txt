@@ -14,3 +14,4 @@ passlib
 bcrypt==4.0.1
 Pillow
 google-generativeai
+firebase-admin

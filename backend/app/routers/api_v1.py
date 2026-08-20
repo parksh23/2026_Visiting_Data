@@ -290,6 +290,26 @@ def _profile_dict(user: AppUser) -> dict:
     }
 
 
+def _unique_nickname(db: Session, base: str) -> str:
+    """APP_USERS.NICKNAME 은 UNIQUE(UQ_APP_USERS_NICKNAME) 라 중복이면 INSERT 가 터진다.
+
+    카카오 프로필 닉네임은 우리가 통제할 수 없고 흔한 이름은 쉽게 겹치므로,
+    이미 쓰이는 닉네임이면 뒤에 숫자를 붙여 빈 자리를 찾는다.
+    NICKNAME 이 50자 컬럼이라 접미사 자리를 남기고 40자로 자른다.
+    """
+    candidate = (base or "").strip() or "카카오사용자"
+    candidate = candidate[:40]
+    if not db.query(AppUser.user_code).filter(AppUser.nickname == candidate).first():
+        return candidate
+    for suffix in range(1, 10000):
+        tail = str(suffix)
+        alternative = f"{candidate[: 40 - len(tail)]}{tail}"
+        if not db.query(AppUser.user_code).filter(AppUser.nickname == alternative).first():
+            return alternative
+    # 같은 닉네임이 1만 개일 때의 안전망 — 현실적으로 도달하지 않는다.
+    return f"{candidate[:30]}{uuid.uuid4().hex[:8]}"
+
+
 def _validate_nickname(nickname: str) -> None:
     if not 2 <= len(nickname) <= 12:
         raise HTTPException(
@@ -500,6 +520,13 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     user = db.query(AppUser).filter(AppUser.kakao_id == kakao_id).first()
     if user is None and email:
         user = db.query(AppUser).filter(AppUser.email == email).first()
+
+    # 탈퇴·정지 계정으로는 로그인시키지 않는다. (이메일 로그인과 같은 규칙)
+    # 탈퇴 시 KAKAO_ID 를 지우므로 보통은 위 조회에서 걸리지 않지만,
+    # 정지 계정이나 과거 데이터를 대비한 방어선이다.
+    if user is not None and user.account_status != "ACTIVE":
+        raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
+
     is_new_user = user is None
     if is_new_user:
         _require_agreements(req.agreements)
@@ -508,7 +535,8 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
             login_id=f"kakao:{kakao_id}",
             email=email,
             kakao_id=kakao_id,
-            nickname=nickname,
+            # 카카오 닉네임은 중복될 수 있어 그대로 넣으면 UNIQUE 제약에 걸린다.
+            nickname=_unique_nickname(db, nickname),
             account_status="ACTIVE",
         )
         db.add(user)
@@ -516,7 +544,14 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
         _save_agreements(db, user.user_code, req.agreements)
     elif not user.kakao_id:
         user.kakao_id = kakao_id
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # _unique_nickname 조회와 INSERT 사이에 다른 요청이 같은 닉네임을 선점한 경우 등.
+        db.rollback()
+        raise HTTPException(
+            status_code=409, detail="계정 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
+        ) from exc
     db.refresh(user)
 
     token = _token_for(user)
@@ -752,14 +787,40 @@ def withdraw_account(
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
+    """회원 탈퇴 — 소프트 삭제 + 개인정보 익명화.
+
+    행 자체를 지우지 않는 이유:
+      1) USER_AGREEMENTS 가 USER_CODE 를 FK 로 잡고 있어 하드 삭제는 FK 위반으로 실패한다.
+      2) "언제 어떤 버전의 약관에 동의했는가"는 탈퇴 후에도 남겨야 하는 증빙이다.
+
+    대신 개인을 식별할 수 있는 값(이메일·카카오 회원번호·비밀번호·닉네임)은 전부 지워
+    남는 건 USER_CODE 와 동의 이력뿐이 되게 한다.
+    랭킹·친구 조회는 ACCOUNT_STATUS = 'ACTIVE' 만 보므로 탈퇴 계정은 자동으로 빠진다.
+    """
     user = _get_user(db, subject)
+    user_code = user.user_code
 
-    db.query(UserMission).filter(UserMission.user_code == user.user_code).delete()
+    # 활동 기록·기기 토큰·설정은 실제로 지운다 (개인정보라 보존 사유가 없다)
+    db.query(UserMission).filter(UserMission.user_code == user_code).delete()
     db.query(Friendship).filter(
-        or_(Friendship.user_code == user.user_code, Friendship.friend_user_code == user.user_code)
+        or_(Friendship.user_code == user_code, Friendship.friend_user_code == user_code)
     ).delete()
+    db.query(PushToken).filter(PushToken.user_code == user_code).delete()
+    db.query(UserSettings).filter(UserSettings.user_code == user_code).delete()
 
-    db.delete(user)
+    # 계정 식별 정보 익명화
+    # EMAIL / KAKAO_ID / LOGIN_ID / NICKNAME 은 전부 UNIQUE 라, 같은 사람이 다시
+    # 가입할 수 있도록 NULL 이나 충돌하지 않는 값으로 비워 둔다.
+    user.account_status = "WITHDRAWN"
+    user.email = None
+    user.kakao_id = None
+    user.password_hash = None
+    user.login_id = f"withdrawn:{user_code}"[:50]
+    user.nickname = f"탈퇴한사용자_{user_code}"[:50]
+    user.saved_missions = ""
+    user.district_name = None
+    user.last_notified_rank = None
+
     db.commit()
 
     return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}

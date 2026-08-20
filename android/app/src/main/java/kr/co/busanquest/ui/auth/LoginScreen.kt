@@ -62,14 +62,20 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     val findIdState by viewModel.findIdState.collectAsState()
     val findPasswordState by viewModel.findPasswordState.collectAsState()
+    // 값이 있으면 "카카오 인증은 됐는데 우리 서비스엔 처음 오는 사람" — 약관 동의를 받아야 한다
+    val kakaoAgreementToken by viewModel.kakaoAgreementToken.collectAsState()
     val context = LocalContext.current
 
     // 임시 비밀번호는 다이얼로그 안에서 직접 보여준다 (FindPasswordDialog 결과 화면).
     // 예전의 '메일 보냈어요' 토스트는 SMTP 차단 이후 사실과 달라 제거했다.
 
     // 약관 동의 상태 (회원가입 탭 전용)
-    // 로그인 탭의 카카오 로그인은 약관 동의를 받지 않는다 — 이미 가입한 계정이 들어오는 자리라서.
+    // 로그인 탭의 카카오 로그인은 동의를 미리 받지 않는다 — 이미 가입한 계정이 들어오는 자리라서.
+    // 처음 오는 사람이면 서버가 400 을 주고, 아래 KakaoAgreementDialog 가 그 자리에서 동의를 받는다.
     val agreements = rememberAgreementState()
+
+    // 위와 별개의 상태 — 로그인 탭에서 뜨는 카카오 약관 동의 시트 전용
+    val kakaoAgreements = rememberAgreementState()
 
     // ⚠️ rememberSaveable — 약관 '보기'로 문서 화면에 다녀오면 이 화면의 컴포지션이
     //    사라졌다 다시 만들어진다. remember 로 두면 탭과 입력값이 전부 초기화된다.
@@ -320,8 +326,8 @@ fun LoginScreen(
                     HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
                 }
                 Spacer(Modifier.height(20.dp))
-                // 로그인 경로이므로 약관 동의 없이 바로 카카오로 넘어간다.
-                // 동의 이력을 보내지 않으므로 agreements 는 비워 둔다(기본값 emptyList).
+                // 로그인 경로라 동의를 미리 받지 않는다(기존 회원은 재동의를 강요당하면 안 된다).
+                // 신규 사용자면 서버가 400 을 주고, KakaoAgreementDialog 로 이어진다.
                 KakaoLoginButton(
                     enabled = !isLoading,
                     label = "카카오로 로그인",
@@ -412,6 +418,18 @@ fun LoginScreen(
         }
     }
 
+    // ── 신규 카카오 사용자 약관 동의 ──
+    // 카카오 인증까지 끝난 상태라, 여기서 동의만 받으면 같은 토큰으로 바로 가입이 끝난다.
+    if (kakaoAgreementToken != null) {
+        KakaoAgreementDialog(
+            state = kakaoAgreements,
+            loading = isLoading,
+            onOpenDocument = onOpenDocument,
+            onDismiss = { viewModel.dismissKakaoAgreement() },
+            onConfirm = { viewModel.submitKakaoAgreement(kakaoAgreements.toDtoList()) }
+        )
+    }
+
     // ── 아이디 찾기 ──
     if (findIdState.visible) {
         FindIdDialog(
@@ -437,6 +455,70 @@ fun LoginScreen(
             }
         )
     }
+}
+
+/**
+ * 신규 카카오 사용자 약관 동의 시트.
+ *
+ * 카카오 로그인 버튼을 눌렀는데 우리 서비스에는 처음인 경우에 뜬다.
+ * 회원가입 탭으로 돌려보내면 카카오 인증을 처음부터 다시 해야 하므로,
+ * 이미 받아 둔 액세스 토큰을 그대로 쓰고 동의만 추가로 받는다.
+ */
+@Composable
+private fun KakaoAgreementDialog(
+    state: AgreementState,
+    loading: Boolean,
+    onOpenDocument: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!loading) onDismiss() },
+        containerColor = LoginCard,
+        title = {
+            Text(
+                "처음 오셨네요!",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = LabelGray
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    "가입을 마치려면 약관 동의가 필요해요.",
+                    color = HintGray,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(14.dp))
+                AgreementSection(
+                    state = state,
+                    onOpenDocument = onOpenDocument,
+                    accent = Indigo,
+                    borderColor = FieldBorder,
+                    labelColor = LabelGray,
+                    subColor = HintGray
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !loading && state.allRequiredAgreed
+            ) {
+                Text(
+                    if (loading) "처리 중..." else "동의하고 시작하기",
+                    color = if (!loading && state.allRequiredAgreed) Indigo else HintGray,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !loading) {
+                Text("취소", color = HintGray)
+            }
+        }
+    )
 }
 
 /**

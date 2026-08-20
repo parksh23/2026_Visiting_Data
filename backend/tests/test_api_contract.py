@@ -255,6 +255,18 @@ def test_frontend_contract():
         assert too_far["success"] is False
         assert "허용 반경" in too_far["message"]
 
+        # 기존 운영 DB에 남아 있을 수 있는 LOCATION 표기도 현재 API 타입으로
+        # 정규화되어 목록 조회와 인증 모두 정상 동작해야 한다.
+        legacy_mission = db.query(Mission).filter(Mission.mission_id == 1).one()
+        legacy_mission.mission_type = "LOCATION"
+        db.commit()
+        mission_from_api = next(
+            item for item in get_missions(subject, db) if item["mission_id"] == 1
+        )
+        assert mission_from_api["mission_type"] == "CURRENT_LOCATION"
+
+
+
         verify = verify_mission(
             MissionVerifyRequestDto(
                 mission_id=1,

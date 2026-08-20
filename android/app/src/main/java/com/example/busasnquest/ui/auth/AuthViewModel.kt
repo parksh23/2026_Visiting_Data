@@ -29,15 +29,17 @@ sealed interface LoginUiState {
 /**
  * 아이디/비밀번호 찾기 다이얼로그 상태.
  *
- * @param maskedEmail 아이디 찾기 성공 시 서버가 준 마스킹 이메일. 채워지면 결과 화면으로 바뀐다.
- * @param sent        비밀번호 찾기 성공 여부. 화면은 이걸 보고 스낵바를 띄우고 다이얼로그를 닫는다.
+ * @param maskedEmail  아이디 찾기 성공 시 서버가 준 마스킹 이메일. 채워지면 결과 화면으로 바뀐다.
+ * @param tempPassword 비밀번호 찾기 성공 시 서버가 발급한 임시 비밀번호.
+ *                     채워지면 같은 다이얼로그가 결과 화면으로 바뀐다.
+ *                     (SMTP 차단으로 메일 발송 대신 응답 본문으로 직접 받는다)
  */
 data class AccountFindState(
     val visible: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
     val maskedEmail: String? = null,
-    val sent: Boolean = false
+    val tempPassword: String? = null
 )
 
 class AuthViewModel(
@@ -181,11 +183,6 @@ class AuthViewModel(
     fun openFindPassword() { _findPasswordState.value = AccountFindState(visible = true) }
     fun dismissFindPassword() { _findPasswordState.value = AccountFindState(visible = false) }
 
-    /** 스낵바를 한 번 띄운 뒤 화면이 호출해 sent 플래그를 내린다 */
-    fun consumeFindPasswordSent() {
-        _findPasswordState.value = _findPasswordState.value.copy(sent = false)
-    }
-
     fun submitFindPassword(email: String) {
         val trimmed = email.trim()
         if (trimmed.isBlank() || !trimmed.contains("@")) {
@@ -198,15 +195,20 @@ class AuthViewModel(
         _findPasswordState.value = _findPasswordState.value.copy(loading = true, error = null)
         viewModelScope.launch {
             repository.findPassword(trimmed)
-                .onSuccess {
-                    // 다이얼로그는 닫고, sent 로 화면에 스낵바를 요청한다.
-                    // 서버 message 는 임시 비밀번호가 섞여 올 수 있어 쓰지 않는다 (Repository 주석 참고).
-                    _findPasswordState.value = AccountFindState(visible = false, sent = true)
+                .onSuccess { tempPwd ->
+                    // 다이얼로그를 닫지 않고, 같은 창을 결과 화면으로 전환한다.
+                    // 서버 message 는 형식이 보장되지 않아 쓰지 않는다 (Repository 주석 참고).
+                    _findPasswordState.value = _findPasswordState.value.copy(
+                        visible = true,
+                        loading = false,
+                        error = null,
+                        tempPassword = tempPwd
+                    )
                 }
                 .onFailure { e ->
                     _findPasswordState.value = _findPasswordState.value.copy(
                         loading = false,
-                        error = e.message ?: "임시 비밀번호를 발송하지 못했습니다."
+                        error = e.message ?: "임시 비밀번호를 발급받지 못했습니다."
                     )
                 }
         }

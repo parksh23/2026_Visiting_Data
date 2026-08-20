@@ -195,9 +195,27 @@ data class FindIdResponseDto(
 )
 
 // 비밀번호 찾기 요청 (POST /api/v1/auth/find-password)
-// 서버가 임시 비밀번호를 만들어 해당 메일로 발송한다.
+// 서버가 임시 비밀번호를 만들어 응답 본문으로 직접 돌려준다.
 data class FindPasswordRequestDto(
     val email: String
+)
+
+/**
+ * 비밀번호 찾기 응답 (POST /api/v1/auth/find-password)
+ *
+ * 서버 SMTP 포트 차단으로 메일 발송이 불가해,
+ * 발급된 임시 비밀번호를 응답 본문(temp_password)으로 직접 내려준다.
+ *
+ * message 에도 임시 비밀번호가 섞여 오므로 화면에는 tempPassword 만 쓴다.
+ * 서버가 필드를 빠뜨릴 수 있으니 전부 nullable 로 둔다.
+ */
+data class FindPasswordResponseDto(
+    val success: Boolean? = null,
+
+    @SerializedName("temp_password")
+    val tempPassword: String? = null,
+
+    val message: String? = null
 )
 
 /**
@@ -216,7 +234,8 @@ data class ChangePasswordRequestDto(
 /**
  * 성공 여부만 돌려주는 공통 응답 ({"success": true, "message": "..."}).
  *
- * 로그아웃·회원 탈퇴·비밀번호 변경·비밀번호 찾기가 모두 이 형태다.
+ * 로그아웃·회원 탈퇴·비밀번호 변경이 이 형태다.
+ * (비밀번호 찾기는 임시 비밀번호를 받아야 해서 FindPasswordResponseDto 를 따로 쓴다)
  * 서버가 본문 없이 204 를 주는 경우도 대비해 전부 nullable 로 둔다.
  */
 data class SimpleResultDto(

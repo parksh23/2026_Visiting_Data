@@ -67,14 +67,15 @@ interface AuthRepository {
     suspend fun findId(nickname: String): Result<String>
 
     /**
-     * 임시 비밀번호 메일 발송.
+     * 임시 비밀번호 발급.
      *
-     * ⚠️ 서버 응답의 message 를 일부러 버린다.
-     * 메일 발송이 실패하면 서버가 "[개발 모드] ... 비밀번호: xxxx" 처럼
-     * 임시 비밀번호 평문을 본문에 실어 보내는데, 그대로 화면에 띄우면 노출된다.
-     * 화면에는 고정 안내 문구만 보여준다.
+     * 서버 SMTP 포트 차단으로 메일 발송이 불가해,
+     * 응답 본문(temp_password)으로 받은 임시 비밀번호 평문을 그대로 돌려준다.
+     * 화면은 이 값을 다이얼로그 안에 표시한다.
+     *
+     * ⚠️ message 필드에도 임시 비밀번호가 섞여 오지만 형식이 보장되지 않으므로 쓰지 않는다.
      */
-    suspend fun findPassword(email: String): Result<Unit>
+    suspend fun findPassword(email: String): Result<String>
 
     /** 로그아웃 통보. 실패해도 앱은 로컬 토큰을 지우고 진행한다. */
     suspend fun logout(): Result<Unit>
@@ -121,9 +122,9 @@ class FakeAuthRepository : AuthRepository {
         else Result.failure(Exception("계정을 찾을 수 없습니다."))
     }
 
-    override suspend fun findPassword(email: String): Result<Unit> {
+    override suspend fun findPassword(email: String): Result<String> {
         delay(600)
-        return if (email.contains("@")) Result.success(Unit)
+        return if (email.contains("@")) Result.success("a1B2c3D4!")
         else Result.failure(Exception("계정을 찾을 수 없습니다."))
     }
 
@@ -276,14 +277,22 @@ class RetrofitAuthRepository(
     }
 
     /**
-     * 임시 비밀번호 메일 발송.
+     * 임시 비밀번호 발급.
      *
-     * ⚠️ 응답 본문(message)을 의도적으로 쓰지 않는다 — 인터페이스 주석 참고.
+     * 서버가 temp_password 에 담아 준 평문을 상위 레이어로 그대로 올린다.
+     * 값이 비어 있으면(서버 계약 위반) 실패로 처리한다 — 인터페이스 주석 참고.
      */
-    override suspend fun findPassword(email: String): Result<Unit> {
+    override suspend fun findPassword(email: String): Result<String> {
         return try {
-            api.findPassword(FindPasswordRequestDto(email = email.trim().lowercase()))
-            Result.success(Unit)
+            val response = api.findPassword(
+                FindPasswordRequestDto(email = email.trim().lowercase())
+            )
+            val tempPwd = response.tempPassword
+            if (!tempPwd.isNullOrBlank()) {
+                Result.success(tempPwd)
+            } else {
+                Result.failure(Exception("임시 비밀번호를 가져오지 못했습니다."))
+            }
         } catch (e: HttpException) {
             Result.failure(Exception(e.accountLookupMessage()))
         } catch (e: IOException) {

@@ -21,9 +21,10 @@ interface AuthApi {
     @POST("api/v1/auth/find-id")
     suspend fun findId(@Body request: FindIdRequestDto): FindIdResponseDto
 
-    // 임시 비밀번호를 만들어 해당 메일로 발송한다. 계정이 없으면 404.
+    // 임시 비밀번호를 발급해 응답 본문(temp_password)으로 직접 돌려준다. 계정이 없으면 404.
+    // (서버 SMTP 포트 차단으로 '메일 발송' → '직접 반환' 방식으로 변경됨)
     @POST("api/v1/auth/find-password")
-    suspend fun findPassword(@Body request: FindPasswordRequestDto): SimpleResultDto
+    suspend fun findPassword(@Body request: FindPasswordRequestDto): FindPasswordResponseDto
 
     // 로그아웃. JWT 는 stateless 라 서버가 토큰을 무효화하진 않지만,
     // 규격상 호출한 뒤 앱이 로컬 토큰을 지운다.

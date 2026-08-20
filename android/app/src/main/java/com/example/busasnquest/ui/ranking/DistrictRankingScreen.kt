@@ -4,13 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,25 +18,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.busasnquest.data.model.RankEntry
-import com.example.busasnquest.data.repository.MissionRepository
-import com.example.busasnquest.data.repository.UserRepository
+import com.example.busasnquest.ui.components.ErrorView
+import com.example.busasnquest.ui.components.LoadingView
 import com.example.busasnquest.ui.theme.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.getValue
 
+/**
+ * 구·군 하나의 랭킹 상세 화면.
+ *
+ * 데이터는 전부 서버에서 온다 — GET /api/v1/rankings?type=region&district={구 이름}
+ * 점수 단위는 포인트가 아니라 "그 구에서 완료한 미션 수"다.
+ */
 @Composable
 fun DistrictRankingScreen(
     navController: NavHostController,
-    districtName: String
+    districtName: String,
+    viewModel: DistrictRankingViewModel = viewModel(
+        factory = DistrictRankingViewModel.factory(districtName)
+    )
 ) {
-    // 내가 이 구에서 완료한 미션 수 (실제 데이터)
-    val myCount = MissionRepository.completedCountInDistrict(districtName)
-
-    // 가짜 다른 사용자들 + 내 실제 점수를 섞어서 순위 만들기
-    val myName by UserRepository.name.collectAsStateWithLifecycle()
-    val rankings = buildDistrictRanking(districtName, myCount, myName)
+    val state by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -51,63 +53,94 @@ fun DistrictRankingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = NavyMain)
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = NavyMain
+                )
             }
-            Text("$districtName 랭킹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NavyMain)
+            Text(
+                "$districtName 랭킹",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = NavyMain
+            )
         }
 
-        // 내 점수 안내
-        Box(
-            modifier = Modifier
-                .padding(horizontal = Dimens.screenPadding, vertical = Dimens.gapTight)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Dimens.radiusCard))
-                .background(NavyMain)
-                .padding(20.dp)
-        ) {
-            Column {
-                Text("$districtName 에서 나의 기록", color = Color.White.copy(0.8f), fontSize = 13.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-                Text("완료한 미션 ${myCount}개", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        when (val s = state) {
+            is DistrictRankingUiState.Loading -> {
+                LoadingView("랭킹을 불러오는 중...")
+            }
+
+            is DistrictRankingUiState.Error -> {
+                ErrorView(message = s.message, onRetry = viewModel::retry)
+            }
+
+            is DistrictRankingUiState.Success -> {
+                // 내 기록 카드
+                Box(
+                    modifier = Modifier
+                        .padding(
+                            horizontal = Dimens.screenPadding,
+                            vertical = Dimens.gapTight
+                        )
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Dimens.radiusCard))
+                        .background(NavyMain)
+                        .padding(20.dp)
+                ) {
+                    Column {
+                        Text(
+                            "$districtName 에서 나의 기록",
+                            color = Color.White.copy(0.8f),
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                "완료한 미션 ${s.myScore}개",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            // 서버가 순위를 계산하지 못했으면(rank=0) 순위는 감춘다
+                            if (s.myRank > 0) {
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    "${s.myRank}위",
+                                    color = Color.White.copy(0.8f),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (s.rankings.isEmpty()) {
+                    Text(
+                        "아직 이 지역의 랭킹 기록이 없어요.",
+                        color = TextSub,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 40.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = bottomBarSpacing())
+                    ) {
+                        items(s.rankings) { entry ->
+                            // 지역 랭킹의 점수는 "3개"(완료 미션 수)라 P 뱃지를 붙이지 않는다
+                            RankingRow(entry, scoreIsPoint = false)
+                        }
+                        item { Spacer(modifier = Modifier.height(40.dp)) }
+                    }
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = bottomBarSpacing())
-        ) {
-            items(rankings) { entry ->
-                // 지역 랭킹의 점수는 "3개"(완료 미션 수)라 P 뱃지를 붙이지 않는다
-                RankingRow(entry, scoreIsPoint = false)
-            }
-            item { Spacer(modifier = Modifier.height(40.dp)) }
-        }
-    }
-}
-
-// 구별 가짜 랭킹 + 내 실제 점수 섞기
-fun buildDistrictRanking(district: String, myCount: Int, myName: String = ""): List<RankEntry> {
-    // 가짜 다른 사용자들 (이 구에서 완료한 미션 수 기준)
-    val others = listOf(
-        "바다사랑이" to 5,
-        "해운대모험가" to 4,
-        "광안리러버" to 3,
-        "부산산책자" to 2,
-        "푸른바다탐험가" to 1
-    )
-
-    // 나를 포함해서 점수순 정렬
-    val meLabel = if (myName.isBlank()) "나" else "$myName (나)"
-    val all = others.map { it.first to it.second } + (meLabel to myCount)
-    val sorted = all.sortedByDescending { it.second }
-
-    return sorted.mapIndexed { index, (name, count) ->
-        RankEntry(
-            rank = index + 1,
-            name = name,
-            score = "${count}개",
-            isMe = name == meLabel
-        )
     }
 }

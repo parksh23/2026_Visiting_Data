@@ -67,12 +67,22 @@ class RankingViewModel(
     fun onSelectTab(index: Int) {
         if (_selectedTab.value == index && _uiState.value is RankingUiState.Success) return
         _selectedTab.value = index
-        loadRankings(RankingType.fromTabIndex(index))
+
+        // 지역 탭은 구·군 목록만 보여주는 자리다.
+        // 실제 순위는 구를 고른 뒤 DistrictRankingScreen 이
+        // ?type=region&district={구} 로 직접 받아온다.
+        // 여기서 district 없이 요청하면 서버가 빈 목록을 돌려주므로 아예 부르지 않는다.
+        val type = RankingType.fromTabIndex(index)
+        if (type == RankingType.REGION) return
+
+        loadRankings(type)
     }
 
     // 에러 화면의 "다시 시도" 버튼용
     fun retry() {
-        loadRankings(RankingType.fromTabIndex(_selectedTab.value), force = true)
+        // 지역 탭에는 자체 랭킹 요청이 없으므로 전체 랭킹을 다시 부른다
+        val type = RankingType.fromTabIndex(_selectedTab.value)
+        loadRankings(if (type == RankingType.REGION) RankingType.ALL else type, force = true)
     }
 
     private fun loadRankings(type: RankingType, force: Boolean = false) {

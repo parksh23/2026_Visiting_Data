@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -33,7 +34,10 @@ import com.example.busasnquest.ui.theme.NavyMain
 import com.example.busasnquest.ui.theme.OnKakaoYellow
 import com.example.busasnquest.ui.theme.PointRed
 import com.example.busasnquest.ui.theme.TextSub
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import com.kakao.sdk.auth.model.OAuthToken
@@ -60,23 +64,12 @@ fun LoginScreen(
     val findPasswordState by viewModel.findPasswordState.collectAsState()
     val context = LocalContext.current
 
-    // 임시 비밀번호 발송 성공 → 토스트 1회 후 플래그 내림
-    // (서버 message 는 임시 비밀번호가 섞여 올 수 있어 쓰지 않고 고정 문구를 띄운다)
-    LaunchedEffect(findPasswordState.sent) {
-        if (findPasswordState.sent) {
-            Toast.makeText(
-                context,
-                "입력하신 이메일로 임시 비밀번호를 보냈어요.",
-                Toast.LENGTH_LONG
-            ).show()
-            viewModel.consumeFindPasswordSent()
-        }
-    }
+    // 임시 비밀번호는 다이얼로그 안에서 직접 보여준다 (FindPasswordDialog 결과 화면).
+    // 예전의 '메일 보냈어요' 토스트는 SMTP 차단 이후 사실과 달라 제거했다.
 
-    // 약관 동의 상태 (회원가입·카카오 로그인 공통)
+    // 약관 동의 상태 (회원가입 탭 전용)
+    // 로그인 탭의 카카오 로그인은 약관 동의를 받지 않는다 — 이미 가입한 계정이 들어오는 자리라서.
     val agreements = rememberAgreementState()
-    // 로그인 탭에서 카카오 버튼을 눌렀을 때 뜨는 약관 동의 창
-    var showKakaoAgreement by rememberSaveable { mutableStateOf(false) }
 
     // ⚠️ rememberSaveable — 약관 '보기'로 문서 화면에 다녀오면 이 화면의 컴포지션이
     //    사라졌다 다시 만들어진다. remember 로 두면 탭과 입력값이 전부 초기화된다.
@@ -327,12 +320,18 @@ fun LoginScreen(
                     HorizontalDivider(modifier = Modifier.weight(1f), color = FieldBorder)
                 }
                 Spacer(Modifier.height(20.dp))
-                // 버튼을 누르면 약관 동의 창을 먼저 띄운다.
-                // 처음 온 카카오 계정이면 서버가 여기서 가입을 만들기 때문이다.
+                // 로그인 경로이므로 약관 동의 없이 바로 카카오로 넘어간다.
+                // 동의 이력을 보내지 않으므로 agreements 는 비워 둔다(기본값 emptyList).
                 KakaoLoginButton(
                     enabled = !isLoading,
                     label = "카카오로 로그인",
-                    onClick = { showKakaoAgreement = true }
+                    onClick = {
+                        startKakaoLogin(
+                            context = context,
+                            onToken = { accessToken -> viewModel.loginWithKakao(accessToken) },
+                            onError = { msg -> viewModel.onKakaoError(msg) }
+                        )
+                    }
                 )
             } else if (!signupWithEmail) {
                 // ── 회원가입 탭 · 방식 선택 ──
@@ -413,62 +412,6 @@ fun LoginScreen(
         }
     }
 
-    // ── 카카오 로그인 전 약관 동의 창 ──
-    // 이미 회원가입 탭에서 체크했다면 체크된 상태로 열리므로 확인만 누르면 된다.
-    if (showKakaoAgreement) {
-        AlertDialog(
-            onDismissRequest = { showKakaoAgreement = false },
-            containerColor = LoginCard,
-            title = {
-                Text("약관 동의", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = LabelGray)
-            },
-            text = {
-                Column {
-                    Text(
-                        "카카오로 계속하려면 아래 약관에 동의해주세요.",
-                        color = HintGray,
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    AgreementSection(
-                        state = agreements,
-                        onOpenDocument = onOpenDocument,
-                        accent = Indigo,
-                        borderColor = FieldBorder,
-                        labelColor = LabelGray,
-                        subColor = HintGray
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = agreements.allRequiredAgreed,
-                    onClick = {
-                        showKakaoAgreement = false
-                        startKakaoLogin(
-                            context = context,
-                            onToken = { accessToken ->
-                                viewModel.loginWithKakao(accessToken, agreements.toDtoList())
-                            },
-                            onError = { msg -> viewModel.onKakaoError(msg) }
-                        )
-                    }
-                ) {
-                    Text(
-                        "동의하고 계속",
-                        color = if (agreements.allRequiredAgreed) Indigo else HintGray,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showKakaoAgreement = false }) {
-                    Text("취소", color = HintGray)
-                }
-            }
-        )
-    }
-
     // ── 아이디 찾기 ──
     if (findIdState.visible) {
         FindIdDialog(
@@ -483,7 +426,15 @@ fun LoginScreen(
         FindPasswordDialog(
             state = findPasswordState,
             onDismiss = { viewModel.dismissFindPassword() },
-            onSubmit = { viewModel.submitFindPassword(it) }
+            onSubmit = { viewModel.submitFindPassword(it) },
+            onConfirmed = { confirmedEmail, tempPwd ->
+                // 로그인 탭으로 돌아가 이메일/임시 비밀번호를 미리 채워준다.
+                // 사용자는 [로그인] 버튼만 누르면 된다.
+                selectedTab = 0
+                email = confirmedEmail
+                password = tempPwd
+                viewModel.dismissFindPassword()
+            }
         )
     }
 }
@@ -571,56 +522,131 @@ private fun FindIdDialog(
 /**
  * 비밀번호 찾기 다이얼로그.
  *
- * 성공하면 창이 닫히고 화면이 토스트를 띄운다 (LoginScreen 의 LaunchedEffect).
+ * 2단계 구조 — FindIdDialog 와 같은 패턴이다.
+ *  1) state.tempPassword == null : 이메일 입력 화면
+ *  2) state.tempPassword != null : 발급된 임시 비밀번호를 보여주는 결과 화면
+ *
+ * 서버 SMTP 포트 차단으로 메일 발송이 불가해, 응답으로 받은 임시 비밀번호를
+ * 창을 닫지 않고 그 자리에서 강조 표시한다.
  */
 @Composable
 private fun FindPasswordDialog(
     state: AccountFindState,
     onDismiss: () -> Unit,
-    onSubmit: (String) -> Unit
+    onSubmit: (String) -> Unit,
+    onConfirmed: (email: String, tempPassword: String) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
+    val issued = state.tempPassword          // null 이면 입력 화면, 아니면 결과 화면
+    val context = LocalContext.current
 
     AlertDialog(
-        onDismissRequest = { if (!state.loading) onDismiss() },
+        // 결과 화면에서는 바깥을 눌러 실수로 닫지 못하게 막는다 (다시 볼 수 없는 값이라서)
+        onDismissRequest = { if (!state.loading && issued == null) onDismiss() },
         containerColor = LoginCard,
         title = {
-            Text("비밀번호 찾기", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = LabelGray)
+            Text(
+                if (issued != null) "임시 비밀번호 발급 완료" else "비밀번호 찾기",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = LabelGray
+            )
         },
         text = {
             Column {
-                Text(
-                    "가입한 이메일로 임시 비밀번호를 보내드려요.\n로그인한 뒤 계정 설정에서 꼭 바꿔주세요.",
-                    color = HintGray,
-                    fontSize = 13.sp
-                )
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    singleLine = true,
-                    enabled = !state.loading,
-                    label = { Text("이메일") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                )
-                if (state.error != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(state.error, color = PointRed, fontSize = 12.sp)
+                if (issued != null) {
+                    // ───── 결과 화면 ─────
+                    Text(
+                        "아래 임시 비밀번호로 로그인해주세요.",
+                        color = HintGray,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Indigo.copy(alpha = 0.08f))
+                            .padding(start = 14.dp, top = 6.dp, end = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            issued,
+                            modifier = Modifier.weight(1f),
+                            color = Indigo,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = {
+                            val clipboard =
+                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(
+                                ClipData.newPlainText("임시 비밀번호", issued)
+                            )
+                            // Android 13(API 33) 부터는 시스템이 복사 알림을 직접 띄운다
+                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                                Toast.makeText(context, "복사했어요", Toast.LENGTH_SHORT).show()
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.ContentCopy,
+                                contentDescription = "임시 비밀번호 복사",
+                                tint = Indigo
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "이 창을 닫으면 다시 볼 수 없어요.\n로그인한 뒤 계정 설정에서 꼭 변경해주세요.",
+                        color = PointRed,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    // ───── 입력 화면 ─────
+                    Text(
+                        "가입한 이메일을 입력하면 임시 비밀번호를 발급해드려요.",
+                        color = HintGray,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        singleLine = true,
+                        enabled = !state.loading,
+                        label = { Text("이메일") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    if (state.error != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(state.error, color = PointRed, fontSize = 12.sp)
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSubmit(email) }, enabled = !state.loading) {
-                Text(
-                    if (state.loading) "보내는 중..." else "임시 비밀번호 받기",
-                    color = if (state.loading) HintGray else Indigo,
-                    fontWeight = FontWeight.Bold
-                )
+            if (issued != null) {
+                TextButton(onClick = { onConfirmed(email.trim(), issued) }) {
+                    Text("확인 및 로그인하기", color = Indigo, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                // 통신 중에는 비활성 — 연타로 중복 요청되지 않게 한다
+                TextButton(onClick = { onSubmit(email) }, enabled = !state.loading) {
+                    Text(
+                        if (state.loading) "발급 중..." else "임시 비밀번호 발급",
+                        color = if (state.loading) HintGray else Indigo,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !state.loading) {
-                Text("취소", color = HintGray)
+            if (issued == null) {
+                TextButton(onClick = onDismiss, enabled = !state.loading) {
+                    Text("취소", color = HintGray)
+                }
             }
         }
     )

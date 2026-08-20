@@ -95,6 +95,9 @@ class HomeViewModel : ViewModel() {
     // 보유 포인트 (홈 헤더 칩용)
     val points: StateFlow<Int> = UserRepository.points
 
+    // 인사말용 닉네임 (서버 users/me 기준). 아직 못 불러왔으면 빈 문자열.
+    val name: StateFlow<String> = UserRepository.name
+
     // ── 미션 찜 ──
 
     // 찜 요청 중인 미션 id (하트 중복 클릭 방지)

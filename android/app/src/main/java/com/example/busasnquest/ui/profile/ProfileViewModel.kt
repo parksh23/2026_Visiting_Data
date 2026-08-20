@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 data class ProfileUiState(
-    val name: String = "부산갈매기",
+    val name: String = "",          // 서버(users/me)에서 받기 전엔 비워둔다
     val intro: String = "부산을 사랑하는 여행자",
     val points: Int = 0,
     val completedCount: Int = 0,
@@ -269,7 +269,7 @@ class ProfileViewModel : ViewModel() {
             val (serverCompleted, serverSaved) = counts
             val completed = missions.filter { it.state == MissionState.COMPLETED }
             ProfileUiState(
-                name = name.ifBlank { "부산갈매기" },   // 아직 못 불러왔으면 기본값
+                name = name,                            // 가짜 기본값을 넣으면 닉네임 편집창에 그대로 채워져 위험
                 points = points,
                 completedCount = serverCompleted ?: completed.size,
                 completedMissions = completed,

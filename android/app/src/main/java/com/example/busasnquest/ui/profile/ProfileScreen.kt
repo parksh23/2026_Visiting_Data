@@ -173,7 +173,11 @@ fun ProfileSummaryCard(uiState: ProfileUiState, onEditName: () -> Unit = {}) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 이름 — 디스플레이 헤딩
-                    Text(uiState.name, style = displayStyle(21.sp), color = TextMain)
+                    Text(
+                        uiState.name.ifBlank { "불러오는 중..." },
+                        style = displayStyle(21.sp),
+                        color = TextMain
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     // 18dp 아이콘 단독 클릭은 터치 타깃이 작다 → 36dp 박스로 확대
                     Box(

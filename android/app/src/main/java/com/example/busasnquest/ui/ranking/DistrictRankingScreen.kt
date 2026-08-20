@@ -21,7 +21,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.data.repository.MissionRepository
+import com.example.busasnquest.data.repository.UserRepository
 import com.example.busasnquest.ui.theme.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 
 @Composable
 fun DistrictRankingScreen(
@@ -32,7 +35,8 @@ fun DistrictRankingScreen(
     val myCount = MissionRepository.completedCountInDistrict(districtName)
 
     // 가짜 다른 사용자들 + 내 실제 점수를 섞어서 순위 만들기
-    val rankings = buildDistrictRanking(districtName, myCount)
+    val myName by UserRepository.name.collectAsStateWithLifecycle()
+    val rankings = buildDistrictRanking(districtName, myCount, myName)
 
     Column(
         modifier = Modifier
@@ -83,7 +87,7 @@ fun DistrictRankingScreen(
 }
 
 // 구별 가짜 랭킹 + 내 실제 점수 섞기
-fun buildDistrictRanking(district: String, myCount: Int): List<RankEntry> {
+fun buildDistrictRanking(district: String, myCount: Int, myName: String = ""): List<RankEntry> {
     // 가짜 다른 사용자들 (이 구에서 완료한 미션 수 기준)
     val others = listOf(
         "바다사랑이" to 5,
@@ -94,7 +98,8 @@ fun buildDistrictRanking(district: String, myCount: Int): List<RankEntry> {
     )
 
     // 나를 포함해서 점수순 정렬
-    val all = others.map { it.first to it.second } + ("부산갈매기 (나)" to myCount)
+    val meLabel = if (myName.isBlank()) "나" else "$myName (나)"
+    val all = others.map { it.first to it.second } + (meLabel to myCount)
     val sorted = all.sortedByDescending { it.second }
 
     return sorted.mapIndexed { index, (name, count) ->
@@ -102,7 +107,7 @@ fun buildDistrictRanking(district: String, myCount: Int): List<RankEntry> {
             rank = index + 1,
             name = name,
             score = "${count}개",
-            isMe = name == "부산갈매기 (나)"
+            isMe = name == meLabel
         )
     }
 }

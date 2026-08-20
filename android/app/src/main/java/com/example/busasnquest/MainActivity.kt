@@ -33,6 +33,9 @@ class MainActivity : ComponentActivity() {
         // RetrofitInstance가 DataStore에서 토큰을 읽을 수 있게 초기화
         RetrofitInstance.init(this)
 
+        // 알림 채널 생성 + 앱 Context 보관 (알림 설정 스위치는 Notifier 내부에서 확인)
+        com.example.busasnquest.util.Notifier.init(this)
+
         // 카카오맵 초기화 (네이티브 앱 키)
         KakaoMapSdk.init(this, "5f26abd73b4e5c4273ed4ba4ea26aa7e")
 

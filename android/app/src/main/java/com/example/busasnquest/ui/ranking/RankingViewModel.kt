@@ -8,6 +8,7 @@ import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.data.model.RankingResponse
 import com.example.busasnquest.data.remote.RetrofitInstance
 import com.example.busasnquest.data.repository.RankingRepository
+import com.example.busasnquest.util.Notifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,6 +91,10 @@ class RankingViewModel(
                 val res = repository.fetchRankings(type.query)
                 cache[type] = res
                 _uiState.value = res.toSuccessState()
+                // 순위 변동 알림은 "전체 랭킹" 기준으로만 (탭 전환마다 울리지 않게)
+                if (type == RankingType.ALL) {
+                    Notifier.checkRankChange(res.myRank.rank)
+                }
             } catch (e: HttpException) {
                 _uiState.value = RankingUiState.Error("랭킹을 불러오지 못했습니다. (${e.code()})")
             } catch (e: IOException) {

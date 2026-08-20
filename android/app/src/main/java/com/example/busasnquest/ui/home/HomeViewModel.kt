@@ -9,6 +9,7 @@ import com.example.busasnquest.data.remote.MissionVerifyRequestDto
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.data.repository.UserRepository
+import com.example.busasnquest.util.Notifier
 import com.example.busasnquest.util.getCurrentLocation
 import com.example.busasnquest.util.readImageLocation
 import android.content.Context
@@ -44,6 +45,8 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { MissionRepository.refreshMissionsFromServer() }
             runCatching { UserRepository.refreshProfile() }
+            // 서버 목록을 받은 뒤 "이전에 못 보던 미션"이 있으면 알림
+            Notifier.checkNewMissions(MissionRepository.missions.value.map { it.mission })
         }
     }
 
@@ -222,10 +225,31 @@ class HomeViewModel : ViewModel() {
 
     // 공통: 서버 제출 → 성공이면 완료 처리, 실패면 에러 표시 후 진행 중으로 복귀
     private suspend fun submitVerification(id: Int, request: MissionVerifyRequestDto) {
+        val mission = MissionRepository.missions.value
+            .firstOrNull { it.mission.id == id }?.mission
+        val title = mission?.title ?: "미션"
+
         MissionRepository.verifyOnServer(request)
-            .onSuccess { completeMission(id) }
+            .onSuccess {
+                completeMission(id)
+                // 인증은 시간이 걸려 사용자가 다른 화면에 가 있을 수 있다 → 결과를 알림으로
+                Notifier.missionResult(
+                    missionId = id,
+                    title = title,
+                    reward = mission?.reward ?: 0,
+                    success = true
+                )
+            }
             .onFailure { e ->
-                MissionRepository.setError(id, e.message ?: "인증에 실패했습니다.")
+                val message = e.message ?: "인증에 실패했습니다."
+                MissionRepository.setError(id, message)
+                Notifier.missionResult(
+                    missionId = id,
+                    title = title,
+                    reward = 0,
+                    success = false,
+                    reason = message
+                )
             }
     }
 

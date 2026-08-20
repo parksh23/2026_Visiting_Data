@@ -34,6 +34,7 @@ import androidx.navigation.NavHostController
 import com.example.busasnquest.data.local.NotificationKey
 import com.example.busasnquest.data.local.SettingsStore
 import com.example.busasnquest.ui.theme.*
+import com.example.busasnquest.util.Notifier
 import kotlinx.coroutines.launch
 
 /**
@@ -169,9 +170,27 @@ fun NotificationSettingsScreen(navController: NavHostController) {
             ) { scope.launch { store.setNotification(NotificationKey.MARKETING, it) } }
         }
 
+        Spacer(Modifier.height(20.dp))
+
+        // 실제로 알림이 오는지 바로 확인해보는 용도
+        SettingsCard("확인") {
+            ValueRow(
+                title = "테스트 알림 보내기",
+                onClick = {
+                    Notifier.missionResult(
+                        missionId = 0,
+                        title = "테스트 미션",
+                        reward = 100,
+                        success = true
+                    )
+                }
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
         Text(
-            "알림 설정은 현재 이 기기에만 저장돼요.\n다른 기기에서 로그인하면 기본값으로 시작합니다.",
+            "테스트 알림은 위의 '미션 인증 결과' 스위치와 야간 방해 금지 설정을 그대로 따라요.\n" +
+                "알림 설정은 현재 이 기기에만 저장돼요.\n다른 기기에서 로그인하면 기본값으로 시작합니다.",
             fontSize = 12.sp,
             color = TextSub,
             modifier = Modifier.padding(horizontal = 24.dp)

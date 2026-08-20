@@ -40,3 +40,7 @@ wallet/
 *.log
 logs/
 data/
+!app/data/
+!app/data/transport/
+!app/data/transport/busan_bus_stops.csv
+!app/data/transport/busan_rail_stations.csv

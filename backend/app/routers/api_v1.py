@@ -78,7 +78,19 @@ BUSAN_DISTRICTS = [
     "남구",
     "영도구",
 ]
-MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+MISSION_TYPE_ALIASES = {
+    "PHOTO": "PHOTO",
+    "IMAGE": "PHOTO",
+    "IMAGE_LOCATION": "PHOTO",
+    "PHOTO_LOCATION": "PHOTO",
+    "CURRENT_LOCATION": "CURRENT_LOCATION",
+    "LOCATION": "CURRENT_LOCATION",
+    "GPS": "CURRENT_LOCATION",
+    "GPS_LOCATION": "CURRENT_LOCATION",
+    "RECEIPT": "RECEIPT",
+    "RECEIPT_IMAGE": "RECEIPT",
+}
+
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
 PASSWORD_RESET_COOLDOWN_SECONDS = 5 * 60
@@ -298,6 +310,13 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def _normalize_mission_type(value: Optional[str]) -> Optional[str]:
+    """운영 DB의 구형 표기와 현재 API 표기를 하나의 인증 타입으로 통일한다."""
+    if not value:
+        return None
+    return MISSION_TYPE_ALIASES.get(value.strip().upper())
+
+
 def _mission_dict(
     mission: Mission,
     status_by_id: dict[int, str],
@@ -316,6 +335,10 @@ def _mission_dict(
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": mission_status if mission_status in {"in_progress", "completed"} else "not_started",
+            # 앱에는 항상 현재 API의 표준 타입을 내려준다. 알 수 없는 값만 원문을 유지해
+        # 잘못된 운영 데이터를 화면 로딩 단계에서 확인할 수 있게 한다.
+        "mission_type": _normalize_mission_type(mission.mission_type)
+        or mission.mission_type,
         "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
         "is_saved": mission.mission_id in (saved_ids or set()),
@@ -811,9 +834,9 @@ def verify_mission(
     if mission is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-    requested_type = req.mission_type.strip().upper()
-    stored_type = (mission.mission_type or "").strip().upper()
-    if requested_type not in MISSION_TYPES or requested_type != stored_type:
+    requested_type = _normalize_mission_type(req.mission_type)
+    stored_type = _normalize_mission_type(mission.mission_type)
+    if requested_type is None or stored_type is None or requested_type != stored_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
     progress = (
         db.query(UserMission)

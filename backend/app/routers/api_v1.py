@@ -64,7 +64,6 @@ BUSAN_DISTRICTS = [
     "영도구",
 ]
 
-# 💡 수정됨: LOCATION 타입이 허용 목록에 추가되었습니다.
 MISSION_TYPES = {"PHOTO", "LOCATION", "CURRENT_LOCATION", "RECEIPT"}
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
@@ -125,6 +124,14 @@ class MissionDto(BaseModel):
 class MissionSavedResponse(BaseModel):
     mission_id: int
     is_saved: bool
+
+class MissionStartResponse(BaseModel):
+    success: bool
+    message: str
+
+class MissionCancelResponse(BaseModel):
+    success: bool
+    message: str
 
 class MissionVerifyRequestDto(BaseModel):
     mission_id: int
@@ -235,7 +242,7 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _mission_dict(
     mission: Mission, user_statuses: dict, saved_ids: Optional[set[int]] = None
 ) -> dict:
-    mission_status = user_statuses.get(mission.mission_id, "not_started")
+    mission_status = str(user_statuses.get(mission.mission_id, "not_started")).lower()
     completed = (mission_status == "completed")
 
     return {
@@ -386,11 +393,9 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="해당 이메일로 가입된 활성 계정을 찾을 수 없습니다.")
 
-    # 10자리 임시 비밀번호 생성
     chars = string.ascii_letters + string.digits + "!@#"
     temp_pwd = ''.join(random.choice(chars) for _ in range(10))
 
-    # DB 비밀번호 변경 업데이트
     user.password_hash = hash_password(temp_pwd)
     db.commit()
 
@@ -399,14 +404,12 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
         "temp_password": temp_pwd,
         "message": f"임시 비밀번호가 발급되었습니다: {temp_pwd}"
     }
-# ---------------------------------------------
 
 
 # --- 로그아웃 ---
 @router.post("/auth/logout")
 def logout(subject: str = Depends(get_current_user_email)):
     return {"success": True, "message": "성공적으로 로그아웃 되었습니다."}
-# ---------------------------------
 
 
 @router.get("/users/me", response_model=UserProfile)
@@ -451,7 +454,6 @@ def update_my_nickname(
     return _profile_dict(user)
 
 
-# --- 비밀번호 변경 및 회원탈퇴 ---
 @router.patch("/users/me/password")
 def change_password(
     req: ChangePasswordRequest,
@@ -479,18 +481,15 @@ def withdraw_account(
 ):
     user = _get_user(db, subject)
 
-    # 1. 외래키 오류 방지를 위해 연관 데이터 삭제 (Hard Delete)
     db.query(UserMission).filter(UserMission.user_code == user.user_code).delete()
     db.query(Friendship).filter(
         or_(Friendship.user_code == user.user_code, Friendship.friend_user_code == user.user_code)
     ).delete()
 
-    # 2. 유저 정보 실제 삭제
     db.delete(user)
     db.commit()
 
     return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}
-# --------------------------------------------------
 
 
 @router.get("/missions", response_model=List[MissionDto])
@@ -598,6 +597,75 @@ def unsave_mission(
     return {"mission_id": mission_id, "is_saved": False}
 
 
+# 💡 미션 시작 API
+@router.post("/missions/{mission_id}/start", response_model=MissionStartResponse)
+def start_mission(
+    mission_id: int,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+    mission = db.query(Mission).filter(Mission.mission_id == mission_id).first()
+    if mission is None:
+        raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
+
+    user_mission = (
+        db.query(UserMission)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.mission_id == mission_id,
+        )
+        .first()
+    )
+
+    if user_mission:
+        if user_mission.status.lower() == "completed":
+            return {"success": False, "message": "이미 완료한 미션입니다."}
+        elif user_mission.status.lower() == "ongoing":
+            return {"success": True, "message": "이미 진행 중인 미션입니다."}
+
+    new_user_mission = UserMission(
+        user_code=user.user_code,
+        mission_id=mission_id,
+        status="ongoing",
+    )
+    db.add(new_user_mission)
+    db.commit()
+
+    return {"success": True, "message": "미션을 시작했습니다."}
+
+
+# 💡 미션 취소 API 추가
+@router.post("/missions/{mission_id}/cancel", response_model=MissionCancelResponse)
+def cancel_mission(
+    mission_id: int,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+):
+    user = _get_user(db, subject)
+
+    user_mission = (
+        db.query(UserMission)
+        .filter(
+            UserMission.user_code == user.user_code,
+            UserMission.mission_id == mission_id,
+        )
+        .first()
+    )
+
+    if not user_mission:
+        return {"success": False, "message": "진행 중인 미션이 아닙니다."}
+
+    if user_mission.status.lower() == "completed":
+        return {"success": False, "message": "이미 완료된 미션은 취소할 수 없습니다."}
+
+    # DB에서 ongoing 기록을 삭제하여 '시작 전'으로 상태 복구
+    db.delete(user_mission)
+    db.commit()
+
+    return {"success": True, "message": "미션이 취소되었습니다."}
+
+
 @router.post("/missions/verify", response_model=MissionVerifyResponse)
 def verify_mission(
     req: MissionVerifyRequestDto,
@@ -609,16 +677,12 @@ def verify_mission(
     if mission is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-    # 💡 수정됨: 앱 요청 타입과 DB 저장 타입의 공백을 제거하고 대문자로 통일하여 비교합니다.
     requested_type = req.mission_type.strip().upper()
     db_mission_type = mission.mission_type.strip().upper() if mission.mission_type else ""
-
-    print(f"🔍 디버깅 - 앱 요청 타입: [{requested_type}], DB 저장 타입: [{db_mission_type}]")
 
     if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
 
-    # 💡 수정됨: 유저의 기존 미션 기록을 가져와서 상태를 확인합니다.
     user_mission = (
         db.query(UserMission)
         .filter(
@@ -628,7 +692,7 @@ def verify_mission(
         .first()
     )
 
-    if user_mission and user_mission.status == "completed":
+    if user_mission and user_mission.status.lower() == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
     if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
@@ -644,7 +708,6 @@ def verify_mission(
             "message": "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.",
         }
 
-    # 💡 수정됨: LOCATION 타입이 위치(거리) 검증 로직에 포함되었습니다.
     if requested_type in {"PHOTO", "LOCATION", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return {"success": False, "message": "현재 위치 정보가 필요합니다."}
@@ -715,7 +778,6 @@ def verify_mission(
 
     reward = getattr(mission, "reward_points", 0)
 
-    # 💡 수정됨: 기존 기록(ongoing)이 있으면 상태를 업데이트하고, 없으면 새로 추가합니다.
     if user_mission:
         user_mission.status = "completed"
     else:

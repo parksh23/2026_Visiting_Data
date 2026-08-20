@@ -114,6 +114,27 @@ class HomeViewModel : ViewModel() {
         _saveError.value = null
     }
 
+    // ── 미션 시작 / 취소 (POST /api/v1/missions/{id}/start · /cancel) ──
+
+    // 시작·취소 요청 중인 미션 id (버튼 잠금용)
+    val statePending: StateFlow<Set<Int>> = MissionRepository.statePending
+
+    // 서버가 성공을 준 뒤에야 상태가 '진행 중'으로 바뀐다
+    fun startMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.startMissionOnServer(id)
+                .onFailure { e -> _saveError.value = e.message }
+        }
+    }
+
+    // 성공하면 '시작 전'으로 롤백된다. 이미 완료한 미션은 서버가 거부한다.
+    fun cancelMission(id: Int) {
+        viewModelScope.launch {
+            MissionRepository.cancelMissionOnServer(id)
+                .onFailure { e -> _saveError.value = e.message }
+        }
+    }
+
     // POST/DELETE /api/v1/missions/{id}/saved → 응답의 is_saved 로 화면 갱신
     fun toggleSaved(id: Int) {
         viewModelScope.launch {

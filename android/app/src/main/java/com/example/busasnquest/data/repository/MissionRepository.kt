@@ -9,6 +9,7 @@ import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.data.model.OngoingMission
 import com.example.busasnquest.data.remote.DistrictStatusDto
 import com.example.busasnquest.data.remote.MissionDto
+import com.example.busasnquest.data.remote.SimpleResultDto
 import com.example.busasnquest.data.remote.RetrofitInstance
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -251,15 +252,94 @@ object MissionRepository {
     }
 
 
-    // 미션 탭에서 "도전하기"를 눌렀을 때 진행 중으로 변경
-    fun startMission(id: Int) {
-        updateMission(id) {
-            if (it.state == MissionState.NOT_STARTED) {
-                it.copy(state = MissionState.IN_PROGRESS)
-            } else {
-                it
-            }
+    // ───────────────── 미션 진행 상태 (시작 / 취소) ─────────────────
+
+    // 요청 중인 미션 id — 버튼을 연타해도 중복 요청이 나가지 않게 한다
+    private val _statePending = MutableStateFlow<Set<Int>>(emptySet())
+    val statePending: StateFlow<Set<Int>> = _statePending.asStateFlow()
+
+    // ⚠️ 위 beginSavedRequest/endSavedRequest 와 같은 이유로 suspend 로 만들지 않는다.
+    private fun beginStateRequest(id: Int): Boolean {
+        var accepted = false
+        _statePending.update { current ->
+            accepted = !current.contains(id)
+            if (accepted) current + id else current
         }
+        return accepted
+    }
+
+    private fun endStateRequest(id: Int) {
+        _statePending.update { it - id }
+    }
+
+    /**
+     * 도전 시작. POST /api/v1/missions/{mission_id}/start
+     *
+     * 서버가 성공을 돌려준 뒤에야 화면 상태를 진행 중으로 바꾼다.
+     * 서버 USER_MISSIONS 에 ongoing 으로 남으므로 앱을 껐다 켜도 유지된다.
+     */
+    suspend fun startMissionOnServer(id: Int): Result<Unit> =
+        changeMissionState(id, MissionState.IN_PROGRESS) {
+            RetrofitInstance.api.startMission(id)
+        }
+
+    /**
+     * 도전 취소. POST /api/v1/missions/{mission_id}/cancel
+     *
+     * 서버에서 진행 기록이 지워지고 다음 조회부터 not_started 로 내려온다.
+     * 이미 완료한 미션은 서버가 거부한다.
+     */
+    suspend fun cancelMissionOnServer(id: Int): Result<Unit> =
+        changeMissionState(id, MissionState.NOT_STARTED) {
+            RetrofitInstance.api.cancelMission(id)
+        }
+
+    /**
+     * 시작/취소 공통 처리.
+     * 요청은 Repository 자체 scope 에서 돌린다 — 호출한 화면이 사라져도
+     * 요청은 끝까지 보내고 pending 도 반드시 해제된다(찜과 같은 이유).
+     */
+    private suspend fun changeMissionState(
+        id: Int,
+        newState: MissionState,
+        request: suspend () -> SimpleResultDto
+    ): Result<Unit> {
+        // 이미 같은 미션 요청이 날아가 있으면 무시한다
+        if (!beginStateRequest(id)) return Result.success(Unit)
+
+        return scope.async {
+            try {
+                val response = request()
+                if (response.success == false) {
+                    // 200 이지만 서버가 거절 (예: 이미 완료한 미션 취소)
+                    Result.failure(
+                        Exception(
+                            response.message?.takeIf { it.isNotBlank() }
+                                ?: "요청을 처리하지 못했습니다."
+                        )
+                    )
+                } else {
+                    updateMission(id) { it.copy(state = newState, error = null) }
+                    Result.success(Unit)
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception(e.toMissionStateErrorMessage()))
+            } finally {
+                endStateRequest(id)
+            }
+        }.await()
+    }
+
+    // 서버 오류 → 사용자에게 보여줄 문구
+    private fun Throwable.toMissionStateErrorMessage(): String = when (this) {
+        is retrofit2.HttpException -> when (code()) {
+            400, 409 -> serverDetail() ?: "이미 처리된 미션이에요."
+            401 -> "로그인이 필요해요. 다시 로그인해주세요."
+            404 -> "미션을 찾을 수 없어요."
+            else -> serverDetail() ?: "요청을 처리하지 못했습니다. (${code()})"
+        }
+        is java.io.IOException -> "네트워크 연결을 확인해주세요."
+        else -> "미션 상태를 바꾸는 중 오류가 발생했어요."
     }
 
 

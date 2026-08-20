@@ -123,8 +123,14 @@ class MissionViewModel : ViewModel() {
         )
     }
 
+    // POST /api/v1/missions/{id}/start
+    // 서버가 성공을 주면 Repository 가 상태를 '진행 중'으로 바꾼다.
+    // 실패하면 화면 하단 스낵바로 알린다.
     fun startMission(id: Int) {
-        MissionRepository.startMission(id)
+        viewModelScope.launch {
+            MissionRepository.startMissionOnServer(id)
+                .onFailure { e -> _saveError.value = e.message }
+        }
     }
     // 하트 클릭 → 서버에 찜 추가/해제 요청. 성공하면 응답의 is_saved 로 화면이 갱신된다.
     // 요청 중에는 Repository 가 중복 요청을 막고, 화면은 savePending 으로 버튼을 잠근다.

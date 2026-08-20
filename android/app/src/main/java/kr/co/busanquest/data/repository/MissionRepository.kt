@@ -1,4 +1,4 @@
-package kr.co.busanquest.data.repository
+package com.example.busasnquest.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -10,6 +10,7 @@ import kr.co.busanquest.data.model.OngoingMission
 import kr.co.busanquest.data.remote.DistrictStatusDto
 import kr.co.busanquest.data.remote.MissionDto
 import kr.co.busanquest.data.remote.RetrofitInstance
+import kr.co.busanquest.data.remote.SimpleResultDto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,8 +22,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kr.co.busanquest.data.remote.MissionVerifyRequestDto
-import kr.co.busanquest.data.remote.ErrorDetailDto
+import com.example.busasnquest.data.remote.MissionVerifyRequestDto
+import com.example.busasnquest.data.remote.ErrorDetailDto
 import com.google.gson.Gson
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.async

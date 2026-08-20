@@ -39,6 +39,23 @@ interface BusanQuestApi {
     @GET("api/v1/missions/ongoing")
     suspend fun getOngoingMissions(): List<MissionDto>
 
+    // ───────── 미션 진행 상태 (시작 / 취소) ─────────
+
+    // 도전 시작 (시작 전 → 진행 중).
+    // 서버 USER_MISSIONS 에 ongoing 으로 기록되므로 앱을 껐다 켜도 상태가 유지된다.
+    @POST("api/v1/missions/{mission_id}/start")
+    suspend fun startMission(
+        @Path("mission_id") missionId: Int
+    ): SimpleResultDto
+
+    // 도전 취소 (진행 중 → 시작 전).
+    // 서버에서 진행 기록이 지워져 다음 조회부터 not_started 로 내려온다.
+    // 이미 완료(completed)한 미션은 서버가 거부한다.
+    @POST("api/v1/missions/{mission_id}/cancel")
+    suspend fun cancelMission(
+        @Path("mission_id") missionId: Int
+    ): SimpleResultDto
+
     // ───────── 미션 찜 ─────────
 
     // 찜한 미션 목록 (최근 찜한 순). 없으면 빈 배열.

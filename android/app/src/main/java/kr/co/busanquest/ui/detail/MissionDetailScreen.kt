@@ -65,7 +65,12 @@ fun MissionDetailScreen(
     // 찜 요청 중 / 실패 메시지
     val savePending by viewModel.savePending.collectAsStateWithLifecycle()
     val saveError by viewModel.saveError.collectAsStateWithLifecycle()
+    // 도전 시작/취소 요청 중인 미션 id — 버튼 연타 방지
+    val statePending by viewModel.statePending.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // 도전 취소 확인 다이얼로그
+    var showCancelConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(saveError) {
         saveError?.let {
@@ -86,6 +91,7 @@ fun MissionDetailScreen(
 
     val mission = item.mission
     val isSavePending = savePending.contains(mission.id)
+    val isStatePending = statePending.contains(mission.id)
 
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
@@ -191,19 +197,22 @@ fun MissionDetailScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 인증 버튼 자리 (3단계에서 실제 기능 연결)
+            // 상태별 액션 버튼
             when (item.state) {
                 MissionState.NOT_STARTED -> {
+                    // 서버(POST .../start)가 성공을 준 뒤에야 '진행 중'으로 바뀐다
                     Button(
-                        onClick = { MissionRepository.startMission(mission.id) },
+                        onClick = { viewModel.startMission(mission.id) },
+                        enabled = !isStatePending,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("도전하기")
+                        Text(if (isStatePending) "시작하는 중..." else "도전하기")
                     }
                 }
                 MissionState.IN_PROGRESS -> {
                     Button(
                         onClick = { verify(mission.id, mission.type) },
+                        enabled = !isStatePending,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(verifyButtonLabelDetail(mission.type))
@@ -211,6 +220,18 @@ fun MissionDetailScreen(
                     if (item.error != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(item.error, color = PointRed, fontSize = 12.sp)
+                    }
+                    // 도전 취소 — 실수로 누르지 않게 확인창을 한 번 거친다
+                    TextButton(
+                        onClick = { showCancelConfirm = true },
+                        enabled = !isStatePending,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (isStatePending) "취소하는 중..." else "도전 취소",
+                            color = if (isStatePending) TextSub else PointRed,
+                            fontSize = 13.sp
+                        )
                     }
                 }
                 MissionState.VERIFYING -> {
@@ -230,7 +251,35 @@ fun MissionDetailScreen(
         }
     }
 
-        // 찜 실패 안내 (401/404/500 등)
+        // ── 도전 취소 확인 ──
+        if (showCancelConfirm) {
+            AlertDialog(
+                onDismissRequest = { showCancelConfirm = false },
+                title = { Text("도전을 취소할까요?", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text(
+                        "진행 기록이 지워지고 '시작 전' 상태로 돌아가요.\n언제든 다시 도전할 수 있어요.",
+                        color = TextSub,
+                        fontSize = 13.sp
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCancelConfirm = false
+                        viewModel.cancelMission(mission.id)
+                    }) {
+                        Text("도전 취소", color = PointRed, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCancelConfirm = false }) {
+                        Text("계속 도전하기", color = TextSub)
+                    }
+                }
+            )
+        }
+
+        // 요청 실패 안내 (401/404/500 등)
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)

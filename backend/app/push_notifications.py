@@ -277,7 +277,6 @@ def process_pending_pushes(db: Session, limit: int = 100) -> dict:
         .filter(PendingPush.status == "pending", PendingPush.scheduled_at <= now)
         .order_by(PendingPush.scheduled_at)
         .limit(limit)
-        .with_for_update(skip_locked=True)
         .all()
     )
     for row in rows:

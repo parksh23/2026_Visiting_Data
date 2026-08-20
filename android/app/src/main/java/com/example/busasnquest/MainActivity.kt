@@ -22,6 +22,7 @@ import com.kakao.sdk.common.KakaoSdk
 import com.kakao.vectormap.KakaoMapSdk
 import com.example.busasnquest.notification.EXTRA_OPEN_RANKING
 import com.example.busasnquest.notification.RankingNotificationNavigation
+import com.example.busasnquest.util.Notifier
 
 class MainActivity : ComponentActivity() {
 
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
 
         // RetrofitInstance가 DataStore에서 토큰을 읽을 수 있게 초기화
         RetrofitInstance.init(this)
+        Notifier.init(this)
 
         // 카카오맵 초기화 (네이티브 앱 키)
         KakaoMapSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)

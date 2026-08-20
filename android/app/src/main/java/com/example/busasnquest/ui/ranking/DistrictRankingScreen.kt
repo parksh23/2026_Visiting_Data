@@ -7,10 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,95 +18,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.busasnquest.data.model.RankEntry
-import com.example.busasnquest.data.remote.RetrofitInstance
-import com.example.busasnquest.data.repository.RankingRepository
 import com.example.busasnquest.ui.components.ErrorView
+import com.example.busasnquest.ui.components.LoadingView
 import com.example.busasnquest.ui.theme.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import retrofit2.HttpException
-import java.io.IOException
 
-internal sealed interface DistrictRankingUiState {
-    data object Loading : DistrictRankingUiState
-    data class Success(val myCount: Int, val rankings: List<RankEntry>) : DistrictRankingUiState
-    data class Error(val message: String) : DistrictRankingUiState
-}
-
-internal class DistrictRankingViewModel(
-    private val districtName: String,
-    private val repository: RankingRepository
-) : ViewModel() {
-    private val _state = MutableStateFlow<DistrictRankingUiState>(DistrictRankingUiState.Loading)
-    val state: StateFlow<DistrictRankingUiState> = _state.asStateFlow()
-
-    init {
-        refresh()
-    }
-
-    fun refresh() {
-        _state.value = DistrictRankingUiState.Loading
-        viewModelScope.launch {
-            _state.value = try {
-                val response = repository.fetchRankings("region", districtName)
-                DistrictRankingUiState.Success(
-                    myCount = response.myRank.point,
-                    rankings = response.rankings.map { entry ->
-                        RankEntry(
-                            rank = entry.rank,
-                            name = entry.name,
-                            score = "${entry.score}개",
-                            isMe = entry.userId == response.myRank.userId
-                        )
-                    }
-                )
-            } catch (error: HttpException) {
-                DistrictRankingUiState.Error("지역 랭킹을 불러오지 못했습니다. (${error.code()})")
-            } catch (_: IOException) {
-                DistrictRankingUiState.Error("네트워크 연결을 확인해주세요.")
-            } catch (_: Exception) {
-                DistrictRankingUiState.Error("지역 랭킹을 불러오는 중 오류가 발생했습니다.")
-            }
-        }
-    }
-
-    companion object {
-        fun factory(districtName: String): ViewModelProvider.Factory =
-            object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    DistrictRankingViewModel(
-                        districtName,
-                        RankingRepository(RetrofitInstance.rankingApi)
-                    ) as T
-            }
-    }
-}
-
+/**
+ * 구·군 하나의 랭킹 상세 화면.
+ *
+ * 데이터는 전부 서버에서 온다 — GET /api/v1/rankings?type=region&district={구 이름}
+ * 점수 단위는 포인트가 아니라 "그 구에서 완료한 미션 수"다.
+ */
 @Composable
-internal fun DistrictRankingScreen(
+fun DistrictRankingScreen(
     navController: NavHostController,
     districtName: String,
     viewModel: DistrictRankingViewModel = viewModel(
-        key = "district-ranking-$districtName",
         factory = DistrictRankingViewModel.factory(districtName)
     )
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgSoftBlue)
     ) {
+        // 상단 바
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -117,48 +53,92 @@ internal fun DistrictRankingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = NavyMain)
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = NavyMain
+                )
             }
-            Text("$districtName 랭킹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NavyMain)
+            Text(
+                "$districtName 랭킹",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = NavyMain
+            )
         }
 
-        when (val current = state) {
-            DistrictRankingUiState.Loading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+        when (val s = state) {
+            is DistrictRankingUiState.Loading -> {
+                LoadingView("랭킹을 불러오는 중...")
             }
-            is DistrictRankingUiState.Error -> ErrorView(
-                message = current.message,
-                onRetry = viewModel::refresh
-            )
+
+            is DistrictRankingUiState.Error -> {
+                ErrorView(message = s.message, onRetry = viewModel::retry)
+            }
+
             is DistrictRankingUiState.Success -> {
+                // 내 기록 카드
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = Dimens.screenPadding, vertical = Dimens.gapTight)
+                        .padding(
+                            horizontal = Dimens.screenPadding,
+                            vertical = Dimens.gapTight
+                        )
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Dimens.radiusCard))
                         .background(NavyMain)
                         .padding(20.dp)
                 ) {
                     Column {
-                        Text("$districtName 에서 나의 기록", color = Color.White.copy(0.8f), fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "완료한 미션 ${current.myCount}개",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                            "$districtName 에서 나의 기록",
+                            color = Color.White.copy(0.8f),
+                            fontSize = 13.sp
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                "완료한 미션 ${s.myScore}개",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            // 서버가 순위를 계산하지 못했으면(rank=0) 순위는 감춘다
+                            if (s.myRank > 0) {
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    "${s.myRank}위",
+                                    color = Color.White.copy(0.8f),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
-                LazyColumn(contentPadding = PaddingValues(bottom = bottomBarSpacing())) {
-                    items(current.rankings, key = { "${it.rank}-${it.name}" }) { entry ->
-                        RankingRow(entry, scoreIsPoint = false)
+
+                if (s.rankings.isEmpty()) {
+                    Text(
+                        "아직 이 지역의 랭킹 기록이 없어요.",
+                        color = TextSub,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 40.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                } else {
+                    LazyColumn(
+                        contentPadding = PaddingValues(bottom = bottomBarSpacing())
+                    ) {
+                        items(s.rankings) { entry ->
+                            // 지역 랭킹의 점수는 "3개"(완료 미션 수)라 P 뱃지를 붙이지 않는다
+                            RankingRow(entry, scoreIsPoint = false)
+                        }
+                        item { Spacer(modifier = Modifier.height(40.dp)) }
                     }
-                    item { Spacer(modifier = Modifier.height(40.dp)) }
                 }
             }
         }

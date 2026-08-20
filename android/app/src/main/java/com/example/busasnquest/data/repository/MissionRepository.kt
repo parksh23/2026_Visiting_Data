@@ -129,6 +129,10 @@ object MissionRepository {
     private val _savedPending = MutableStateFlow<Set<Int>>(emptySet())
     val savedPending: StateFlow<Set<Int>> = _savedPending.asStateFlow()
 
+    // 도전 시작·취소 요청 중인 미션 id. 새 UI의 버튼 연타 방지 상태와 연결한다.
+    private val _statePending = MutableStateFlow<Set<Int>>(emptySet())
+    val statePending: StateFlow<Set<Int>> = _statePending.asStateFlow()
+
     /** 로그아웃·계정 전환 시 사용자별 캐시와 진행 중 요청을 모두 폐기한다. */
     fun resetForSession() {
         repositoryJob.cancel()
@@ -137,6 +141,7 @@ object MissionRepository {
         _serverDistrictProgress.value = null
         _savedMissions.value = emptyList()
         _savedPending.value = emptySet()
+        _statePending.value = emptySet()
         _missions.value = if (BuildConfig.DEBUG) {
             allMissions.map { MissionWithState(mission = it) }
         } else {
@@ -165,6 +170,19 @@ object MissionRepository {
 
     private fun endSavedRequest(id: Int) {
         _savedPending.update { it - id }
+    }
+
+    private fun beginStateRequest(id: Int): Boolean {
+        var accepted = false
+        _statePending.update { current ->
+            accepted = id !in current
+            if (accepted) current + id else current
+        }
+        return accepted
+    }
+
+    private fun endStateRequest(id: Int) {
+        _statePending.update { it - id }
     }
 
     fun isSaved(id: Int): Boolean =
@@ -300,6 +318,9 @@ object MissionRepository {
     }
 
     suspend fun startMissionOnServer(id: Int): Result<Unit> {
+        if (!beginStateRequest(id)) {
+            return Result.failure(Exception("이미 미션 상태를 변경하고 있어요."))
+        }
         startMission(id)
         return try {
             val response = RetrofitInstance.api.startMission(id)
@@ -312,14 +333,19 @@ object MissionRepository {
         } catch (error: Exception) {
             cancelMission(id)
             Result.failure(Exception(error.toMissionActionError("도전을 시작하지 못했어요.")))
+        } finally {
+            endStateRequest(id)
         }
     }
 
     suspend fun cancelMissionOnServer(id: Int): Result<Unit> {
-        if (!cancelMission(id)) {
-            return Result.failure(Exception("인증 전의 진행 중 미션만 취소할 수 있어요."))
+        if (!beginStateRequest(id)) {
+            return Result.failure(Exception("이미 미션 상태를 변경하고 있어요."))
         }
         return try {
+            if (!cancelMission(id)) {
+                return Result.failure(Exception("인증 전의 진행 중 미션만 취소할 수 있어요."))
+            }
             val response = RetrofitInstance.api.cancelMission(id)
             if (response.status == "not_started") {
                 Result.success(Unit)
@@ -331,6 +357,8 @@ object MissionRepository {
             startMission(id)
             setError(id, error.toMissionActionError("도전을 취소하지 못했어요."))
             Result.failure(Exception(error.toMissionActionError("도전을 취소하지 못했어요.")))
+        } finally {
+            endStateRequest(id)
         }
     }
 

@@ -16,6 +16,8 @@ import androidx.work.WorkerParameters
 import com.example.busasnquest.MainActivity
 import com.example.busasnquest.R
 import com.example.busasnquest.data.local.TokenStore
+import com.example.busasnquest.data.local.NotificationKey
+import com.example.busasnquest.data.local.SettingsStore
 import com.example.busasnquest.data.remote.RetrofitInstance
 import kotlinx.coroutines.flow.first
 import retrofit2.HttpException
@@ -29,6 +31,10 @@ class RankingNotificationWorker(
     override suspend fun doWork(): Result {
         val token = TokenStore(applicationContext).tokenFlow.first()
         if (token.isNullOrBlank()) return Result.success()
+        val settings = SettingsStore(applicationContext)
+        if (!settings.isEnabled(NotificationKey.RANKING_CHANGE) || settings.isQuietNow()) {
+            return Result.success()
+        }
         if (!canPostNotifications(applicationContext)) return Result.success()
 
         RetrofitInstance.init(applicationContext)

@@ -116,13 +116,11 @@ fun MapScreen(
         val withCoordinate = targets.filter { it.mission.lat != 0.0 || it.mission.lng != 0.0 }
 
         // 깃발이 안 보일 때 원인을 바로 알 수 있게 남긴다
-        if (com.example.busasnquest.BuildConfig.DEBUG) {
-            android.util.Log.d(
-                "KakaoMap",
-                "깃발 갱신 region=$region 지역미션=${inRegion.size} " +
+        android.util.Log.d(
+            "KakaoMap",
+            "깃발 갱신 region=$region 지역미션=${inRegion.size} " +
                     "대상(진행중·찜)=${targets.size} 좌표있음=${withCoordinate.size}"
-            )
-        }
+        )
 
         if (withCoordinate.isEmpty()) return@LaunchedEffect
 
@@ -192,9 +190,7 @@ fun MapScreen(
             KakaoMapView(
                 modifier = Modifier.fillMaxSize(),
                 onMapError = { error ->
-                    if (com.example.busasnquest.BuildConfig.DEBUG) {
-                        android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
-                    }
+                    android.util.Log.e("KakaoMap", "지도 에러: ${error?.message}")
                 },
                 onMapReady = { map ->
                     kakaoMap = map

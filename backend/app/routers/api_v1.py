@@ -335,11 +335,10 @@ def _mission_dict(
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": mission_status if mission_status in {"in_progress", "completed"} else "not_started",
-            # 앱에는 항상 현재 API의 표준 타입을 내려준다. 알 수 없는 값만 원문을 유지해
+        # 앱에는 항상 현재 API의 표준 타입을 내려준다. 알 수 없는 값만 원문을 유지해
         # 잘못된 운영 데이터를 화면 로딩 단계에서 확인할 수 있게 한다.
         "mission_type": _normalize_mission_type(mission.mission_type)
         or mission.mission_type,
-        "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
         "is_saved": mission.mission_id in (saved_ids or set()),
     }

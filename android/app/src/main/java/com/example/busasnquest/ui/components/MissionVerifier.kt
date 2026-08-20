@@ -18,16 +18,13 @@ import androidx.core.content.ContextCompat
 import com.example.busasnquest.data.model.MissionType
 import com.example.busasnquest.ui.home.HomeViewModel
 
-private enum class PendingLocationAction { PHOTO, CURRENT_LOCATION }
-private enum class PendingCameraAction { PHOTO, RECEIPT }
-
 /**
  * 미션 인증(사진/위치/영수증)에 필요한 런처들을 한 곳에 묶은 헬퍼.
  * 화면에서 `val verify = rememberMissionVerifier(viewModel)` 처럼 부르고,
  * `verify(missionId, missionType)` 으로 인증을 시작한다.
  *
- * 사진과 영수증 미션은 "카메라로 촬영 / 갤러리에서 선택"을 고를 수 있다.
- * 사진 미션은 선택한 파일의 EXIF 대신 인증 시점의 현재 위치를 사용한다.
+ * 영수증(RECEIPT) 미션은 바로 카메라로 가지 않고,
+ * "카메라로 촬영 / 갤러리에서 선택" 을 고르는 다이얼로그를 먼저 띄운다.
  */
 @Composable
 fun rememberMissionVerifier(
@@ -38,53 +35,10 @@ fun rememberMissionVerifier(
 
     // 어느 미션이 인증을 요청했는지 기억
     val activeId = remember { mutableIntStateOf(0) }
-    val pendingCameraUri = remember { mutableStateOf<Uri?>(null) }
-    val pendingPhotoUri = remember { mutableStateOf<Uri?>(null) }
-    val pendingLocationAction = remember { mutableStateOf<PendingLocationAction?>(null) }
-    val pendingCameraAction = remember { mutableStateOf<PendingCameraAction?>(null) }
-    val mediaChooser = remember { mutableStateOf<PendingCameraAction?>(null) }
-
-    val locationPermission = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val action = pendingLocationAction.value
-        pendingLocationAction.value = null
-        if (granted) {
-            when (action) {
-                PendingLocationAction.PHOTO -> pendingPhotoUri.value?.let { uri ->
-                    viewModel.onPhotoSelected(activeId.intValue, context, uri)
-                }
-                PendingLocationAction.CURRENT_LOCATION ->
-                    viewModel.onLocationPermissionGranted(activeId.intValue, context)
-                null -> Unit
-            }
-        } else {
-            viewModel.onLocationPermissionDenied(activeId.intValue)
-        }
-        pendingPhotoUri.value = null
-    }
-
-    fun startPhotoVerification(uri: Uri) {
-        pendingPhotoUri.value = uri
-        pendingLocationAction.value = PendingLocationAction.PHOTO
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            viewModel.onPhotoSelected(activeId.intValue, context, uri)
-            pendingLocationAction.value = null
-            pendingPhotoUri.value = null
-        } else {
-            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-    }
-
-    val photoPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) startPhotoVerification(uri)
-    }
+    val pendingReceiptUri = remember { mutableStateOf<Uri?>(null) }
+    val pendingImageUri = remember { mutableStateOf<Uri?>(null) }
+    // 영수증 인증 방식(촬영/갤러리) 선택 다이얼로그 표시 여부
+    val showReceiptChooser = remember { mutableStateOf(false) }
 
     // 영수증: 갤러리에서 이미지 선택 (GPS 불필요 → 영수증 처리로 바로 전달)
     val receiptPicker = rememberLauncherForActivityResult(
@@ -93,20 +47,46 @@ fun rememberMissionVerifier(
         if (uri != null) viewModel.onReceiptCaptured(activeId.intValue, context, true, uri)
     }
 
+    val locationPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val imageUri = pendingImageUri.value
+        pendingImageUri.value = null
+        if (granted && imageUri != null) {
+            viewModel.onImagePicked(activeId.intValue, context, imageUri)
+        } else if (granted) {
+            viewModel.onLocationPermissionGranted(activeId.intValue, context)
+        } else {
+            viewModel.onLocationPermissionDenied(activeId.intValue)
+        }
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            viewModel.onImagePicked(activeId.intValue, context, uri)
+        } else {
+            pendingImageUri.value = uri
+            locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        val uri = pendingCameraUri.value
-        if (success && uri != null) {
-            when (pendingCameraAction.value) {
-                PendingCameraAction.PHOTO -> startPhotoVerification(uri)
-                PendingCameraAction.RECEIPT ->
-                    viewModel.onReceiptCaptured(activeId.intValue, context, true, uri)
-                null -> Unit
-            }
-        }
-        pendingCameraUri.value = null
-        pendingCameraAction.value = null
+        // 촬영한 영수증 이미지 uri 를 함께 넘겨 서버 인증에 사용
+        viewModel.onReceiptCaptured(
+            activeId.intValue,
+            context,
+            success,
+            pendingReceiptUri.value
+        )
     }
 
     val cameraPermission = rememberLauncherForActivityResult(
@@ -114,46 +94,46 @@ fun rememberMissionVerifier(
     ) { granted ->
         if (granted) {
             val uri = com.example.busasnquest.util.createImageUri(context)
-            pendingCameraUri.value = uri
+            pendingReceiptUri.value = uri
             cameraLauncher.launch(uri)
         } else viewModel.onCameraPermissionDenied(activeId.intValue)
     }
 
-    fun startCamera(action: PendingCameraAction) {
-        pendingCameraAction.value = action
+    // 영수증: 카메라 촬영 시작 (권한 확인 포함)
+    fun startReceiptCamera() {
         val granted = ContextCompat.checkSelfPermission(
             context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
         if (granted) {
             val uri = com.example.busasnquest.util.createImageUri(context)
-            pendingCameraUri.value = uri
+            pendingReceiptUri.value = uri
             cameraLauncher.launch(uri)
         } else cameraPermission.launch(Manifest.permission.CAMERA)
     }
 
-    fun startGallery(action: PendingCameraAction) {
-        val launcher = if (action == PendingCameraAction.PHOTO) photoPicker else receiptPicker
-        launcher.launch(
+    // 영수증: 갤러리에서 이미지 선택 시작
+    fun startReceiptGallery() {
+        receiptPicker.launch(
             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
         )
     }
 
-    mediaChooser.value?.let { action ->
-        val title = if (action == PendingCameraAction.PHOTO) "사진 인증" else "영수증 인증"
+    // 영수증 인증 방식 선택 다이얼로그
+    if (showReceiptChooser.value) {
         AlertDialog(
-            onDismissRequest = { mediaChooser.value = null },
-            title = { Text(title) },
-            text = { Text("이미지를 어떻게 올릴까요?") },
+            onDismissRequest = { showReceiptChooser.value = false },
+            title = { Text("영수증 인증") },
+            text = { Text("영수증을 어떻게 올릴까요?") },
             confirmButton = {
                 TextButton(onClick = {
-                    mediaChooser.value = null
-                    startCamera(action)
+                    showReceiptChooser.value = false
+                    startReceiptCamera()
                 }) { Text("카메라로 촬영") }
             },
             dismissButton = {
                 TextButton(onClick = {
-                    mediaChooser.value = null
-                    startGallery(action)
+                    showReceiptChooser.value = false
+                    startReceiptGallery()
                 }) { Text("갤러리에서 선택") }
             }
         )
@@ -163,20 +143,18 @@ fun rememberMissionVerifier(
     return { id, type ->
         activeId.intValue = id
         when (type) {
-            MissionType.IMAGE_LOCATION -> mediaChooser.value = PendingCameraAction.PHOTO
+            MissionType.IMAGE_LOCATION -> imagePicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
             MissionType.CURRENT_LOCATION -> {
-                pendingLocationAction.value = PendingLocationAction.CURRENT_LOCATION
                 val granted = ContextCompat.checkSelfPermission(
                     context, Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
-                if (granted) {
-                    pendingLocationAction.value = null
-                    viewModel.onLocationPermissionGranted(id, context)
-                } else {
-                    locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+                if (granted) viewModel.onLocationPermissionGranted(id, context)
+                else locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
-            MissionType.RECEIPT -> mediaChooser.value = PendingCameraAction.RECEIPT
+            // 촬영/갤러리 선택 다이얼로그를 띄운다
+            MissionType.RECEIPT -> showReceiptChooser.value = true
         }
     }
 }

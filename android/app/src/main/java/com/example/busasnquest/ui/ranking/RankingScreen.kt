@@ -1,10 +1,5 @@
 package com.example.busasnquest.ui.ranking
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -29,7 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -37,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,10 +66,6 @@ import com.example.busasnquest.ui.theme.displayStyle
 import com.example.busasnquest.ui.theme.pressable
 import com.example.busasnquest.ui.theme.CoralInk
 import androidx.navigation.NavHostController
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import com.example.busasnquest.notification.RankingNotificationStore
-import com.example.busasnquest.notification.RankingNotificationScheduler
 import com.example.busasnquest.ui.theme.bottomBarSpacing
 
 @Composable
@@ -84,13 +74,8 @@ fun RankingScreen(
     // 서버 연동: 탭 선택 시 /api/v1/rankings?type=all|region|friend 호출
     viewModel: RankingViewModel = viewModel(factory = RankingViewModel.Factory)
 ) {
-    RequestRankingNotificationPermission()
     val state by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.refresh()
-    }
 
     when (val s = state) {
         is RankingUiState.Loading -> {
@@ -143,33 +128,6 @@ fun RankingScreen(
                     Spacer(modifier = Modifier.height(40.dp))
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RequestRankingNotificationPermission() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-
-    val context = LocalContext.current
-    val store = remember(context) { RankingNotificationStore(context) }
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            store.clearRank()
-            RankingNotificationScheduler.checkNow(context)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!granted && !store.wasPermissionRequested()) {
-            store.markPermissionRequested()
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }
@@ -550,7 +508,7 @@ fun DistrictRankRow(district: String, onClick: () -> Unit) {
     ) {
         Text(district, fontWeight = FontWeight.Bold, color = TextMain, fontSize = 15.sp)
         Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            Icons.Default.KeyboardArrowRight,
             contentDescription = null,
             tint = TextSub
         )

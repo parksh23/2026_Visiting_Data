@@ -8,6 +8,7 @@ import com.example.busasnquest.data.model.RankEntry
 import com.example.busasnquest.data.model.RankingResponse
 import com.example.busasnquest.data.remote.RetrofitInstance
 import com.example.busasnquest.data.repository.RankingRepository
+import com.example.busasnquest.util.Notifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,16 +67,22 @@ class RankingViewModel(
     fun onSelectTab(index: Int) {
         if (_selectedTab.value == index && _uiState.value is RankingUiState.Success) return
         _selectedTab.value = index
-        loadRankings(RankingType.fromTabIndex(index))
+
+        // 지역 탭은 구·군 목록만 보여주는 자리다.
+        // 실제 순위는 구를 고른 뒤 DistrictRankingScreen 이
+        // ?type=region&district={구} 로 직접 받아온다.
+        // 여기서 district 없이 요청하면 서버가 빈 목록을 돌려주므로 아예 부르지 않는다.
+        val type = RankingType.fromTabIndex(index)
+        if (type == RankingType.REGION) return
+
+        loadRankings(type)
     }
 
     // 에러 화면의 "다시 시도" 버튼용
     fun retry() {
-        loadRankings(RankingType.fromTabIndex(_selectedTab.value), force = true)
-    }
-
-    fun refresh() {
-        loadRankings(RankingType.fromTabIndex(_selectedTab.value), force = true)
+        // 지역 탭에는 자체 랭킹 요청이 없으므로 전체 랭킹을 다시 부른다
+        val type = RankingType.fromTabIndex(_selectedTab.value)
+        loadRankings(if (type == RankingType.REGION) RankingType.ALL else type, force = true)
     }
 
     private fun loadRankings(type: RankingType, force: Boolean = false) {
@@ -94,6 +101,10 @@ class RankingViewModel(
                 val res = repository.fetchRankings(type.query)
                 cache[type] = res
                 _uiState.value = res.toSuccessState()
+                // 순위 변동 알림은 "전체 랭킹" 기준으로만 (탭 전환마다 울리지 않게)
+                if (type == RankingType.ALL) {
+                    Notifier.checkRankChange(res.myRank.rank)
+                }
             } catch (e: HttpException) {
                 _uiState.value = RankingUiState.Error("랭킹을 불러오지 못했습니다. (${e.code()})")
             } catch (e: IOException) {
@@ -144,7 +155,7 @@ class RankingViewModel(
                     name = it.name,
                     // "P" 없이 숫자만 — 화면에서 공통 포인트 뱃지를 붙인다
                     score = "%,d".format(it.score),
-                    // 공동 순위가 있어도 userId로 내 행 하나만 정확히 표시한다.
+                    // 공동 순위에서도 다른 사용자를 나로 표시하지 않도록 고유 ID로 비교한다.
                     isMe = it.userId == myRank.userId
                 )
             }

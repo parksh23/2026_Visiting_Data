@@ -9,6 +9,7 @@ import com.example.busasnquest.data.remote.MissionVerifyRequestDto
 import com.example.busasnquest.data.repository.MissionRepository
 import com.example.busasnquest.data.repository.MissionWithState
 import com.example.busasnquest.data.repository.UserRepository
+import com.example.busasnquest.util.Notifier
 import com.example.busasnquest.util.getCurrentLocation
 import android.content.Context
 import android.net.Uri
@@ -43,6 +44,8 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching { MissionRepository.refreshMissionsFromServer() }
             runCatching { UserRepository.refreshProfile() }
+            // 서버 목록을 받은 뒤 "이전에 못 보던 미션"이 있으면 알림
+            Notifier.checkNewMissions(MissionRepository.missions.value.map { it.mission })
         }
     }
 
@@ -93,6 +96,8 @@ class HomeViewModel : ViewModel() {
 
     // 보유 포인트 (홈 헤더 칩용)
     val points: StateFlow<Int> = UserRepository.points
+
+    // 인사말용 닉네임 (서버 users/me 기준). 아직 못 불러왔으면 빈 문자열.
     val name: StateFlow<String> = UserRepository.name
 
     // ── 미션 찜 ──
@@ -108,17 +113,24 @@ class HomeViewModel : ViewModel() {
         _saveError.value = null
     }
 
+    // ── 미션 시작 / 취소 (POST /api/v1/missions/{id}/start · /cancel) ──
+
+    // 시작·취소 요청 중인 미션 id (버튼 잠금용)
+    val statePending: StateFlow<Set<Int>> = MissionRepository.statePending
+
+    // 서버가 성공을 준 뒤에야 상태가 '진행 중'으로 바뀐다
     fun startMission(id: Int) {
         viewModelScope.launch {
             MissionRepository.startMissionOnServer(id)
-                .onFailure { _saveError.value = it.message }
+                .onFailure { e -> _saveError.value = e.message }
         }
     }
 
+    // 성공하면 '시작 전'으로 롤백된다. 이미 완료한 미션은 서버가 거부한다.
     fun cancelMission(id: Int) {
         viewModelScope.launch {
             MissionRepository.cancelMissionOnServer(id)
-                .onFailure { _saveError.value = it.message }
+                .onFailure { e -> _saveError.value = e.message }
         }
     }
 
@@ -133,9 +145,8 @@ class HomeViewModel : ViewModel() {
 
     // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
 
-    // PHOTO: 이미지 자체의 EXIF가 아닌 인증 시점의 현재 위치를 함께 전송한다.
-    // Android Photo Picker가 위치 메타데이터를 제거해 인증이 막히는 기기에서도 동작한다.
-    fun onPhotoSelected(id: Int, context: Context, uri: Uri) {
+    // PHOTO: 파일 EXIF가 아닌 인증 시점의 실제 현재 위치와 함께 전송한다.
+    fun onImagePicked(id: Int, context: Context, uri: Uri) {
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
             val location = getCurrentLocation(context)
@@ -236,10 +247,31 @@ class HomeViewModel : ViewModel() {
 
     // 공통: 서버 제출 → 성공이면 완료 처리, 실패면 에러 표시 후 진행 중으로 복귀
     private suspend fun submitVerification(id: Int, request: MissionVerifyRequestDto) {
+        val mission = MissionRepository.missions.value
+            .firstOrNull { it.mission.id == id }?.mission
+        val title = mission?.title ?: "미션"
+
         MissionRepository.verifyOnServer(request)
-            .onSuccess { completeMission(id) }
+            .onSuccess {
+                completeMission(id)
+                // 인증은 시간이 걸려 사용자가 다른 화면에 가 있을 수 있다 → 결과를 알림으로
+                Notifier.missionResult(
+                    missionId = id,
+                    title = title,
+                    reward = mission?.reward ?: 0,
+                    success = true
+                )
+            }
             .onFailure { e ->
-                MissionRepository.setError(id, e.message ?: "인증에 실패했습니다.")
+                val message = e.message ?: "인증에 실패했습니다."
+                MissionRepository.setError(id, message)
+                Notifier.missionResult(
+                    missionId = id,
+                    title = title,
+                    reward = 0,
+                    success = false,
+                    reason = message
+                )
             }
     }
 

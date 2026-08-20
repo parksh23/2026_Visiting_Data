@@ -60,7 +60,7 @@ fun HomeScreen(
     val occupation by viewModel.occupation.collectAsStateWithLifecycle()
     val recommended by viewModel.recommendedMissions.collectAsStateWithLifecycle()
     val points by viewModel.points.collectAsStateWithLifecycle()
-    val name by viewModel.name.collectAsStateWithLifecycle()
+    val userName by viewModel.name.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -71,7 +71,7 @@ fun HomeScreen(
         Spacer(Modifier.height(Dimens.gapTight))
 
         // 앱 로고 + 인사말 헤더
-        HomeHeader(points = points, name = name)
+        HomeHeader(points = points, userName = userName)
 
         Spacer(Modifier.height(Dimens.gapBlock))
 
@@ -115,7 +115,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeHeader(points: Int, name: String) {
+private fun HomeHeader(points: Int, userName: String) {
     Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -144,7 +144,9 @@ private fun HomeHeader(points: Int, name: String) {
         }
         Spacer(Modifier.height(Dimens.gapTight))
         Text(
-            "${name.ifBlank { "탐험가" }}님, 오늘도 부산을 정복해볼까요?",
+            // 닉네임을 아직 못 불러왔으면 이름 없이 자연스럽게
+            if (userName.isBlank()) "오늘도 부산을 정복해볼까요?"
+            else "${userName}님, 오늘도 부산을 정복해볼까요?",
             fontSize = 14.sp,
             color = TextSub,
             fontWeight = FontWeight.Medium
@@ -189,9 +191,7 @@ private fun HomeMiniMap(location: String, onOpenMap: () -> Unit) {
         KakaoMapView(
             modifier = Modifier.fillMaxSize(),
             onMapError = { error ->
-                if (com.example.busasnquest.BuildConfig.DEBUG) {
-                    android.util.Log.e("HomeMiniMap", "지도 에러: ${error?.message}")
-                }
+                android.util.Log.e("HomeMiniMap", "지도 에러: ${error?.message}")
             },
             onMapReady = { kakaoMap ->
                 val busan = LatLng.from(35.1796, 129.0756)

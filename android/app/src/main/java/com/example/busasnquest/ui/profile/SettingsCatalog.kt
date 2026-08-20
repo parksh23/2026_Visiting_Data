@@ -4,8 +4,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MailOutline
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -16,8 +16,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * 각 항목에 이동할 route 를 붙여 실제 화면으로 연결한다.
  */
 enum class SettingAction(val route: String) {
+    NOTIFICATION("settings/notification"),
     ACCOUNT("settings/account"),
-    NOTIFICATIONS("settings/notifications"),
     SUPPORT("support"),
     TERMS("doc/terms"),
     PRIVACY("doc/privacy"),
@@ -32,8 +32,8 @@ data class SettingItem(
 
 /** 한 카드에 이어지는 단일 목록 */
 val settingItems: List<SettingItem> = listOf(
+    SettingItem("알림 설정", Icons.Outlined.Notifications, SettingAction.NOTIFICATION),
     SettingItem("계정 설정", Icons.Outlined.Person, SettingAction.ACCOUNT),
-    SettingItem("랭킹 알림", Icons.Outlined.Notifications, SettingAction.NOTIFICATIONS),
     SettingItem("문의하기", Icons.Outlined.MailOutline, SettingAction.SUPPORT),
     SettingItem("이용약관", Icons.Outlined.Description, SettingAction.TERMS),
     SettingItem("개인정보처리방침", Icons.Outlined.Shield, SettingAction.PRIVACY),

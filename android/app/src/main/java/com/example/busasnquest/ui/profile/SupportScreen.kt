@@ -31,21 +31,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.busasnquest.ui.theme.*
 
-private const val SUPPORT_EMAIL = "busanquest.help@gmail.com"
+private const val SUPPORT_EMAIL = "busanquest.help@gmail.com"   // TODO: 팀 공식 문의 메일로 교체
 
 private data class Faq(val q: String, val a: String)
 
 private val faqs = listOf(
     Faq(
         "사진 인증이 자꾸 실패해요",
-        "사진 인증은 제출 시점의 현재 위치와 사진 내용을 함께 확인합니다.\n" +
-            "· 위치 권한을 '앱 사용 중 허용'으로 설정해주세요.\n" +
-            "· 미션 장소에서 카메라로 촬영하거나 갤러리 사진을 선택할 수 있어요.\n" +
-            "· 위치 확인이 어려운 실내라면 야외에서 다시 시도해주세요."
+        "사진 인증은 사진에 기록된 촬영 위치(EXIF)를 확인합니다.\n" +
+            "· 카메라 앱에서 '위치 정보 저장'을 켠 뒤 촬영해주세요.\n" +
+            "· 카카오톡·인스타그램 등으로 전송받은 사진은 위치 정보가 지워져 인증할 수 없어요.\n" +
+            "· 스크린샷·갤러리에서 편집한 사진도 위치 정보가 사라질 수 있어요."
     ),
     Faq(
-        "사진을 선택했는데 인증이 진행되지 않아요",
-        "기기의 위치 서비스가 켜져 있는지 확인해주세요. 현재 위치 확인이 끝난 뒤 사진 업로드와 AI 내용 판별이 순서대로 진행됩니다."
+        "'이 사진에는 위치정보가 없어요'라고 나와요",
+        "위와 같은 이유입니다. 미션 장소에서 직접 촬영한 원본 사진을 올려주세요.\n" +
+            "이미 찍은 사진이라면 갤러리에서 사진 상세정보에 위치가 표시되는지 확인해보세요."
     ),
     Faq(
         "현재 위치 인증이 안 돼요",

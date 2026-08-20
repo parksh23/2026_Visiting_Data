@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import com.example.busasnquest.data.repository.OccupationStat
-import com.example.busasnquest.BuildConfig
 
 data class MissionUiState(
     val selectedTab: Int = 0,                              // 0 = 지역별, 1 = 종류별
@@ -57,11 +56,7 @@ class MissionViewModel : ViewModel() {
                 MissionRepository.refreshDistrictProgressFromServer()
                 _loadError.value = null
             } catch (e: java.io.IOException) {
-                _loadError.value = if (BuildConfig.DEBUG) {
-                    "네트워크 연결을 확인해주세요. 개발용 미션을 표시합니다."
-                } else {
-                    "네트워크 연결을 확인한 뒤 다시 시도해주세요."
-                }
+                _loadError.value = "네트워크 연결을 확인해주세요. 임시 데이터를 표시합니다."
             } catch (e: retrofit2.HttpException) {
                 _loadError.value = "미션을 불러오지 못했습니다. (${e.code()})"
             } catch (e: Exception) {
@@ -128,17 +123,13 @@ class MissionViewModel : ViewModel() {
         )
     }
 
+    // POST /api/v1/missions/{id}/start
+    // 서버가 성공을 주면 Repository 가 상태를 '진행 중'으로 바꾼다.
+    // 실패하면 화면 하단 스낵바로 알린다.
     fun startMission(id: Int) {
         viewModelScope.launch {
             MissionRepository.startMissionOnServer(id)
-                .onFailure { _saveError.value = it.message }
-        }
-    }
-
-    fun cancelMission(id: Int) {
-        viewModelScope.launch {
-            MissionRepository.cancelMissionOnServer(id)
-                .onFailure { _saveError.value = it.message }
+                .onFailure { e -> _saveError.value = e.message }
         }
     }
     // 하트 클릭 → 서버에 찜 추가/해제 요청. 성공하면 응답의 is_saved 로 화면이 갱신된다.

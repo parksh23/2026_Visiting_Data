@@ -1,0 +1,276 @@
+package kr.co.busanquest.ui.components
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Image as ImageIcon   // ⚠️ foundation.Image와 이름 충돌 → 별칭 필수
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage                    // Coil (build.gradle에 이미 추가됨)
+import kr.co.busanquest.data.model.MissionState
+import kr.co.busanquest.data.repository.MissionWithState
+import kr.co.busanquest.ui.mission.missionTypeLabel
+import kr.co.busanquest.ui.theme.CardWhite
+import kr.co.busanquest.ui.theme.Coral
+import kr.co.busanquest.ui.theme.CoralTint
+import kr.co.busanquest.ui.theme.Dimens
+import kr.co.busanquest.ui.theme.IconGreen
+import kr.co.busanquest.ui.theme.InkBorder
+import kr.co.busanquest.ui.theme.Motion
+import kr.co.busanquest.ui.theme.PointRed
+import kr.co.busanquest.ui.theme.pressable
+import kr.co.busanquest.ui.theme.TextMain
+import kr.co.busanquest.ui.theme.TextSub
+import kr.co.busanquest.ui.theme.accentStyle
+import kr.co.busanquest.ui.theme.displayStyle
+import kr.co.busanquest.ui.theme.CoralDark
+
+/**
+ * 미션 카드 (리스트형): 좌측 이미지 타일 + 제목/하트 + 위치 + 보상 + 상태별 버튼.
+ * 종류별 탭 리스트에서 사용.
+ */
+@Composable
+fun MissionCard(
+    item: MissionWithState,
+    onChallenge: () -> Unit,
+    onClick: () -> Unit = {},
+    onVerify: () -> Unit = {},
+    onToggleSaved: () -> Unit = {},
+    savePending: Boolean = false      // 찜 요청 중 → 하트 잠금 (중복 요청 방지)
+) {
+    val mission = item.mission
+
+    val cardShape = RoundedCornerShape(Dimens.radiusCard)
+
+    Box(modifier = Modifier.padding(horizontal = Dimens.screenPadding).fillMaxWidth()) {
+        Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // pressable 을 표면보다 먼저 — 카드 전체가 같이 눌린다
+            .pressable(onClick = onClick)
+            .clip(cardShape)
+            .background(CardWhite)
+            .border(Dimens.borderWidth, InkBorder, cardShape)
+            .padding(Dimens.gapBlock)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MissionCircleIcon(
+                imageUrl = mission.imageUrl,
+                size = 100.dp,
+                // 카드(18) 안쪽 썸네일이 8이면 모서리 리듬이 깨진다 → 칩 라운드로 통일
+                shape = RoundedCornerShape(Dimens.radiusChip)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    // 카드 제목 — 디스플레이 헤딩
+                    Text(
+                        mission.title,
+                        style = displayStyle(18.sp),
+                        color = TextMain,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 22dp 아이콘은 터치 타깃이 너무 작다 → 40dp 박스로 감싸고 눌림을 크게
+                    val heartTint by animateColorAsState(
+                        targetValue = if (item.saved) Coral else TextSub,
+                        animationSpec = tween(Motion.DurRelease, easing = Motion.EaseOut),
+                        label = "heartTint"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .pressable(
+                                enabled = !savePending,
+                                scaleDown = 0.86f,
+                                onClick = onToggleSaved
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (item.saved) Icons.Filled.Favorite
+                            else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (item.saved) "찜 해제" else "찜하기",
+                            tint = if (savePending) heartTint.copy(alpha = 0.4f) else heartTint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 위치핀 + 지역 · 인증방식
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = TextSub,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    // 지역명이 비어있는 서버 미션이 있어 인증방식을 함께 표시
+                    val infoText = listOf(mission.region, missionTypeLabel(mission.type))
+                        .filter { it.isNotBlank() }
+                        .joinToString(" · ")
+                    Text(infoText, color = TextSub, fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 보상 — 앱 공통 포인트 표시 (홈 헤더와 같은 모양)
+                PointAmount(value = mission.reward, prefix = "+")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 상태별 버튼
+        when (item.state) {
+            MissionState.NOT_STARTED -> {
+                Button(onClick = onChallenge, modifier = Modifier.fillMaxWidth()) {
+                    Text("도전하기")
+                }
+            }
+            MissionState.IN_PROGRESS -> {
+                Button(onClick = onVerify, modifier = Modifier.fillMaxWidth()) {
+                    Text("인증하기")
+                }
+                if (item.error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(item.error, color = PointRed, fontSize = 12.sp)
+                }
+            }
+            MissionState.VERIFYING -> {
+                Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                    Text("인증 확인 중...")
+                }
+            }
+            MissionState.COMPLETED -> {
+                Button(
+                    onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = IconGreen)
+                ) {
+                    Text("✓ 완료")
+                }
+            }
+        }
+        }
+
+        // 완료 미션: 손그림 톤 "완료" 고무도장 오버프린트
+        if (item.state == MissionState.COMPLETED) {
+            CompletedStamp(modifier = Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+/**
+ * 완료 도장 — 코럴 잉크, 살짝 기울어진 스탬프.
+ * 카드 위에 "쾅" 찍힌 느낌이 나도록 카드 폭의 72%를 차지한다.
+ */
+@Composable
+private fun CompletedStamp(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth(0.72f)
+            .rotate(-12f)
+            .border(5.dp, Coral.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "완료",
+            style = displayStyle(52.sp),
+            color = Coral.copy(alpha = 0.85f),
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * 미션 썸네일 타일.
+ * 우선순위: 서버 이미지 URL(Coil) → 로컬 drawable(imageRes) → 플레이스홀더.
+ */
+@Composable
+fun MissionCircleIcon(
+    imageUrl: String? = null,
+    imageRes: Int? = null,
+    size: Dp = 52.dp,
+    shape: Shape = CircleShape,
+    modifier: Modifier = Modifier
+) {
+    when {
+        // 1) 서버 이미지 (mission.imageUrl)
+        imageUrl != null -> {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .size(size)
+                    .clip(shape)
+            )
+        }
+        // 2) 로컬 리소스 이미지
+        imageRes != null -> {
+            Image(
+                painter = painterResource(id = imageRes),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .size(size)
+                    .clip(shape)
+            )
+        }
+        // 3) 이미지 없음: 플레이스홀더
+        else -> {
+            Box(
+                modifier = modifier
+                    .size(size)
+                    .clip(shape)
+                    .background(CoralTint),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ImageIcon,
+                    contentDescription = null,
+                    tint = Coral,
+                    modifier = Modifier.size(size / 3)
+                )
+            }
+        }
+    }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  네트워크 보안 설정.
+
+  기본값은 "평문(HTTP) 전면 차단". 우리 API(BASE_URL)와 카카오는 전부 HTTPS 라 문제없다.
+  예외는 한국관광공사 대표이미지 CDN 한 곳뿐인데, TourAPI 가 내려주는 firstimage URL 이
+  http:// 로 오는 경우가 있어 이미지가 안 뜨는 것을 막기 위해 열어둔다.
+  (이 도메인으로는 사용자 데이터를 보내지 않고 이미지를 받기만 한다)
+
+  Play 데이터 보안 양식의 "전송 중 암호화" 항목을 정직하게 '예'로 답하려면
+  usesCleartextTraffic="true" 를 통째로 켜두면 안 된다. 그래서 도메인 단위로 좁힌다.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">tong.visitkorea.or.kr</domain>
+    </domain-config>
+</network-security-config>

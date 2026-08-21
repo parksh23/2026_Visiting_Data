@@ -288,7 +288,7 @@ def _token_for(user: AppUser) -> str:
 
 def _profile_dict(user: AppUser, db: Session) -> dict:
     saved_count = (
-        db.query(SavedMission.id)
+        db.query(SavedMission)
         .filter(SavedMission.user_code == user.user_code)
         .count()
     )

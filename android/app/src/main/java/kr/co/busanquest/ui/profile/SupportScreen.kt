@@ -201,7 +201,7 @@ private fun Context.sendSupportMail(nickname: String) {
     val intent = Intent(Intent.ACTION_SENDTO).apply {
         data = Uri.parse("mailto:")
         putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-        putExtra(Intent.EXTRA_SUBJECT, "[부산 땅따먹기] 문의")
+        putExtra(Intent.EXTRA_SUBJECT, "[부산 가봤나] 문의")
         putExtra(Intent.EXTRA_TEXT, body)
     }
     runCatching { startActivity(Intent.createChooser(intent, "문의 메일 보내기")) }

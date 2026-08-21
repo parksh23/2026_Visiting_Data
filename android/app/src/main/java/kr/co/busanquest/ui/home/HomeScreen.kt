@@ -122,11 +122,11 @@ private fun HomeHeader(points: Int, userName: String) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 로고 락업 (조각난 땅 + 깃발 심볼 + "부산 땅따먹기")
+            // 로고 락업 (조각난 땅 + 깃발 심볼 + "부산 가봤나")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_logo_symbol),
-                    contentDescription = "부산 땅따먹기",
+                    contentDescription = "부산 가봤나",
                     modifier = Modifier
                         .width(58.dp)
                         .height(44.dp)
@@ -135,8 +135,8 @@ private fun HomeHeader(points: Int, userName: String) {
                 // 워드마크 — 디스플레이 헤딩(콘덴스드), 강조 글자만 브랜드 액센트색
                 Row {
                     Text("부산 ", style = displayStyle(26.sp), color = TextMain)
-                    Text("땅", style = displayStyle(26.sp), color = Coral)
-                    Text("따먹기", style = displayStyle(26.sp), color = TextMain)
+                    Text("가", style = displayStyle(26.sp), color = Coral)
+                    Text("봤나", style = displayStyle(26.sp), color = TextMain)
                 }
             }
             // 포인트 — 앱 공통 표시 (모든 탭이 이 모양을 따른다)

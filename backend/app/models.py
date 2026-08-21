@@ -106,27 +106,20 @@ class UserMission(Base):
 
 class SavedMission(Base):
     __tablename__ = "SAVED_MISSIONS"
-    __table_args__ = (
-        UniqueConstraint("USER_CODE", "MISSION_ID", name="UQ_SAVED_MISSION"),
-    )
 
-    id = Column("ID", Integer, primary_key=True, autoincrement=True)
     user_code = Column(
         "USER_CODE",
         String(20),
         ForeignKey("APP_USERS.USER_CODE"),
-        nullable=False,
-        index=True,
+        primary_key=True,
     )
     mission_id = Column(
         "MISSION_ID",
         Integer,
         ForeignKey("MISSIONS.MISSION_ID"),
-        nullable=False,
-        index=True,
+        primary_key=True,
     )
     created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
-
 
 class Friendship(Base):
     __tablename__ = "FRIENDSHIPS"

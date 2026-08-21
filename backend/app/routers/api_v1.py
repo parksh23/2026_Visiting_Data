@@ -261,8 +261,6 @@ def _get_saved_list(saved_missions_val) -> List[str]:
 
 
 def _next_user_code(db: Session) -> str:
-    # 하드 삭제 후 순번을 재사용하면 탈퇴 전 JWT가 새 계정을 가리킬 수 있다.
-    # UUID 기반 코드는 USER_CODE(20)에 들어가며 삭제된 값도 사실상 재사용되지 않는다.
     while True:
         candidate = f"U{uuid.uuid4().hex[:18].upper()}"
         if not db.query(AppUser.user_code).filter(AppUser.user_code == candidate).first():
@@ -288,28 +286,22 @@ def _token_for(user: AppUser) -> str:
 
 def _profile_dict(user: AppUser, db: Session) -> dict:
     saved_count = (
-        db.query(SavedMission)
+        db.query(SavedMission.user_code)
         .filter(SavedMission.user_code == user.user_code)
         .count()
     )
     return {
-        "name": user.nickname,
-        "points": f"{user.total_points:,}P",
-        "total_points": user.total_points,
+        "name": user.nickname or "사용자",
+        "points": f"{(user.total_points or 0):,}P",
+        "total_points": user.total_points or 0,
         "email": user.email,
         "login_provider": "KAKAO" if user.kakao_id else "EMAIL",
-        "completed_missions": user.completed_missions,
+        "completed_missions": user.completed_missions or 0,
         "saved_missions": saved_count,
     }
 
 
 def _unique_nickname(db: Session, base: str) -> str:
-    """APP_USERS.NICKNAME 은 UNIQUE(UQ_APP_USERS_NICKNAME) 라 중복이면 INSERT 가 터진다.
-
-    카카오 프로필 닉네임은 우리가 통제할 수 없고 흔한 이름은 쉽게 겹치므로,
-    이미 쓰이는 닉네임이면 뒤에 숫자를 붙여 빈 자리를 찾는다.
-    NICKNAME 이 50자 컬럼이라 접미사 자리를 남기고 40자로 자른다.
-    """
     candidate = (base or "").strip() or "카카오사용자"
     candidate = candidate[:40]
     if not db.query(AppUser.user_code).filter(AppUser.nickname == candidate).first():
@@ -319,7 +311,6 @@ def _unique_nickname(db: Session, base: str) -> str:
         alternative = f"{candidate[: 40 - len(tail)]}{tail}"
         if not db.query(AppUser.user_code).filter(AppUser.nickname == alternative).first():
             return alternative
-    # 같은 닉네임이 1만 개일 때의 안전망 — 현실적으로 도달하지 않는다.
     return f"{candidate[:30]}{uuid.uuid4().hex[:8]}"
 
 
@@ -333,7 +324,6 @@ def _validate_nickname(nickname: str) -> None:
 
 
 def _parse_agreed_at(raw: Optional[str]) -> datetime:
-    """Convert an ISO-8601 timestamp to a naive UTC datetime."""
     if not raw:
         return datetime.utcnow()
     try:
@@ -555,9 +545,6 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     if user is None and email:
         user = db.query(AppUser).filter(AppUser.email == email).first()
 
-    # 탈퇴·정지 계정으로는 로그인시키지 않는다. (이메일 로그인과 같은 규칙)
-    # 탈퇴 시 KAKAO_ID 를 지우므로 보통은 위 조회에서 걸리지 않지만,
-    # 정지 계정이나 과거 데이터를 대비한 방어선이다.
     if user is not None and user.account_status != "ACTIVE":
         raise HTTPException(status_code=403, detail="사용할 수 없는 계정입니다.")
 
@@ -569,7 +556,6 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
             login_id=f"kakao:{kakao_id}",
             email=email,
             kakao_id=kakao_id,
-            # 카카오 닉네임은 중복될 수 있어 그대로 넣으면 UNIQUE 제약에 걸린다.
             nickname=_unique_nickname(db, nickname),
             account_status="ACTIVE",
         )
@@ -581,7 +567,6 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     try:
         db.commit()
     except IntegrityError as exc:
-        # _unique_nickname 조회와 INSERT 사이에 다른 요청이 같은 닉네임을 선점한 경우 등.
         db.rollback()
         raise HTTPException(
             status_code=409, detail="계정 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
@@ -592,7 +577,6 @@ def kakao_login(req: KakaoLoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer", "token": token}
 
 
-# --- 아이디/비밀번호 찾기 ---
 @router.post("/auth/find-id")
 def find_id(req: FindIdRequest, db: Session = Depends(get_db)):
     user = db.query(AppUser).filter(AppUser.nickname == req.nickname.strip()).first()
@@ -633,7 +617,6 @@ def find_password(req: FindPasswordRequest, db: Session = Depends(get_db)):
     }
 
 
-# --- 로그아웃 ---
 @router.post("/auth/logout")
 def logout(subject: str = Depends(get_current_user_email)):
     return {"success": True, "message": "성공적으로 로그아웃 되었습니다."}
@@ -821,7 +804,6 @@ def withdraw_account(
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
-    """회원과 그 사용자가 생성한 DB 기록 및 업로드 파일을 모두 삭제한다."""
     user = _get_user(db, subject)
     user_code = user.user_code
 
@@ -831,7 +813,6 @@ def withdraw_account(
         upload_dir.rename(staged_upload_dir)
 
     try:
-        # 자식 테이블을 먼저 지워 Oracle FK 제약과 무관하게 하드 삭제를 보장한다.
         db.query(PushDeliveryLog).filter(PushDeliveryLog.user_code == user_code).delete()
         db.query(PendingPush).filter(PendingPush.user_code == user_code).delete()
         db.query(PushToken).filter(PushToken.user_code == user_code).delete()
@@ -917,11 +898,12 @@ def get_saved_missions(
         .all()
     }
 
+    # 💡 SavedMission.id 대신 SavedMission.mission_id로 정렬하여 ORA-00904 방지
     saved_ids_list = [
         mission_id
         for (mission_id,) in db.query(SavedMission.mission_id)
         .filter(SavedMission.user_code == user.user_code)
-        .order_by(SavedMission.created_at.desc(), SavedMission.id.desc())
+        .order_by(SavedMission.created_at.desc(), SavedMission.mission_id.desc())
         .all()
     ]
     saved_ids = set(saved_ids_list)
@@ -981,7 +963,6 @@ def unsave_mission(
     return {"mission_id": mission_id, "is_saved": False}
 
 
-# 💡 미션 시작 API
 @router.post("/missions/{mission_id}/start", response_model=MissionStartResponse)
 def start_mission(
     mission_id: int,
@@ -1019,7 +1000,6 @@ def start_mission(
     return {"success": True, "message": "미션을 시작했습니다."}
 
 
-# 💡 미션 취소 API 추가
 @router.post("/missions/{mission_id}/cancel", response_model=MissionCancelResponse)
 def cancel_mission(
     mission_id: int,
@@ -1043,7 +1023,6 @@ def cancel_mission(
     if user_mission.status.lower() == "completed":
         return {"success": False, "message": "이미 완료된 미션은 취소할 수 없습니다."}
 
-    # DB에서 ongoing 기록을 삭제하여 '시작 전'으로 상태 복구
     db.delete(user_mission)
     db.commit()
 

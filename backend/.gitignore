@@ -2,13 +2,13 @@
 # 파이썬 및 FastAPI 백엔드 프로젝트 .gitignore 설정
 # ──────────────────────────────────────────────────────────
 
-# 1. 가상환경 (용량이 크고 컴퓨터마다 환경이 달라 절대 올리면 안 됨)
+# 1. 가상환경
 venv/
 .venv/
 env/
 ENV/
 
-# 2. 운영체제 및 IDE 설정 파일 (작업 환경 찌꺼기)
+# 2. 운영체제 및 IDE 설정 파일
 .vscode/
 .idea/
 *.suo
@@ -29,12 +29,20 @@ Thumbs.db
 
 # 4. 보안 및 환경 변수 파일 (DB 비밀번호, API 키 등이 들어있으므로 절대 금지 🚨)
 .env
+app/.env
 .env.local
 .env.*.local
 wallet/
 **/wallet/
+app/wallet/
+# Firebase 서비스 계정 키 파일 및 보안 폴더 차단 🚨
+secrets/
+app/secrets/
+**/secrets/
+firebase*.json
+*service-account*.json
 
-# 5. 데이터베이스 및 로그 파일 (로컬 테스트용 찌꺼기 배제)
+# 5. 데이터베이스 및 로그 파일
 *.db
 *.sqlite3
 *.log

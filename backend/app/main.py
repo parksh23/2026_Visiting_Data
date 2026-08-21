@@ -10,6 +10,10 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 from datetime import datetime
 import json
+import os
+
+import firebase_admin
+from firebase_admin import credentials
 
 from database import Base, SessionLocal, engine
 from document_seed import seed_documents
@@ -27,6 +31,20 @@ app = FastAPI()
 @app.on_event("startup")
 def start_background_jobs():
     setup_logging()
+
+    try:
+        firebase_json_str = os.getenv("FIREBASE_CREDENTIALS_JSON")
+        if firebase_json_str:
+            cred = credentials.Certificate(json.loads(firebase_json_str))
+            firebase_admin.initialize_app(cred)
+        else:
+            key_path = os.getenv("FIREBASE_KEY_PATH")
+            if key_path and os.path.exists(key_path):
+                cred = credentials.Certificate(key_path)
+                firebase_admin.initialize_app(cred)
+    except Exception as e:
+        print(f"Firebase Init Error: {e}")
+
     db = SessionLocal()
     try:
         seed_documents(db)

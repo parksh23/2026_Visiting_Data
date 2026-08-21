@@ -55,10 +55,6 @@ class DistrictRankingViewModel(
     private fun load() {
         _uiState.value = DistrictRankingUiState.Loading
         viewModelScope.launch {
-            // 내 행을 찾으려면 닉네임이 필요하다. 아직 못 불러왔으면 여기서 한 번 채운다.
-            if (UserRepository.name.value.isBlank()) {
-                UserRepository.refreshProfile()
-            }
             try {
                 val res = repository.fetchRankings(
                     type = RankingType.REGION.query,
@@ -78,7 +74,8 @@ class DistrictRankingViewModel(
     }
 
     private fun RankingResponse.toSuccessState(): DistrictRankingUiState.Success {
-        val myName = UserRepository.name.value
+        // 내 행을 가리는 기준. 로그인 시 채워지며, 비어 있으면 아무 행도 강조하지 않는다.
+        val myUserCode = UserRepository.userCode.value
 
         return DistrictRankingUiState.Success(
             myRank = myRank.rank,
@@ -89,9 +86,9 @@ class DistrictRankingViewModel(
                     name = it.name,
                     // 지역 랭킹의 점수 단위는 "개"(완료 미션 수)
                     score = "${it.score}개",
-                    // 닉네임은 서버에서 유일값이라 이름으로 내 행을 찾는다.
-                    // 동점자가 같은 rank 를 받으므로 rank 비교로는 구분되지 않는다.
-                    isMe = myName.isNotBlank() && it.name == myName
+                    // ⚠️ 닉네임 비교는 틀린다 — 사용자가 닉네임을 바꾸면 그 즉시 어긋나고,
+                    //    프로필을 아직 못 불러온 상태에서는 내 행을 못 찾는다.
+                    isMe = myUserCode.isNotBlank() && it.userId == myUserCode
                 )
             }
         )

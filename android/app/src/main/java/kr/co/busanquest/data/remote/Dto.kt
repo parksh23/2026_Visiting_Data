@@ -90,10 +90,26 @@ data class LoginRequestDto(
     val password: String
 )
 
-// 로그인 응답 - 서버가 돌려줄 것
+/**
+ * 로그인·회원가입·카카오 로그인의 공통 응답.
+ *
+ * 서버는 지금 같은 JWT 를 access_token 과 token 두 키로 함께 내려준다.
+ *   {"access_token": "...", "token_type": "bearer", "token": "..."}
+ *
+ * access_token 이 OAuth2 표준 키라 서버가 언젠가 token 을 걷어낼 수 있다.
+ * 그때 앱이 조용히 깨지지 않도록 access_token 을 먼저 보고, 없을 때만 token 으로 물러선다.
+ * 둘 다 비어 있으면 authToken 이 null 이고, 호출부가 실패로 처리한다.
+ */
 data class LoginResponseDto(
-    val token: String
-)
+    @SerializedName("access_token")
+    val accessToken: String? = null,
+
+    val token: String? = null
+) {
+    val authToken: String?
+        get() = accessToken?.takeIf { it.isNotBlank() }
+            ?: token?.takeIf { it.isNotBlank() }
+}
 
 /**
  * 약관 동의 이력 한 건.

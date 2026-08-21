@@ -64,11 +64,13 @@ fun BusanQuestApp() {
     }
 
     // 로그인 상태가 되면(직접 로그인 · 자동 로그인 모두) 서버와 알림 관련 상태를 맞춘다.
-    //   1) FCM 토큰 등록 — 서버는 PUSH_TOKENS 에 있는 토큰으로만 푸시를 보낼 수 있다
-    //   2) 알림 설정 내려받기 — 서버가 원본이라 다른 기기에서 바꾼 설정도 여기 반영된다
-    // 둘 다 실패해도 앱 흐름을 막지 않는다 (푸시만 안 올 뿐이다).
+    //   1) 내 USER_CODE 확보 — 랭킹에서 내 행을 찾는 기준이라 화면보다 먼저 있어야 한다
+    //   2) FCM 토큰 등록 — 서버는 PUSH_TOKENS 에 있는 토큰으로만 푸시를 보낼 수 있다
+    //   3) 알림 설정 내려받기 — 서버가 원본이라 다른 기기에서 바꾼 설정도 여기 반영된다
+    // 전부 실패해도 앱 흐름을 막지 않는다.
     LaunchedEffect(status) {
         if (status == AuthStatus.LoggedIn) {
+            UserRepository.refreshUserCode(context)
             PushRegistrar.register()
             NotificationSettingsRepository.refresh(context)
         }

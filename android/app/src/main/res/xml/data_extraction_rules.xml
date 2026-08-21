@@ -1,19 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    백업·기기 전송에서 제외할 것 (Android 12+).
+
+    로그인 상태가 백업을 타고 다른 기기로 복원되면 안 된다.
+    복원된 기기에서 아무 인증 없이 계정에 접근할 수 있고,
+    서버는 그 기기를 정상 로그인으로 본다.
+
+    · datastore/auth.preferences_pb — 우리 서버 JWT (TokenStore)
+    · sharedpref 전체              — 카카오 SDK 가 저장하는 카카오 토큰,
+                                     FCM 등록 토큰. 앱은 SharedPreferences 를
+                                     직접 쓰지 않으므로(모두 DataStore) 통째로 빼도
+                                     잃는 것이 없다. FCM 토큰은 복원된 기기에서
+                                     새로 발급받는 편이 오히려 맞다.
+
+    datastore/settings.preferences_pb(알림 설정)은 일부러 남겨 둔다 —
+    민감하지 않고, 기기를 바꿔도 유지되는 편이 사용자에게 낫다.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="file" path="datastore/auth.preferences_pb" />
+        <exclude domain="sharedpref" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="datastore/auth.preferences_pb" />
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>

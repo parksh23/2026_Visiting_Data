@@ -56,9 +56,10 @@ val googleServicesJson = project.file("google-services.json")
 if (googleServicesJson.exists()) {
     apply(plugin = "com.google.gms.google-services")
 } else {
+    // ⚠️ 한글로 쓰면 PowerShell(cp949)에서 깨져 읽을 수 없다 — ASCII 로 남긴다
     logger.lifecycle(
-        "[BusanQuest] app/google-services.json 이 없어 FCM 설정을 건너뜁니다. " +
-            "서버 푸시는 파일을 넣고 다시 빌드하면 켜집니다."
+        "[BusanQuest] app/google-services.json not found - FCM disabled. " +
+            "Drop the file in app/ and rebuild to enable server push."
     )
 }
 

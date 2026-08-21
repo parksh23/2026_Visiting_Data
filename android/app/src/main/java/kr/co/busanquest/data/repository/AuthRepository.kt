@@ -179,8 +179,9 @@ class RetrofitAuthRepository(
                 )
             )
 
-            // 서버 응답에서 token만 꺼내서 성공 결과로 반환
-            Result.success(response.token)
+            // access_token 우선, 없으면 token — 둘 다 없으면 실패로 돌린다
+            response.authToken?.let { Result.success(it) }
+                ?: Result.failure(Exception("서버 응답에 토큰이 없습니다."))
 
         } catch (e: HttpException) {
             // 서버가 401, 400 같은 오류 상태 코드를 내려준 경우
@@ -211,7 +212,8 @@ class RetrofitAuthRepository(
                     agreements = agreements
                 )
             )
-            Result.success(response.token)
+            response.authToken?.let { Result.success(it) }
+                ?: Result.failure(Exception("서버 응답에 토큰이 없습니다."))
         } catch (e: HttpException) {
             // 400 = 신규 가입인데 필수 약관 동의가 없다는 뜻.
             // 화면이 약관 동의를 받아 같은 토큰으로 다시 호출할 수 있게 전용 예외로 올린다.
@@ -265,7 +267,8 @@ class RetrofitAuthRepository(
                     agreements = agreements    // 약관 동의 이력
                 )
             )
-            Result.success(response.token)
+            response.authToken?.let { Result.success(it) }
+                ?: Result.failure(Exception("서버 응답에 토큰이 없습니다."))
         } catch (e: HttpException) {
             Result.failure(Exception(e.serverDetail("이미 가입된 이메일이거나 입력이 올바르지 않습니다.")))
         } catch (e: IOException) {

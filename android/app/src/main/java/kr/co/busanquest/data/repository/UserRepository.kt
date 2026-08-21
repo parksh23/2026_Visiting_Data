@@ -1,5 +1,8 @@
 package kr.co.busanquest.data.repository
 
+import android.content.Context
+import kr.co.busanquest.data.local.TokenStore
+import kr.co.busanquest.util.jwtClaim
 import kr.co.busanquest.data.remote.ChangePasswordRequestDto
 import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.remote.UpdateNicknameRequestDto
@@ -7,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import retrofit2.HttpException
 
@@ -20,6 +24,23 @@ object UserRepository {
     // 서버에서 불러온 사용자 닉네임 (로그인한 실제 이름). 아직 못 불러왔으면 빈 문자열.
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
+
+    /**
+     * 로그인한 사용자의 USER_CODE (예: "U007"). 아직 모르면 빈 문자열.
+     *
+     * 랭킹에서 "내 행"을 찾는 유일하게 정확한 기준이다.
+     * 순위는 동점자끼리 겹치고, 닉네임은 사용자가 바꿀 수 있어서 둘 다 기준이 못 된다.
+     *
+     * 서버 /users/me 는 USER_CODE 를 내려주지 않으므로 JWT 의 sub 에서 읽는다.
+     */
+    private val _userCode = MutableStateFlow("")
+    val userCode: StateFlow<String> = _userCode.asStateFlow()
+
+    /** 로그인 직후 한 번 호출. 토큰이 없거나 형식이 이상하면 빈 문자열로 둔다. */
+    suspend fun refreshUserCode(context: Context) {
+        val token = runCatching { TokenStore(context).tokenFlow.first() }.getOrNull()
+        _userCode.value = jwtClaim(token, "sub").orEmpty()
+    }
 
     // 마이페이지 통계 — 서버(users/me) 기준. 아직 못 불러왔으면 null.
     private val _completedCount = MutableStateFlow<Int?>(null)
@@ -147,6 +168,7 @@ object UserRepository {
     fun clear() {
         _points.value = 0
         _name.value = ""
+        _userCode.value = ""
         _completedCount.value = null
         _savedCount.value = null
     }

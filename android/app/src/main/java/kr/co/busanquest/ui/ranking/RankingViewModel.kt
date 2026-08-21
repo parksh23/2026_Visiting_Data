@@ -8,6 +8,7 @@ import kr.co.busanquest.data.model.RankEntry
 import kr.co.busanquest.data.model.RankingResponse
 import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.repository.RankingRepository
+import kr.co.busanquest.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -126,6 +127,8 @@ class RankingViewModel(
 
     // 서버 응답 → 화면 상태 변환
     private fun RankingResponse.toSuccessState(): RankingUiState.Success {
+        // 내 행을 가리는 기준. 로그인 시 채워지며, 비어 있으면 아무 행도 강조하지 않는다.
+        val myUserCode = UserRepository.userCode.value
         // rank 가 0 이면 서버가 이 탭의 내 기록을 계산하지 못한 것
         val hasMyRecord = myRank.rank > 0
 
@@ -152,8 +155,9 @@ class RankingViewModel(
                     name = it.name,
                     // "P" 없이 숫자만 — 화면에서 공통 포인트 뱃지를 붙인다
                     score = "%,d".format(it.score),
-                    // 서버가 내 순위(rank)를 함께 주므로 rank 일치 여부로 내 행 표시
-                    isMe = it.rank == myRank.rank
+                    // ⚠️ rank 비교는 틀린다 — 동점자가 같은 rank 를 받으므로
+                    //    나와 점수가 같은 사람의 행까지 전부 내 행으로 강조된다.
+                    isMe = myUserCode.isNotBlank() && it.userId == myUserCode
                 )
             }
         )

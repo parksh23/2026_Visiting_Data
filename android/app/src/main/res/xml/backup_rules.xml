@@ -1,13 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 11 이하의 자동 백업 규칙.
+    (Android 12+ 는 data_extraction_rules.xml 을 본다 — 두 파일을 같이 고쳐야 한다)
+
+    제외 이유는 data_extraction_rules.xml 의 주석과 같다:
+    로그인 토큰이 백업을 타고 다른 기기로 넘어가면 안 된다.
+
+    <exclude> 만 적으면 나머지는 그대로 백업된다.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="file" path="datastore/auth.preferences_pb" />
+    <exclude domain="sharedpref" path="." />
 </full-backup-content>

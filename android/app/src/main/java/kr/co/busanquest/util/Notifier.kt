@@ -1,6 +1,7 @@
 package kr.co.busanquest.util
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -175,6 +176,9 @@ object Notifier {
 
     // ── 내부 ──────────────────────────────────────────────
 
+    // canPost() 안에서 POST_NOTIFICATIONS 를 확인하지만, 검사가 별도 함수라 린트가 그걸 못 본다.
+    // (CurrentLocation.kt 의 위치 권한도 같은 이유로 같은 처리를 해 두었다)
+    @SuppressLint("MissingPermission")
     private fun post(
         key: NotificationKey,
         channelId: String,

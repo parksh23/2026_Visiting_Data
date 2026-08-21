@@ -5,6 +5,19 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!--
+        CAMERA 권한만 적으면 Google Play 가 "카메라 하드웨어가 필수"라고 단정한다.
+        그러면 카메라 없는 기기(크롬북, 일부 태블릿)에서 설치 자체가 막힌다.
+        사진 미션은 갤러리 선택으로도 인증할 수 있고 위치 미션은 카메라가 아예 필요 없으므로,
+        required="false" 로 명시해 설치 가능 기기를 넓힌다.
+        (autofocus 도 CAMERA 권한이 함께 암시하므로 같이 적는다)
+    -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
     <!-- Android 13+ 알림 권한 (내 정보 > 알림 설정) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

@@ -21,10 +21,12 @@ data class OngoingMission(
     /**
      * 서버가 이 미션을 내려줄 때 쓴 mission_type 원문("IMAGE" / "PHOTO" / "RECEIPT" …).
      *
-     * 인증을 제출할 때는 앱이 만든 값 대신 이 값을 그대로 돌려보낸다.
-     * 서버는 요청한 타입이 DB 값과 정확히 같은지 검사하는데,
-     * 앱이 자체 문자열을 만들어 보내면 서버 표기가 바뀔 때마다 인증이 거절된다.
-     * 비어 있으면(=로컬 샘플 데이터) MissionType.toServerType() 으로 폴백한다.
+     * 인증을 제출할 때 이 값을 그대로 되돌려 보내지는 않는다.
+     * 백엔드 계약이 PHOTO · CURRENT_LOCATION · RECEIPT 세 값으로 정리되어,
+     * 원문을 한 번 앱 타입으로 읽은 뒤 정규 표기로 바꿔 보낸다
+     * (HomeViewModel.canonicalTypeOf). 서버 DB 에 옛 값이 남아 있어도
+     * 요청은 항상 정규 값으로 나간다.
+     * 비어 있으면(=로컬 샘플 데이터) 앱이 파싱한 type 을 쓴다.
      */
     val serverType: String = ""
 )

@@ -2,6 +2,25 @@
 // `java.util.Properties` 라고 쓰면 패키지를 못 찾는다. 그래서 import 로 가져온다.
 import java.util.Properties
 
+// ───────── 릴리스 서명 ─────────
+// 키스토어 경로와 비밀번호는 저장소에 올리지 않는다.
+// android/keystore.properties 에 적어 두고 .gitignore 로 막는다 (양식: keystore.properties.example).
+//
+// 파일이 없어도 빌드는 된다 — 팀원과 CI 가 릴리스 서명 없이도 빌드할 수 있어야 하기 때문이다.
+// 그때 release 는 서명되지 않은 채 나오고, 그대로는 Play 에 올릴 수 없다.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+// 경로가 적혀 있고 그 파일이 실제로 있을 때만 서명을 구성한다.
+// (경로만 적고 .jks 를 안 옮긴 경우 Gradle 이 알아보기 힘든 오류를 내므로 여기서 걸러낸다)
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+    ?.let { rootProject.file(it) }
+val hasReleaseSigning = releaseStoreFile?.exists() == true
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,26 +28,6 @@ plugins {
     // 루트 build.gradle.kts 가 apply false 로 클래스패스에만 올려 두었고,
     // 실제 적용은 아래 android{} 블록 뒤에서 조건부로 한다 (google-services.json 유무).
 }
-
-// ───────────────── 릴리스 서명 ─────────────────
-// 키스토어 비밀번호는 절대 저장소에 올리지 않는다.
-// android/keystore.properties (gitignore 됨) 에서 읽어오고, 파일이 없으면
-// 서명 설정 자체를 만들지 않는다 → 디버그 빌드/CI 는 그대로 동작하고
-// bundleRelease 만 "서명 안 됨" 상태로 나온다.
-//
-// keystore.properties 예시:
-//   storeFile=busanquest-release.jks
-//   storePassword=********
-//   keyAlias=busanquest
-//   keyPassword=********
-val keystorePropsFile = rootProject.file("keystore.properties")
-val keystoreProps = Properties().apply {
-    if (keystorePropsFile.exists()) {
-        keystorePropsFile.inputStream().use { load(it) }
-    }
-}
-val hasReleaseKeystore = keystorePropsFile.exists() &&
-    keystoreProps.getProperty("storeFile")?.let { rootProject.file(it).exists() } == true
 
 android {
     namespace = "kr.co.busanquest"
@@ -49,25 +48,21 @@ android {
     }
 
     signingConfigs {
-        if (hasReleaseKeystore) {
+        if (hasReleaseSigning) {
             create("release") {
-                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
     }
 
     buildTypes {
         release {
-            if (hasReleaseKeystore) {
+            // keystore.properties 가 없으면 서명 없이 빌드된다 (위 주석 참고)
+            if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
-            } else {
-                logger.lifecycle(
-                    "[BusanQuest] keystore.properties 또는 .jks 가 없어 릴리스 서명을 건너뜁니다. " +
-                        "Play 업로드용 AAB 를 만들려면 android/keystore.properties 를 채우세요."
-                )
             }
             isMinifyEnabled = false
             proguardFiles(
@@ -90,6 +85,14 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+if (!hasReleaseSigning) {
+    // ⚠️ 한글로 쓰면 PowerShell(cp949)에서 깨져 읽을 수 없다 — ASCII 로 남긴다
+    logger.lifecycle(
+        "[BusanQuest] android/keystore.properties not found - release build will be UNSIGNED. " +
+            "See keystore.properties.example."
+    )
 }
 
 // google-services 플러그인은 app/google-services.json 이 없으면 빌드를 실패시킨다.

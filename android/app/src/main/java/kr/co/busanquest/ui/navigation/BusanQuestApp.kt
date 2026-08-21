@@ -47,7 +47,7 @@ import kr.co.busanquest.ui.profile.MissionHistoryScreen
 import kr.co.busanquest.ui.profile.SavedMissionScreen
 import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.data.repository.UserRepository
-import kr.co.busanquest.util.NotificationRoute
+import kr.co.busanquest.util.PushNavigation
 import kr.co.busanquest.util.PushRegistrar
 import kr.co.busanquest.ui.profile.AccountSettingsScreen
 import kr.co.busanquest.ui.profile.DocumentScreen
@@ -118,6 +118,28 @@ fun BusanQuestApp() {
             val currentRoute = navController
                 .currentBackStackEntryAsState().value?.destination?.route
 
+            // ── 알림을 눌러서 들어온 경우 해당 화면으로 이동 ──
+            // MainActivity 가 Intent 에서 꺼내 둔 목적지를 여기서 소비한다.
+            //   · currentRoute 가 null 이면 NavHost 가 아직 그래프를 세우기 전이라 이동할 수 없다.
+            //     값이 생기면 이 블록이 다시 돌면서 이동한다.
+            //   · 로그아웃 상태면 목적지를 남겨 둔 채 기다린다. 로그인이 끝나 status 가 바뀌면
+            //     역시 다시 돌면서 그때 이동한다.
+            val pendingRoute by PushNavigation.pendingRoute.collectAsState()
+            LaunchedEffect(pendingRoute, status, currentRoute) {
+                val route = pendingRoute ?: return@LaunchedEffect
+                if (currentRoute == null) return@LaunchedEffect
+                if (status != AuthStatus.LoggedIn) return@LaunchedEffect
+
+                if (currentRoute != route) {
+                    navController.navigate(route) {
+                        // 하단 탭 이동과 같은 규칙 (BottomNavigationBar.navigateTab)
+                        popUpTo("home") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+                PushNavigation.consume()
+            }
+
             // 로그인 화면에서는 하단 탭바를 숨긴다
             // 로그인 화면과 "로그인 전 약관 열람" 상태에서는 탭바를 숨긴다.
             // (로그인 전에 탭바가 보이면 토큰 없이 메인 탭으로 들어갈 수 있다)
@@ -127,22 +149,6 @@ fun BusanQuestApp() {
 
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
-
-            // 알림을 눌러서 들어왔다면 해당 화면으로 보낸다.
-            //   · 앱이 떠 있을 때  → Notifier 의 PendingIntent 에 실린 화면 이름
-            //   · 앱이 꺼져 있을 때 → 시스템이 전달한 푸시 data["type"] 을 변환한 값
-            // 로그인 전이면 소비하지 않고 남겨 둔다 → 로그인 직후 그 화면으로 이어진다.
-            val pendingRoute by NotificationRoute.pending.collectAsState()
-            LaunchedEffect(pendingRoute, status) {
-                val route = pendingRoute ?: return@LaunchedEffect
-                if (status != AuthStatus.LoggedIn) return@LaunchedEffect
-                navController.navigate(route) {
-                    // 탭 이동과 같은 규칙 — 홈 위에 한 장만 쌓아 뒤로가기가 홈으로 가게 한다
-                    popUpTo("home") { inclusive = false }
-                    launchSingleTop = true
-                }
-                NotificationRoute.consume()
-            }
 
             // 401 세션 만료 이벤트 구독:
             // 어떤 API 든 401 이 발생하면 (토큰은 인터셉터가 이미 삭제함)

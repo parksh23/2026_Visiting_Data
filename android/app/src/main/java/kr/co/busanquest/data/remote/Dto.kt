@@ -162,6 +162,16 @@ data class MissionVerifyRequestDto(
 
     val longitude: Double? = null,
 
+    /**
+     * 위치 정확도(미터). FusedLocationProviderClient 가 준 Location.accuracy 다.
+     * "이 좌표가 반경 몇 m 안에 있다"는 신뢰 반경이라 값이 클수록 부정확하다.
+     *
+     * 백엔드는 PHOTO · CURRENT_LOCATION 인증에서 이 값을 검사한다.
+     * 값이 없거나 기본 허용치(100m)를 넘으면 인증을 거절한다.
+     */
+    @SerializedName("accuracy_m")
+    val accuracyM: Double? = null,
+
     @SerializedName("receipt_image_url")
     val receiptImageUrl: String? = null
 ) {

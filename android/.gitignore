@@ -47,6 +47,9 @@ render.experimental.xml
 *.keystore
 keystore.properties
 
+# 서명 비밀번호 — 절대 커밋 금지 (양식은 keystore.properties.example)
+keystore.properties
+
 # Mac OS X
 .DS_Store
 

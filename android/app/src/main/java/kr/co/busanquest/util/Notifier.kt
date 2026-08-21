@@ -80,6 +80,7 @@ object Notifier {
             key = NotificationKey.MISSION_RESULT,
             channelId = CH_MISSION,
             notificationId = ID_MISSION_BASE + missionId,
+            route = "missionDetail/$missionId",
             title = if (success) "인증 완료!" else "인증에 실패했어요",
             body = if (success) "‘$title’ 인증이 통과했어요. +${reward}P 적립!"
             else "‘$title’ — ${reason ?: "다시 시도해주세요."}"
@@ -106,6 +107,7 @@ object Notifier {
             key = target.first,
             channelId = target.second,
             notificationId = target.third,
+            route = PushNavigation.routeForType(type),
             title = title.orEmpty(),
             body = body.orEmpty()
         )
@@ -139,6 +141,7 @@ object Notifier {
                 key = NotificationKey.NEW_MISSION,
                 channelId = CH_NEW_MISSION,
                 notificationId = ID_NEW_MISSION,
+                route = PushNavigation.ROUTE_MISSION,
                 title = "새 미션이 열렸어요",
                 body = if (fresh.size == 1) "‘${fresh.first().title}’ 미션이 추가됐어요."
                 else "‘${fresh.first().title}’ 외 ${fresh.size - 1}개 미션이 추가됐어요."
@@ -167,6 +170,7 @@ object Notifier {
                 key = NotificationKey.RANKING_CHANGE,
                 channelId = CH_RANKING,
                 notificationId = ID_RANKING,
+                route = PushNavigation.ROUTE_RANKING,
                 title = if (up) "순위가 올랐어요!" else "순위가 내려갔어요",
                 body = if (up) "${previous}위 → ${currentRank}위 (${gap}계단 상승)"
                 else "${previous}위 → ${currentRank}위 (${gap}계단 하락)"
@@ -184,7 +188,9 @@ object Notifier {
         channelId: String,
         notificationId: Int,
         title: String,
-        body: String
+        body: String,
+        // 알림을 눌렀을 때 열 화면. null 이면 앱만 열고 화면 이동은 하지 않는다.
+        route: String? = null
     ) {
         val ctx = appContext ?: return
         scope.launch {
@@ -193,14 +199,10 @@ object Notifier {
             if (store.isQuietNow()) return@launch         // 야간 방해 금지
             if (!canPost(ctx)) return@launch              // 기기 알림/권한 없음
 
-            // 알림을 누르면 종류에 맞는 화면으로 바로 보낸다.
-            // (랭킹 변동 → 랭킹 탭, 새 미션 → 미션 탭, 인증 결과 → 미션 기록)
-            // 화면 이름은 MainActivity 가 NotificationRoute 로 넘겨 준다.
+            // 목적지를 Intent 에 실어 보낸다. MainActivity 가 꺼내서 PushNavigation 에 넘긴다.
             val intent = Intent(ctx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                NotificationRoute.routeForKey(key)?.let {
-                    putExtra(NotificationRoute.EXTRA_ROUTE, it)
-                }
+                if (route != null) putExtra(PushNavigation.EXTRA_ROUTE, route)
             }
             val pending = PendingIntent.getActivity(
                 ctx, notificationId, intent,

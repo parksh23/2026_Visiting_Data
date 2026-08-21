@@ -5,23 +5,30 @@
 
 ---
 
-## 지금 상태
+## 지금 상태 (2026-08-21 갱신)
 
-앱 코드는 **전부 들어가 있고, `google-services.json` 만 없다.**
+**`app/google-services.json` 이 들어왔고, FCM 이 켜졌다.**
 
-`app/build.gradle.kts` 는 그 파일이 있을 때만 google-services 플러그인을 적용한다.
-그래서 지금도 빌드는 정상으로 되고, 빌드 로그에 이런 줄이 뜬다.
+| 항목 | 값 |
+|---|---|
+| Firebase 프로젝트 | `busanquest` (project number `949382330358`) |
+| 등록된 패키지명 | `kr.co.busanquest` ✅ `applicationId` 와 일치 |
+| Mobile SDK App ID | `1:949382330358:android:ef75d32852795ca1a839d7` |
 
-```
-[BusanQuest] app/google-services.json 이 없어 FCM 설정을 건너뜁니다. 서버 푸시는 파일을 넣고 다시 빌드하면 켜집니다.
-```
+`app/build.gradle.kts` 의 조건부 분기가 이제 참이 되어 google-services 플러그인이
+자동으로 적용된다. 다음 빌드부터 `PushRegistrar` 가 실제 FCM 토큰을 받아
+로그인 시 서버 `PUSH_TOKENS` 에 등록한다.
 
-이 상태에서는 `PushRegistrar` 가 FCM 토큰을 못 얻어 조용히 넘어간다.
-앱은 정상 동작하고, **서버 푸시만 안 온다.**
+> `google-services.json` 은 **의도적으로 커밋한다** (`.gitignore` 에서 제외했다).
+> 빠져 있으면 다른 팀원 PC 나 CI 빌드에서 FCM 이 조용히 꺼진 채로 나오기 때문이다.
+> 이 파일에는 비공개 키가 없다 — 프로젝트 ID 와, 패키지명·인증서로 제한된 Android API 키뿐이다.
+>
+> 반면 서버가 쓰는 **Firebase Admin SDK 서비스 계정 JSON 은 진짜 개인키라 절대 커밋 금지**다.
+> (`firebase-service-account*.json`, `*-firebase-adminsdk-*.json`, `serviceAccountKey.json` 로 차단해 뒀다)
 
 ---
 
-## Firebase 콘솔에서 할 일
+## Firebase 콘솔에서 할 일 (1~4 완료, 5번만 남음)
 
 1. Firebase 콘솔에서 프로젝트를 만든다.
 2. **Android 앱을 패키지명 `kr.co.busanquest` 로 등록한다.**
@@ -34,8 +41,7 @@
 5. 백엔드 담당자에게 **Firebase Admin SDK 서비스 계정 JSON** 을 전달한다
    (서버가 `FIREBASE_CREDENTIALS_JSON` 으로 쓴다).
 
-> `google-services.json` 과 서비스 계정 JSON은 **Git 에 커밋하지 않는다.**
-> `android/.gitignore` 에 들어 있는지 확인할 것.
+> 서비스 계정 JSON은 **Git 에 커밋하지 않는다.** (`google-services.json` 은 커밋 대상)
 
 ---
 

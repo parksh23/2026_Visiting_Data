@@ -42,14 +42,20 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
-# Keystore files
+# Keystore files — 서명 키와 비밀번호는 절대 커밋하지 않는다
 *.jks
 *.keystore
+keystore.properties
 
 # Mac OS X
 .DS_Store
 
-# Firebase — 프로젝트 식별자와 API 키가 들어 있어 커밋하지 않는다
-google-services.json
-app/google-services.json
+# Firebase
+# google-services.json 은 의도적으로 커밋한다.
+#   비공개 키가 없고(프로젝트 ID + 패키지·인증서로 제한된 Android API 키뿐),
+#   빠져 있으면 다른 PC/CI 빌드에서 FCM 이 조용히 꺼진 채로 나오기 때문이다.
+#
+# 반면 서버용 Admin SDK 서비스 계정 JSON 은 진짜 개인키라 절대 커밋 금지.
 firebase-service-account*.json
+*-firebase-adminsdk-*.json
+serviceAccountKey.json

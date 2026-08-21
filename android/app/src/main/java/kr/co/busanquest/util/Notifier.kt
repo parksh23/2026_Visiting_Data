@@ -193,8 +193,14 @@ object Notifier {
             if (store.isQuietNow()) return@launch         // 야간 방해 금지
             if (!canPost(ctx)) return@launch              // 기기 알림/권한 없음
 
+            // 알림을 누르면 종류에 맞는 화면으로 바로 보낸다.
+            // (랭킹 변동 → 랭킹 탭, 새 미션 → 미션 탭, 인증 결과 → 미션 기록)
+            // 화면 이름은 MainActivity 가 NotificationRoute 로 넘겨 준다.
             val intent = Intent(ctx, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                NotificationRoute.routeForKey(key)?.let {
+                    putExtra(NotificationRoute.EXTRA_ROUTE, it)
+                }
             }
             val pending = PendingIntent.getActivity(
                 ctx, notificationId, intent,

@@ -96,6 +96,19 @@ class SettingsStore(private val context: Context) {
         context.settingsDataStore.edit { prefs -> prefs[lastRankKey] = rank }
     }
 
+    // ── POST_NOTIFICATIONS 권한을 이미 한 번 물어봤는지 ──
+    // Android 13+ 는 권한 없이는 알림이 아예 안 뜬다. 그래서 로그인 직후 한 번 물어보는데,
+    // 로그인할 때마다 반복해서 띄우면 성가시고, 두 번 거절당하면 시스템이 영구 차단해 버린다.
+    // (그 뒤에는 내 정보 > 알림 설정에서 "시스템 설정 열기"로만 되돌릴 수 있다)
+    private val pushPermissionAskedKey = booleanPreferencesKey("push_permission_asked")
+
+    suspend fun pushPermissionAsked(): Boolean =
+        context.settingsDataStore.data.first()[pushPermissionAskedKey] ?: false
+
+    suspend fun setPushPermissionAsked() {
+        context.settingsDataStore.edit { prefs -> prefs[pushPermissionAskedKey] = true }
+    }
+
     companion object {
         const val QUIET_START_HOUR = 21
         const val QUIET_END_HOUR = 8

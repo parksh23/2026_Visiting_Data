@@ -1,5 +1,12 @@
 package kr.co.busanquest.ui.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import kr.co.busanquest.data.local.SettingsStore
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -10,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -39,6 +47,7 @@ import kr.co.busanquest.ui.profile.MissionHistoryScreen
 import kr.co.busanquest.ui.profile.SavedMissionScreen
 import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.data.repository.UserRepository
+import kr.co.busanquest.util.NotificationRoute
 import kr.co.busanquest.util.PushRegistrar
 import kr.co.busanquest.ui.profile.AccountSettingsScreen
 import kr.co.busanquest.ui.profile.DocumentScreen
@@ -68,8 +77,29 @@ fun BusanQuestApp() {
     //   2) FCM 토큰 등록 — 서버는 PUSH_TOKENS 에 있는 토큰으로만 푸시를 보낼 수 있다
     //   3) 알림 설정 내려받기 — 서버가 원본이라 다른 기기에서 바꾼 설정도 여기 반영된다
     // 전부 실패해도 앱 흐름을 막지 않는다.
+    // Android 13+ 알림 권한 요청창.
+    // 허용/거부 어느 쪽이든 앱 흐름은 그대로 간다 — 거부해도 앱은 정상 동작하고
+    // 나중에 내 정보 > 알림 설정에서 다시 켤 수 있다.
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 결과를 따로 처리하지 않는다 */ }
+
     LaunchedEffect(status) {
         if (status == AuthStatus.LoggedIn) {
+            // 0) 알림 권한 — Android 13+ 는 이 권한이 없으면 서버 푸시가 와도 화면에 안 뜬다.
+            //    로그인 직후 딱 한 번만 물어본다. 매번 띄우면 성가시고,
+            //    두 번 거절당하면 시스템이 영구 차단해 버려 되돌리기가 더 어려워진다.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val settings = SettingsStore(context)
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted && !settings.pushPermissionAsked()) {
+                    settings.setPushPermissionAsked()
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+
             UserRepository.refreshUserCode(context)
             PushRegistrar.register()
             NotificationSettingsRepository.refresh(context)
@@ -97,6 +127,22 @@ fun BusanQuestApp() {
 
             val startDestination =
                 if (status == AuthStatus.LoggedIn) "home" else "login"
+
+            // 알림을 눌러서 들어왔다면 해당 화면으로 보낸다.
+            //   · 앱이 떠 있을 때  → Notifier 의 PendingIntent 에 실린 화면 이름
+            //   · 앱이 꺼져 있을 때 → 시스템이 전달한 푸시 data["type"] 을 변환한 값
+            // 로그인 전이면 소비하지 않고 남겨 둔다 → 로그인 직후 그 화면으로 이어진다.
+            val pendingRoute by NotificationRoute.pending.collectAsState()
+            LaunchedEffect(pendingRoute, status) {
+                val route = pendingRoute ?: return@LaunchedEffect
+                if (status != AuthStatus.LoggedIn) return@LaunchedEffect
+                navController.navigate(route) {
+                    // 탭 이동과 같은 규칙 — 홈 위에 한 장만 쌓아 뒤로가기가 홈으로 가게 한다
+                    popUpTo("home") { inclusive = false }
+                    launchSingleTop = true
+                }
+                NotificationRoute.consume()
+            }
 
             // 401 세션 만료 이벤트 구독:
             // 어떤 API 든 401 이 발생하면 (토큰은 인터셉터가 이미 삭제함)

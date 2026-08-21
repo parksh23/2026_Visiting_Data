@@ -13,7 +13,7 @@ import android.util.Log
 
 object RetrofitInstance {
 
-    // 에뮬레이터에서 PC localhost로 접근하는 주소
+    // 배포된 백엔드 주소 (Render). 에뮬레이터/실기기 모두 이 주소를 쓴다.
     private const val BASE_URL = "https://visiting-data.onrender.com/"
 
     // 앱 Context 저장용
@@ -66,6 +66,15 @@ object RetrofitInstance {
     // 모든 API 요청 전에 저장된 token을 읽어서 Authorization 헤더에 붙임
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
+
+            // 타임아웃 — 서버(Render 무료 플랜)가 유휴 상태에서 깨어나는 데
+            // 30~60초가 걸린다. OkHttp 기본값(10초)이면 첫 요청이 무조건
+            // SocketTimeoutException 으로 죽어 "네트워크 연결을 확인해주세요" 만 뜬다.
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
 
             // JWT 자동 첨부 인터셉터
             .addInterceptor { chain ->

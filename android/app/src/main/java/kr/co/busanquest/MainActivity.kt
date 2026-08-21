@@ -77,6 +77,8 @@ class MainActivity : ComponentActivity() {
     /**
      * 앱이 이미 떠 있는 상태에서 알림을 누른 경우 여기로 들어온다.
      * (매니페스트의 launchMode="singleTop" 덕분에 Activity 가 새로 만들어지지 않는다)
+     *
+     * setIntent 를 함께 부르지 않으면 getIntent() 가 계속 예전 인텐트를 돌려준다.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

@@ -1,3 +1,5 @@
+// Gradle Kotlin DSL 에서 `java` 는 Java 플러그인 확장으로 먼저 해석되어
+// `java.util.Properties` 라고 쓰면 패키지를 못 찾는다. 그래서 import 로 가져온다.
 import java.util.Properties
 
 // ───────── 릴리스 서명 ─────────

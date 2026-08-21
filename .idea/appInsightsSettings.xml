@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="kr.co.busanquest" />
+                  <option name="mobileSdkAppId" value="1:949382330358:android:ef75d32852795ca1a839d7" />
+                  <option name="projectId" value="busanquest" />
+                  <option name="projectNumber" value="949382330358" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

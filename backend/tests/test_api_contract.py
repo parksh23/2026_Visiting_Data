@@ -15,17 +15,20 @@ sys.path.insert(0, str(APP_DIR))
 
 from auth_utils import get_current_user_email
 from database import Base, SessionLocal, engine
+from document_seed import seed_documents
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from PIL import Image
 from models import (
+    AppRanking,
     AppUser,
     District,
     Friendship,
     Mission,
+    PendingPush,
     SavedMission,
     PushToken,
     PushDeliveryLog,
-    TextFile,
     UserAgreement,
     UserMission,
     UserSettings,
@@ -233,6 +236,7 @@ def test_frontend_contract():
                 mission_type="CURRENT_LOCATION",
                 latitude=35.1,
                 longitude=129.03,
+                accuracy_m=10,
             ),
             subject,
             db,
@@ -274,23 +278,40 @@ def test_frontend_contract():
         }
 
         upload_name = f"{'a' * 32}.jpg"
-        upload_path = UPLOAD_DIR / upload_name
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        upload_path.write_bytes(b"test-jpeg")
+        upload_path = UPLOAD_DIR / subject / upload_name
+        upload_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (8, 8), color="blue").save(upload_path, format="JPEG")
+        original_generate = api_v1_module.gemini_model.generate_content
+        api_v1_module.gemini_model.generate_content = lambda *args, **kwargs: SimpleNamespace(
+            text='{"is_success": true, "extracted_text": "사진 확인"}'
+        )
         try:
             uploaded_photo = verify_mission(
                 MissionVerifyRequestDto(
                     mission_id=2,
                     mission_type="PHOTO",
-                    photo_url=f"https://testserver/uploads/{upload_name}",
+                    photo_url=f"https://testserver/uploads/{subject}/{upload_name}",
                     latitude=35.1,
                     longitude=129.03,
+                    accuracy_m=10,
                 ),
                 subject,
                 db,
             )
             assert uploaded_photo["success"] is True
+            photo_completion = (
+                db.query(UserMission)
+                .filter_by(user_code=subject, mission_id=2)
+                .one()
+            )
+            assert photo_completion.photo_url == (
+                f"https://testserver/uploads/{subject}/{upload_name}"
+            )
+            assert not api_v1_module._uploaded_image_exists(
+                f"https://testserver/uploads/{subject}/{upload_name}", "OTHER_USER"
+            )
         finally:
+            api_v1_module.gemini_model.generate_content = original_generate
             upload_path.unlink(missing_ok=True)
 
         profile = get_my_profile(subject, db)
@@ -369,7 +390,7 @@ def test_monthly_update_preserves_existing_user_total():
             rail_locations=[(35.1, 129.035)],
         )
         assert result == {"updated_missions": 2, "skipped_missions": 0}
-        assert db.get(Mission, 1).reward_points == 130
+        assert db.get(Mission, 1).reward_points == 125
         completion = db.query(UserMission).filter(UserMission.mission_id == 1).one()
         user = db.query(AppUser).filter(AppUser.user_code == completion.user_code).one()
         assert user.total_points == 220
@@ -396,7 +417,8 @@ def test_kakao_signup_without_email():
             access_token="valid-token", agreements=_required_agreements()
         )
         response = kakao_login(request, db)
-        assert response["token"]
+        assert response["access_token"]
+        assert response["token"] == response["access_token"]
         user = db.query(AppUser).filter(AppUser.kakao_id == "123456789").one()
         assert user.email is None
         assert user.login_id == "kakao:123456789"
@@ -455,8 +477,8 @@ def test_kakao_duplicate_nickname():
         db.close()
 
 
-def test_withdrawal_keeps_agreements_and_blocks_relogin():
-    """탈퇴는 소프트 삭제 — 동의 이력은 남고, 식별 정보는 지워진다."""
+def test_withdrawal_deletes_related_rows_and_uploaded_images():
+    """탈퇴는 모든 FK 자식 행과 사용자 업로드 파일까지 하드 삭제한다."""
     original_get = api_v1_module.httpx.get
     db = SessionLocal()
     try:
@@ -470,30 +492,58 @@ def test_withdrawal_keeps_agreements_and_blocks_relogin():
         user_code = user.user_code
         db.add(UserSettings(user_code=user_code))
         db.add(PushToken(user_code=user_code, token="fcm-withdraw-test"))
+        db.add(
+            PendingPush(
+                user_code=user_code,
+                title="탈퇴 테스트",
+                body="삭제되어야 함",
+                notification_type="test",
+                idempotency_key="withdraw-test",
+                scheduled_at=datetime.utcnow(),
+            )
+        )
+        db.add(
+            AppRanking(
+                user_code=user_code,
+                nickname=user.nickname,
+                total_points=0,
+                rank_num=1,
+            )
+        )
+        db.add(
+            PushDeliveryLog(
+                user_code=user_code,
+                idempotency_key="withdraw-log-test",
+                notification_type="test",
+                success_count=1,
+                failure_count=0,
+                status="sent",
+            )
+        )
         db.commit()
 
-        # 하드 삭제였다면 USER_AGREEMENTS FK 때문에 여기서 터졌다
+        user_upload_dir = UPLOAD_DIR / user_code
+        user_upload_dir.mkdir(parents=True, exist_ok=True)
+        (user_upload_dir / f"{'b' * 32}.jpg").write_bytes(b"private-image")
+
         result = withdraw_account(subject=user_code, db=db)
         assert result["success"] is True
 
-        withdrawn = db.query(AppUser).filter(AppUser.user_code == user_code).one()
-        assert withdrawn.account_status == "WITHDRAWN"
-        assert withdrawn.email is None
-        assert withdrawn.kakao_id is None
-        assert withdrawn.password_hash is None
-        assert withdrawn.nickname == f"탈퇴한사용자_{user_code}"
-        # 동의 이력은 증빙으로 보존
-        assert db.query(UserAgreement).filter_by(user_code=user_code).count() == 3
-        # 기기 토큰·알림 설정은 실제로 삭제
+        assert db.query(AppUser).filter_by(user_code=user_code).count() == 0
+        assert db.query(UserAgreement).filter_by(user_code=user_code).count() == 0
         assert db.query(PushToken).filter_by(user_code=user_code).count() == 0
         assert db.query(UserSettings).filter_by(user_code=user_code).count() == 0
+        assert db.query(PendingPush).filter_by(user_code=user_code).count() == 0
+        assert db.query(PushDeliveryLog).filter_by(user_code=user_code).count() == 0
+        assert db.query(AppRanking).filter_by(user_code=user_code).count() == 0
+        assert not user_upload_dir.exists()
 
         # 탈퇴 계정의 토큰으로는 아무 API 도 못 쓴다
         try:
             api_v1_module._get_user(db, user_code)
-            raise AssertionError("탈퇴 계정은 403이어야 합니다.")
+            raise AssertionError("삭제된 계정은 401이어야 합니다.")
         except HTTPException as exc:
-            assert exc.status_code == 403
+            assert exc.status_code == 401
 
         # 같은 카카오 계정으로 다시 들어오면 '신규 가입'이라 약관 동의가 다시 필요하다
         try:
@@ -665,27 +715,15 @@ def test_settings_documents_and_push_token_contract():
         )
         assert db.query(PushToken).filter_by(token="test-fcm-token").count() == 0
 
-        db.add(
-            TextFile(
-                filename="terms.md",
-                content=(
-                    "# 이용약관\n"
-                    "version: 1.0\n"
-                    "effective: 2026-08-11\n"
-                    "---\n"
-                    "## 제1조\n약관 본문"
-                ),
-            )
-        )
-        db.commit()
+        seed_documents(db)
         document = get_document("terms", db)
-        assert document == {
-            "slug": "terms",
-            "title": "이용약관",
-            "version": "1.0",
-            "effective_date": "2026-08-11",
-            "content": "## 제1조\n약관 본문",
-        }
+        assert document["slug"] == "terms"
+        assert document["title"] == "이용약관"
+        assert document["version"] == "1.0"
+        assert document["effective_date"] == "2026-08-11"
+        assert "## 제1조" in document["content"]
+        assert get_document("privacy", db)["slug"] == "privacy"
+        assert get_document("location", db)["slug"] == "location"
     finally:
         db.close()
 
@@ -762,6 +800,7 @@ def test_new_mission_region_filter_and_ranking_rise_only():
             db, datetime(2026, 8, 20, 18, 10, tzinfo=kst)
         )
         assert calls == []
+        previous_rank = haeundae.last_notified_rank
 
         haeundae.total_points = 200
         db.commit()
@@ -772,7 +811,7 @@ def test_new_mission_region_filter_and_ranking_rise_only():
             call for call in calls if call["notification_type"] == "RANKING_CHANGE"
         ]
         assert [call["user_code"] for call in ranking_calls] == [haeundae.user_code]
-        assert "2위 → 1위" in ranking_calls[0]["body"]
+        assert f"{previous_rank}위 → {haeundae.last_notified_rank}위" in ranking_calls[0]["body"]
     finally:
         notification_jobs_module.dispatch_notification = original_dispatch
         db.close()
@@ -890,7 +929,7 @@ if __name__ == "__main__":
     test_monthly_update_preserves_existing_user_total()
     test_kakao_signup_without_email()
     test_kakao_duplicate_nickname()
-    test_withdrawal_keeps_agreements_and_blocks_relogin()
+    test_withdrawal_deletes_related_rows_and_uploaded_images()
     test_signup_agreement_validation_and_timestamp_fallback()
     test_nickname_update_contract()
     test_settings_documents_and_push_token_contract()

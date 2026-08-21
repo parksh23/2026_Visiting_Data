@@ -99,6 +99,8 @@ class UserMission(Base):
     )
     status = Column("STATUS", String(20), nullable=False, default="completed")
     verified_at = Column("ASSIGNED_AT", DateTime, nullable=False, default=datetime.utcnow)
+    photo_url = Column("PHOTO_URL", String(1000), nullable=True)
+    receipt_image_url = Column("RECEIPT_IMAGE_URL", String(1000), nullable=True)
 
 
 class SavedMission(Base):

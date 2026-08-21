@@ -1,0 +1,24 @@
+-- 기존 운영 DB의 USER_MISSIONS에 인증 이미지 URL을 보존한다.
+-- 002_frontend_integration.sql로 테이블을 만든 DB에는 이미 존재할 수 있으므로
+-- 실행 전 USER_TAB_COLUMNS를 확인하고 없는 컬럼만 추가한다.
+
+DECLARE
+    column_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO column_count
+      FROM USER_TAB_COLUMNS
+     WHERE TABLE_NAME = 'USER_MISSIONS' AND COLUMN_NAME = 'PHOTO_URL';
+    IF column_count = 0 THEN
+        EXECUTE IMMEDIATE 'ALTER TABLE USER_MISSIONS ADD PHOTO_URL VARCHAR2(1000)';
+    END IF;
+
+    SELECT COUNT(*) INTO column_count
+      FROM USER_TAB_COLUMNS
+     WHERE TABLE_NAME = 'USER_MISSIONS' AND COLUMN_NAME = 'RECEIPT_IMAGE_URL';
+    IF column_count = 0 THEN
+        EXECUTE IMMEDIATE 'ALTER TABLE USER_MISSIONS ADD RECEIPT_IMAGE_URL VARCHAR2(1000)';
+    END IF;
+END;
+/
+
+COMMIT;

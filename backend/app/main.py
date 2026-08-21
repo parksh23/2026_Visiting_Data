@@ -11,7 +11,8 @@ from pathlib import Path
 from datetime import datetime
 import json
 
-from database import Base, engine
+from database import Base, SessionLocal, engine
+from document_seed import seed_documents
 import models
 from routers import text_files
 from routers import api_v1
@@ -26,6 +27,11 @@ app = FastAPI()
 @app.on_event("startup")
 def start_background_jobs():
     setup_logging()
+    db = SessionLocal()
+    try:
+        seed_documents(db)
+    finally:
+        db.close()
     start_scheduler()
 
 @app.on_event("shutdown")

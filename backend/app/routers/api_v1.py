@@ -5,6 +5,7 @@ import os
 import re
 import uuid
 import random
+import shutil
 import string
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,11 +39,15 @@ from auth_utils import (
 )
 from database import get_db
 from models import (
+    AppRanking,
     AppUser,
     District,
     Friendship,
     Mission,
+    PendingPush,
+    PushDeliveryLog,
     PushToken,
+    SavedMission,
     TextFile,
     UserAgreement,
     UserMission,
@@ -74,7 +79,7 @@ BUSAN_DISTRICTS = [
     "남구",
     "영도구",
 ]
-MISSION_TYPES = {"PHOTO", "LOCATION", "CURRENT_LOCATION", "RECEIPT"}
+MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
 REQUIRED_AGREEMENT_DOCS = {"terms", "privacy", "location"}
 DOCUMENT_TITLES = {
     "terms": "이용약관",
@@ -84,6 +89,7 @@ DOCUMENT_TITLES = {
 }
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+MAX_LOCATION_ACCURACY_M = float(os.getenv("MAX_LOCATION_ACCURACY_M", "100"))
 
 
 class AgreementInput(BaseModel):
@@ -187,6 +193,8 @@ class MissionDto(BaseModel):
     status: str
     mission_type: str
     image_url: Optional[str] = None
+    photo_url: Optional[str] = None
+    receipt_image_url: Optional[str] = None
     target_text: Optional[str] = ""
     is_saved: bool = False
 
@@ -208,6 +216,7 @@ class MissionVerifyRequestDto(BaseModel):
     photo_url: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    accuracy_m: Optional[float] = None
     receipt_image_url: Optional[str] = None
 
 class MissionVerifyResponse(BaseModel):
@@ -252,12 +261,12 @@ def _get_saved_list(saved_missions_val) -> List[str]:
 
 
 def _next_user_code(db: Session) -> str:
-    max_number = 0
-    for (code,) in db.query(AppUser.user_code).all():
-        text = str(code or "")
-        if text.startswith("U") and text[1:].isdigit():
-            max_number = max(max_number, int(text[1:]))
-    return f"U{max_number + 1:03d}"
+    # 하드 삭제 후 순번을 재사용하면 탈퇴 전 JWT가 새 계정을 가리킬 수 있다.
+    # UUID 기반 코드는 USER_CODE(20)에 들어가며 삭제된 값도 사실상 재사용되지 않는다.
+    while True:
+        candidate = f"U{uuid.uuid4().hex[:18].upper()}"
+        if not db.query(AppUser.user_code).filter(AppUser.user_code == candidate).first():
+            return candidate
 
 
 def _get_user(db: Session, subject: str) -> AppUser:
@@ -277,8 +286,12 @@ def _token_for(user: AppUser) -> str:
     return create_access_token({"sub": user.user_code})
 
 
-def _profile_dict(user: AppUser) -> dict:
-    saved_list = _get_saved_list(user.saved_missions)
+def _profile_dict(user: AppUser, db: Session) -> dict:
+    saved_count = (
+        db.query(SavedMission.id)
+        .filter(SavedMission.user_code == user.user_code)
+        .count()
+    )
     return {
         "name": user.nickname,
         "points": f"{user.total_points:,}P",
@@ -286,7 +299,7 @@ def _profile_dict(user: AppUser) -> dict:
         "email": user.email,
         "login_provider": "KAKAO" if user.kakao_id else "EMAIL",
         "completed_missions": user.completed_missions,
-        "saved_missions": len(saved_list),
+        "saved_missions": saved_count,
     }
 
 
@@ -413,7 +426,12 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def _mission_dict(
     mission: Mission, user_statuses: dict, saved_ids: Optional[set[int]] = None
 ) -> dict:
-    mission_status = str(user_statuses.get(mission.mission_id, "not_started")).lower()
+    user_record = user_statuses.get(mission.mission_id)
+    if user_record is None:
+        mission_status, photo_url, receipt_image_url = "not_started", None, None
+    else:
+        mission_status, photo_url, receipt_image_url = user_record
+    mission_status = str(mission_status).lower()
     completed = (mission_status == "completed")
 
     return {
@@ -429,22 +447,38 @@ def _mission_dict(
         "status": mission_status,
         "mission_type": mission.mission_type,
         "image_url": getattr(mission, "image_url", None),
+        "photo_url": photo_url,
+        "receipt_image_url": receipt_image_url,
         "is_saved": mission.mission_id in (saved_ids or set()),
     }
 
 
-def _uploaded_image_exists(image_url: Optional[str]) -> bool:
+def _user_upload_dir(user_code: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", user_code):
+        raise ValueError("USER_CODE contains characters unsafe for an upload path")
+    return UPLOAD_DIR / user_code
+
+
+def _uploaded_image_path(image_url: Optional[str], user_code: str) -> Optional[Path]:
     if not image_url:
-        return False
+        return None
     parsed = urlparse(image_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return False
-    if not parsed.path.startswith("/uploads/"):
-        return False
-    filename = Path(parsed.path).name
+        return None
+    path_parts = parsed.path.split("/")
+    if len(path_parts) != 4 or path_parts[:2] != ["", "uploads"]:
+        return None
+    if path_parts[2] != user_code:
+        return None
+    filename = path_parts[3]
     if not re.fullmatch(r"[0-9a-f]{32}\.jpg", filename):
-        return False
-    return (UPLOAD_DIR / filename).is_file()
+        return None
+    return _user_upload_dir(user_code) / filename
+
+
+def _uploaded_image_exists(image_url: Optional[str], user_code: str) -> bool:
+    image_path = _uploaded_image_path(image_url, user_code)
+    return image_path is not None and image_path.is_file()
 
 
 @router.post("/auth/login", response_model=TokenResponse)
@@ -610,7 +644,7 @@ def get_my_profile(
     subject: str = Depends(get_current_user_email), db: Session = Depends(get_db)
 ):
     user = _get_user(db, subject)
-    return _profile_dict(user)
+    return _profile_dict(user, db)
 
 
 @router.get("/users/me/agreements", response_model=List[AgreementRecord])
@@ -759,7 +793,7 @@ def update_my_nickname(
             status_code=409, detail="이미 사용 중인 닉네임입니다."
         ) from exc
     db.refresh(user)
-    return _profile_dict(user)
+    return _profile_dict(user, db)
 
 
 @router.patch("/users/me/password")
@@ -787,41 +821,38 @@ def withdraw_account(
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
-    """회원 탈퇴 — 소프트 삭제 + 개인정보 익명화.
-
-    행 자체를 지우지 않는 이유:
-      1) USER_AGREEMENTS 가 USER_CODE 를 FK 로 잡고 있어 하드 삭제는 FK 위반으로 실패한다.
-      2) "언제 어떤 버전의 약관에 동의했는가"는 탈퇴 후에도 남겨야 하는 증빙이다.
-
-    대신 개인을 식별할 수 있는 값(이메일·카카오 회원번호·비밀번호·닉네임)은 전부 지워
-    남는 건 USER_CODE 와 동의 이력뿐이 되게 한다.
-    랭킹·친구 조회는 ACCOUNT_STATUS = 'ACTIVE' 만 보므로 탈퇴 계정은 자동으로 빠진다.
-    """
+    """회원과 그 사용자가 생성한 DB 기록 및 업로드 파일을 모두 삭제한다."""
     user = _get_user(db, subject)
     user_code = user.user_code
 
-    # 활동 기록·기기 토큰·설정은 실제로 지운다 (개인정보라 보존 사유가 없다)
-    db.query(UserMission).filter(UserMission.user_code == user_code).delete()
-    db.query(Friendship).filter(
-        or_(Friendship.user_code == user_code, Friendship.friend_user_code == user_code)
-    ).delete()
-    db.query(PushToken).filter(PushToken.user_code == user_code).delete()
-    db.query(UserSettings).filter(UserSettings.user_code == user_code).delete()
+    upload_dir = _user_upload_dir(user_code)
+    staged_upload_dir = UPLOAD_DIR / f".deleting-{user_code}-{uuid.uuid4().hex}"
+    if upload_dir.exists():
+        upload_dir.rename(staged_upload_dir)
 
-    # 계정 식별 정보 익명화
-    # EMAIL / KAKAO_ID / LOGIN_ID / NICKNAME 은 전부 UNIQUE 라, 같은 사람이 다시
-    # 가입할 수 있도록 NULL 이나 충돌하지 않는 값으로 비워 둔다.
-    user.account_status = "WITHDRAWN"
-    user.email = None
-    user.kakao_id = None
-    user.password_hash = None
-    user.login_id = f"withdrawn:{user_code}"[:50]
-    user.nickname = f"탈퇴한사용자_{user_code}"[:50]
-    user.saved_missions = ""
-    user.district_name = None
-    user.last_notified_rank = None
+    try:
+        # 자식 테이블을 먼저 지워 Oracle FK 제약과 무관하게 하드 삭제를 보장한다.
+        db.query(PushDeliveryLog).filter(PushDeliveryLog.user_code == user_code).delete()
+        db.query(PendingPush).filter(PendingPush.user_code == user_code).delete()
+        db.query(PushToken).filter(PushToken.user_code == user_code).delete()
+        db.query(UserSettings).filter(UserSettings.user_code == user_code).delete()
+        db.query(UserAgreement).filter(UserAgreement.user_code == user_code).delete()
+        db.query(AppRanking).filter(AppRanking.user_code == user_code).delete()
+        db.query(SavedMission).filter(SavedMission.user_code == user_code).delete()
+        db.query(UserMission).filter(UserMission.user_code == user_code).delete()
+        db.query(Friendship).filter(
+            or_(Friendship.user_code == user_code, Friendship.friend_user_code == user_code)
+        ).delete(synchronize_session=False)
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        if staged_upload_dir.exists() and not upload_dir.exists():
+            staged_upload_dir.rename(upload_dir)
+        raise
 
-    db.commit()
+    if staged_upload_dir.exists():
+        shutil.rmtree(staged_upload_dir)
 
     return {"success": True, "message": "회원 탈퇴가 완료되었습니다."}
 
@@ -832,13 +863,24 @@ def get_missions(
 ):
     user = _get_user(db, subject)
 
-    user_statuses = dict(
-        db.query(UserMission.mission_id, UserMission.status)
+    user_statuses = {
+        mission_id: (status, photo_url, receipt_image_url)
+        for mission_id, status, photo_url, receipt_image_url in db.query(
+            UserMission.mission_id,
+            UserMission.status,
+            UserMission.photo_url,
+            UserMission.receipt_image_url,
+        )
         .filter(UserMission.user_code == user.user_code)
         .all()
-    )
+    }
 
-    saved_ids = {int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()}
+    saved_ids = {
+        mission_id
+        for (mission_id,) in db.query(SavedMission.mission_id)
+        .filter(SavedMission.user_code == user.user_code)
+        .all()
+    }
 
     return [
         _mission_dict(mission, user_statuses, saved_ids)
@@ -863,13 +905,25 @@ def get_saved_missions(
 ):
     user = _get_user(db, subject)
 
-    user_statuses = dict(
-        db.query(UserMission.mission_id, UserMission.status)
+    user_statuses = {
+        mission_id: (status, photo_url, receipt_image_url)
+        for mission_id, status, photo_url, receipt_image_url in db.query(
+            UserMission.mission_id,
+            UserMission.status,
+            UserMission.photo_url,
+            UserMission.receipt_image_url,
+        )
         .filter(UserMission.user_code == user.user_code)
         .all()
-    )
+    }
 
-    saved_ids_list = [int(mid) for mid in _get_saved_list(user.saved_missions) if mid.isdigit()]
+    saved_ids_list = [
+        mission_id
+        for (mission_id,) in db.query(SavedMission.mission_id)
+        .filter(SavedMission.user_code == user.user_code)
+        .order_by(SavedMission.created_at.desc(), SavedMission.id.desc())
+        .all()
+    ]
     saved_ids = set(saved_ids_list)
 
     if not saved_ids_list:
@@ -901,12 +955,11 @@ def save_mission(
     if db.query(Mission.mission_id).filter(Mission.mission_id == mission_id).first() is None:
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
-    saved_list = _get_saved_list(user.saved_missions)
-    mission_id_str = str(mission_id)
-
-    if mission_id_str not in saved_list:
-        saved_list.append(mission_id_str)
-        user.saved_missions = ",".join(saved_list)
+    existing = db.query(SavedMission).filter_by(
+        user_code=user.user_code, mission_id=mission_id
+    ).first()
+    if existing is None:
+        db.add(SavedMission(user_code=user.user_code, mission_id=mission_id))
         db.commit()
 
     return {"mission_id": mission_id, "is_saved": True}
@@ -920,13 +973,10 @@ def unsave_mission(
 ):
     user = _get_user(db, subject)
 
-    saved_list = _get_saved_list(user.saved_missions)
-    mission_id_str = str(mission_id)
-
-    if mission_id_str in saved_list:
-        saved_list.remove(mission_id_str)
-        user.saved_missions = ",".join(saved_list)
-        db.commit()
+    db.query(SavedMission).filter_by(
+        user_code=user.user_code, mission_id=mission_id
+    ).delete(synchronize_session=False)
+    db.commit()
 
     return {"mission_id": mission_id, "is_saved": False}
 
@@ -1032,16 +1082,25 @@ def verify_mission(
     if user_mission and user_mission.status.lower() == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
-    if requested_type == "PHOTO" and not _uploaded_image_exists(req.photo_url):
+    if requested_type == "PHOTO" and not _uploaded_image_exists(
+        req.photo_url, user.user_code
+    ):
         return finish(False, "서버에 업로드된 인증 사진을 확인할 수 없습니다.")
     if requested_type == "RECEIPT" and not _uploaded_image_exists(
-        req.receipt_image_url
+        req.receipt_image_url, user.user_code
     ):
         return finish(False, "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.")
 
-    if requested_type in {"PHOTO", "LOCATION", "CURRENT_LOCATION"}:
+    if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
         if req.latitude is None or req.longitude is None:
             return finish(False, "현재 위치 정보가 필요합니다.")
+        if req.accuracy_m is None or not math.isfinite(req.accuracy_m):
+            return finish(False, "위치 정확도 정보가 필요합니다.")
+        if req.accuracy_m < 0 or req.accuracy_m > MAX_LOCATION_ACCURACY_M:
+            return finish(
+                False,
+                f"위치 정확도가 낮습니다. {MAX_LOCATION_ACCURACY_M:g}m 이내에서 다시 시도해주세요.",
+            )
         if mission.latitude is None or mission.longitude is None:
             return finish(False, "미션 장소 좌표가 등록되지 않았습니다.")
         distance = _haversine_m(
@@ -1059,8 +1118,7 @@ def verify_mission(
     ai_extracted_text = ""
     if requested_type in {"PHOTO", "RECEIPT"}:
         target_url = req.photo_url if requested_type == "PHOTO" else req.receipt_image_url
-        filename = Path(urlparse(target_url).path).name
-        local_image_path = UPLOAD_DIR / filename
+        local_image_path = _uploaded_image_path(target_url, user.user_code)
 
         try:
             image = Image.open(local_image_path)
@@ -1112,12 +1170,20 @@ def verify_mission(
 
     if user_mission:
         user_mission.status = "completed"
+        user_mission.photo_url = req.photo_url if requested_type == "PHOTO" else None
+        user_mission.receipt_image_url = (
+            req.receipt_image_url if requested_type == "RECEIPT" else None
+        )
     else:
         db.add(
             UserMission(
                 user_code=user.user_code,
                 mission_id=mission.mission_id,
                 status="completed",
+                photo_url=req.photo_url if requested_type == "PHOTO" else None,
+                receipt_image_url=(
+                    req.receipt_image_url if requested_type == "RECEIPT" else None
+                ),
             )
         )
 
@@ -1309,8 +1375,10 @@ def get_rankings(
 async def upload_image(
     request: Request,
     file: UploadFile = File(...),
-    _: str = Depends(get_current_user_email),
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
 ):
+    user = _get_user(db, subject)
     allowed = {"image/jpeg": ".jpg", "image/jpg": ".jpg"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="JPG 이미지만 업로드할 수 있습니다.")
@@ -1318,7 +1386,11 @@ async def upload_image(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="이미지 크기는 5MB 이하여야 합니다.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    user_upload_dir = _user_upload_dir(user.user_code)
+    user_upload_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4().hex}{allowed[file.content_type]}"
-    (UPLOAD_DIR / filename).write_bytes(content)
-    return {"url": str(request.base_url).rstrip("/") + f"/uploads/{filename}"}
+    (user_upload_dir / filename).write_bytes(content)
+    return {
+        "url": str(request.base_url).rstrip("/")
+        + f"/uploads/{user.user_code}/{filename}"
+    }

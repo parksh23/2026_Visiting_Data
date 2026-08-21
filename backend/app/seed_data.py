@@ -5,8 +5,15 @@
     python seed_data.py
 """
 
+import logging
+import math
+import os
+
+import httpx
+
 from auth_utils import hash_password
 from database import Base, SessionLocal, engine
+from document_seed import seed_documents
 from models import AppUser, District, Friendship, Mission, UserMission
 from routers.api_v1 import BUSAN_DISTRICTS
 
@@ -34,15 +41,91 @@ MISSION_SEEDS = [
     (20, "대저생태공원 인증", "강서구", "강서구 대저동", 35.2124, 128.9838, "PHOTO", 120),
 ]
 
-MISSION_IMAGE_URL = (
-    "https://picsum.photos/seed/busan-quest-{mission_id}/1280/720"
+logger = logging.getLogger(__name__)
+TOURISM_IMAGE_API_URL = (
+    "https://apis.data.go.kr/B551011/KorService2/areaBasedList2"
 )
+
+
+def _distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    radius = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lng2 - lng1)
+    value = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(value), math.sqrt(1 - value))
+
+
+def fetch_tourism_images() -> dict[int, str]:
+    """TourAPI 부산 관광정보 중 각 미션 좌표와 가장 가까운 대표 이미지를 찾는다."""
+    service_key = os.getenv("TOURISM_DATA_SERVICE_KEY")
+    if not service_key:
+        logger.warning("TOURISM_DATA_SERVICE_KEY가 없어 미션 대표 이미지를 비웁니다.")
+        return {}
+    try:
+        response = httpx.get(
+            TOURISM_IMAGE_API_URL,
+            params={
+                "serviceKey": service_key,
+                "MobileOS": "ETC",
+                "MobileApp": "BusanQuest",
+                "_type": "json",
+                "areaCode": "6",
+                "numOfRows": 1000,
+                "pageNo": 1,
+                "arrange": "C",
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        items = (
+            response.json()
+            .get("response", {})
+            .get("body", {})
+            .get("items", {})
+            .get("item", [])
+        )
+        if isinstance(items, dict):
+            items = [items]
+    except Exception:
+        logger.exception("TourAPI 미션 대표 이미지 조회에 실패했습니다.")
+        return {}
+
+    candidates = []
+    for item in items if isinstance(items, list) else []:
+        image_url = item.get("firstimage") or item.get("firstimage2")
+        try:
+            candidates.append(
+                (float(item["mapy"]), float(item["mapx"]), image_url)
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not image_url:
+            candidates.pop()
+
+    result = {}
+    for mission_id, _, _, _, lat, lng, _, _ in MISSION_SEEDS:
+        if not candidates:
+            break
+        distance, image_url = min(
+            (_distance_m(lat, lng, item_lat, item_lng), url)
+            for item_lat, item_lng, url in candidates
+        )
+        # 멀리 떨어진 관광지 사진을 억지로 붙이지 않는다.
+        if distance <= 5_000:
+            result[mission_id] = image_url
+    return result
 
 
 def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        seed_documents(db)
+        mission_images = fetch_tourism_images()
         for district_name in BUSAN_DISTRICTS:
             if db.get(District, district_name) is None:
                 db.add(District(name=district_name))
@@ -77,7 +160,7 @@ def seed() -> None:
             mission.radius_m = 300
             mission.mission_type = kind
             mission.reward_points = reward
-            mission.image_url = MISSION_IMAGE_URL.format(mission_id=mission_id)
+            mission.image_url = mission_images.get(mission_id)
 
         for friend_code in ["U001", "U002", "U003"]:
             exists = (

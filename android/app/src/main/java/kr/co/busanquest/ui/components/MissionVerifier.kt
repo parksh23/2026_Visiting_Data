@@ -24,6 +24,10 @@ import kr.co.busanquest.ui.home.HomeViewModel
  *
  * 영수증(RECEIPT) 미션은 바로 카메라로 가지 않고,
  * "카메라로 촬영 / 갤러리에서 선택" 을 고르는 다이얼로그를 먼저 띄운다.
+ *
+ * 사진(PHOTO) 미션은 사진을 고르기 전에 위치 권한을 먼저 받는다.
+ * 서버가 사진 인증에서도 업로드 시점의 좌표와 정확도(accuracy_m)를 요구하기 때문이다.
+ * 권한 없이 사진부터 고르게 하면 업로드를 끝낸 뒤에야 실패해서 헛수고가 된다.
  */
 @Composable
 fun rememberMissionVerifier(
@@ -49,6 +53,17 @@ fun rememberMissionVerifier(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) viewModel.onReceiptCaptured(activeId.value, context, true, uri)
+    }
+
+    // 사진 미션: 위치 권한을 받은 뒤 사진 선택으로 넘어간다
+    val photoLocationPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            imagePicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } else viewModel.onLocationPermissionDenied(activeId.value)
     }
 
     val locationPermission = rememberLauncherForActivityResult(
@@ -124,9 +139,16 @@ fun rememberMissionVerifier(
     return { id, type ->
         activeId.value = id
         when (type) {
-            MissionType.IMAGE_LOCATION -> imagePicker.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-            )
+            MissionType.IMAGE_LOCATION -> {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    imagePicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                } else photoLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
             MissionType.CURRENT_LOCATION -> {
                 val granted = ContextCompat.checkSelfPermission(
                     context, Manifest.permission.ACCESS_FINE_LOCATION

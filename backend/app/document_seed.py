@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models import TextFile
@@ -34,7 +35,9 @@ def seed_documents(db: Session) -> int:
             .first()
         )
         if row is None:
-            db.add(TextFile(filename=source.name, content=content))
+            max_id = db.query(func.max(TextFile.id)).scalar() or 0
+            db.add(TextFile(id=max_id + 1, filename=source.name, content=content))
+            db.flush()
             updated += 1
         elif row.content != content:
             row.content = content

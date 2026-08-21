@@ -7,6 +7,7 @@ import android.net.Uri
 import kr.co.busanquest.data.model.MissionState
 import kr.co.busanquest.data.model.MissionType
 import kr.co.busanquest.data.model.OngoingMission
+import kr.co.busanquest.data.model.toMissionTypeOrNull
 import kr.co.busanquest.data.remote.DistrictStatusDto
 import kr.co.busanquest.data.remote.MissionDto
 import kr.co.busanquest.data.remote.RetrofitInstance
@@ -585,6 +586,7 @@ object MissionRepository {
         imageUrl: String? = null,
         latitude: Double? = null,
         longitude: Double? = null,
+        accuracyM: Double? = null,
         receiptImageUrl: String? = null
     ): Boolean {
         // 앱에서 받은 값을 서버 요청 DTO로 변환
@@ -594,6 +596,7 @@ object MissionRepository {
             imageUrl = imageUrl,
             latitude = latitude,
             longitude = longitude,
+            accuracyM = accuracyM,
             receiptImageUrl = receiptImageUrl
         )
 
@@ -632,15 +635,9 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
 
 
 // 서버에서 받은 mission_type 문자열을 앱 내부 MissionType으로 변환
-private fun String.toMissionType(): MissionType {
-    return when (this.uppercase()) {
-        "CURRENT_LOCATION" -> MissionType.CURRENT_LOCATION
-        // 서버가 예전 값("PHOTO")을 내려줘도 깨지지 않게 함께 받아준다
-        "IMAGE", "IMAGE_LOCATION", "PHOTO", "PHOTO_LOCATION" -> MissionType.IMAGE_LOCATION
-        "RECEIPT" -> MissionType.RECEIPT
-        else -> MissionType.CURRENT_LOCATION
-    }
-}
+// 과거 표기("IMAGE" 등) 호환은 MissionType.kt 의 toMissionTypeOrNull 이 맡는다.
+private fun String.toMissionType(): MissionType =
+    toMissionTypeOrNull() ?: MissionType.CURRENT_LOCATION
 
 
 // 서버에서 받은 status 문자열을 앱 내부 MissionState로 변환

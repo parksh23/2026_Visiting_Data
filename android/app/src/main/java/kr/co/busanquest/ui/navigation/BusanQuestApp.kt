@@ -10,6 +10,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -39,6 +40,7 @@ import kr.co.busanquest.ui.profile.MissionHistoryScreen
 import kr.co.busanquest.ui.profile.SavedMissionScreen
 import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.data.repository.UserRepository
+import kr.co.busanquest.util.PushNavigation
 import kr.co.busanquest.util.PushRegistrar
 import kr.co.busanquest.ui.profile.AccountSettingsScreen
 import kr.co.busanquest.ui.profile.DocumentScreen
@@ -87,6 +89,28 @@ fun BusanQuestApp() {
             val navController = rememberNavController()
             val currentRoute = navController
                 .currentBackStackEntryAsState().value?.destination?.route
+
+            // ── 알림을 눌러서 들어온 경우 해당 화면으로 이동 ──
+            // MainActivity 가 Intent 에서 꺼내 둔 목적지를 여기서 소비한다.
+            //   · currentRoute 가 null 이면 NavHost 가 아직 그래프를 세우기 전이라 이동할 수 없다.
+            //     값이 생기면 이 블록이 다시 돌면서 이동한다.
+            //   · 로그아웃 상태면 목적지를 남겨 둔 채 기다린다. 로그인이 끝나 status 가 바뀌면
+            //     역시 다시 돌면서 그때 이동한다.
+            val pendingRoute by PushNavigation.pendingRoute.collectAsState()
+            LaunchedEffect(pendingRoute, status, currentRoute) {
+                val route = pendingRoute ?: return@LaunchedEffect
+                if (currentRoute == null) return@LaunchedEffect
+                if (status != AuthStatus.LoggedIn) return@LaunchedEffect
+
+                if (currentRoute != route) {
+                    navController.navigate(route) {
+                        // 하단 탭 이동과 같은 규칙 (BottomNavigationBar.navigateTab)
+                        popUpTo("home") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+                PushNavigation.consume()
+            }
 
             // 로그인 화면에서는 하단 탭바를 숨긴다
             // 로그인 화면과 "로그인 전 약관 열람" 상태에서는 탭바를 숨긴다.

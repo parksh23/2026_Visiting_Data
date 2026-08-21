@@ -88,7 +88,10 @@ def run_ranking_notifications(
         .order_by(AppUser.total_points.desc(), AppUser.user_code)
         .all()
     )
+
+    # ORA-12838 에러 방지: 삭제 후 즉시 commit
     db.query(AppRanking).delete(synchronize_session=False)
+    db.commit()
 
     previous_score = None
     current_rank = 0

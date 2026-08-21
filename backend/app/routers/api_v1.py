@@ -288,17 +288,18 @@ def _token_for(user: AppUser) -> str:
 
 def _profile_dict(user: AppUser, db: Session) -> dict:
     saved_count = (
-        db.query(SavedMission)
+        db.query(SavedMission.user_code)
         .filter(SavedMission.user_code == user.user_code)
         .count()
     )
+    points_val = user.total_points or 0
     return {
-        "name": user.nickname,
-        "points": f"{user.total_points:,}P",
-        "total_points": user.total_points,
+        "name": user.nickname or "사용자",
+        "points": f"{points_val:,}P",
+        "total_points": points_val,
         "email": user.email,
         "login_provider": "KAKAO" if user.kakao_id else "EMAIL",
-        "completed_missions": user.completed_missions,
+        "completed_missions": user.completed_missions or 0,
         "saved_missions": saved_count,
     }
 

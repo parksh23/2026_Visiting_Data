@@ -121,6 +121,7 @@ class SavedMission(Base):
     )
     created_at = Column("CREATED_AT", DateTime, nullable=False, default=datetime.utcnow)
 
+
 class Friendship(Base):
     __tablename__ = "FRIENDSHIPS"
     __table_args__ = (

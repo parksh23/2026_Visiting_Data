@@ -1,3 +1,24 @@
+import java.util.Properties
+
+// ───────── 릴리스 서명 ─────────
+// 키스토어 경로와 비밀번호는 저장소에 올리지 않는다.
+// android/keystore.properties 에 적어 두고 .gitignore 로 막는다 (양식: keystore.properties.example).
+//
+// 파일이 없어도 빌드는 된다 — 팀원과 CI 가 릴리스 서명 없이도 빌드할 수 있어야 하기 때문이다.
+// 그때 release 는 서명되지 않은 채 나오고, 그대로는 Play 에 올릴 수 없다.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+// 경로가 적혀 있고 그 파일이 실제로 있을 때만 서명을 구성한다.
+// (경로만 적고 .jks 를 안 옮긴 경우 Gradle 이 알아보기 힘든 오류를 내므로 여기서 걸러낸다)
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")
+    ?.let { rootProject.file(it) }
+val hasReleaseSigning = releaseStoreFile?.exists() == true
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -24,8 +45,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // keystore.properties 가 없으면 서명 없이 빌드된다 (위 주석 참고)
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -47,6 +83,14 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+if (!hasReleaseSigning) {
+    // ⚠️ 한글로 쓰면 PowerShell(cp949)에서 깨져 읽을 수 없다 — ASCII 로 남긴다
+    logger.lifecycle(
+        "[BusanQuest] android/keystore.properties not found - release build will be UNSIGNED. " +
+            "See keystore.properties.example."
+    )
 }
 
 // google-services 플러그인은 app/google-services.json 이 없으면 빌드를 실패시킨다.

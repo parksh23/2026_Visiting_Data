@@ -10,6 +10,6 @@ import kr.co.busanquest.ui.theme.*
 
 // 내 정보 - 메뉴 카드
 val profileMenuItems = listOf(
-    MenuItem("미션 내역", "지금까지 완료한 미션을 확인해보세요", R.drawable.ic_nav_flag, IconBlue, IconBlueBg),
+    MenuItem("미션 내역", "지금까지 완료한 미션을 확인해 보세요", R.drawable.ic_nav_flag, IconBlue, IconBlueBg),
     MenuItem("찜한 미션", "찜해둔 미션을 모아볼 수 있어요", R.drawable.ic_menu_heart, IconPink, IconPinkBg),
 )

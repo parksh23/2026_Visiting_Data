@@ -58,7 +58,7 @@ fun MissionHistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "아직 완료한 미션이 없어요.\n미션에 도전해보세요!",
+                    "아직 완료한 미션이 없어요.\n미션에 도전해 보세요!",
                     color = TextSub,
                     fontSize = 14.sp
                 )

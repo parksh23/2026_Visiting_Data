@@ -93,7 +93,7 @@ fun RankingScreen(
                 item {
                     ScreenHeader(
                         title = "랭킹",
-                        subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
+                        subtitle = "다른 유저들과 함께 순위를 확인해 보세요!"
                     )
 
                     MyRankCard(
@@ -138,7 +138,7 @@ private fun RankingSkeleton() {
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "랭킹",
-            subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
+            subtitle = "다른 유저들과 함께 순위를 확인해 보세요!"
         )
 
         Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
@@ -451,7 +451,12 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
         2 -> MedalSilver
         else -> MedalBronze
     }
-    val avatarSize = if (place == 1) 60.dp else 48.dp
+    // 1·2·3위 원을 8dp 간격으로 줄여 시상대의 높이 차이가 규칙적으로 보이게 한다.
+    val avatarSize = when (place) {
+        1 -> 64.dp
+        2 -> 56.dp
+        else -> 48.dp
+    }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally

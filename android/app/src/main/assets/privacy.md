@@ -66,7 +66,7 @@ effective: 2026-08-11
 
 ## 10. 개인정보 보호책임자
 - 책임자: 삠삠
-- 연락처: sihyunb88@gmail.com
+- 연락처: sihyeonb88@gmail.com
 개인정보 침해에 대한 신고·상담이 필요한 경우 개인정보침해신고센터(privacy.kisa.or.kr, 118)에 문의하실 수 있습니다.
 
 ## 11. 방침의 변경

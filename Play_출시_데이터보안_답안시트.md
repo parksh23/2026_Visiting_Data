@@ -2,7 +2,7 @@
 
 앱 이름: **부산 땅따먹기 (BusanQuest)**
 패키지명: **`kr.co.busanquest`**  ← 2026-08-20 `com.example.busasnquest` 에서 변경 (게시 후 변경 불가)
-개발자: **삠삠** / 문의: **sihyunb88@gmail.com**
+개발자: **삠삠** / 문의: **sihyeonb88@gmail.com**
 
 > Play Console 에서 그대로 보고 옮겨 적을 수 있게 정리했다.
 > "🔴 미완료" 표시가 남아 있으면 **제출하면 안 된다.** 실제 앱 동작과 양식이 다르면 반려된다.

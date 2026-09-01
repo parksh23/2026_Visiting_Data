@@ -25,7 +25,7 @@ OUT = os.path.join(ROOT, "docs")
 
 APP_NAME = "부산 땅따먹기"
 DEVELOPER = "삠삠"
-CONTACT = "sihyunb88@gmail.com"
+CONTACT = "sihyeonb88@gmail.com"
 
 # (출력파일, 원본경로, 내비게이션 라벨)
 DOCS = [

@@ -31,7 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import kr.co.busanquest.ui.theme.*
 
-private const val SUPPORT_EMAIL = "sihyunb88@gmail.com"
+private const val SUPPORT_EMAIL = "sihyeonb88@gmail.com"
 
 private data class Faq(val q: String, val a: String)
 

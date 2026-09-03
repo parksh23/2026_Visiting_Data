@@ -1,6 +1,6 @@
 # Play Console 데이터 보안 · 앱 액세스 답안 시트
 
-앱 이름: **부산 땅따먹기 (BusanQuest)**
+앱 이름: **부산 가봤나 (BusanQuest)**
 패키지명: **`kr.co.busanquest`**  ← 2026-08-20 `com.example.busasnquest` 에서 변경 (게시 후 변경 불가)
 개발자: **삠삠** / 문의: **sihyeonb88@gmail.com**
 

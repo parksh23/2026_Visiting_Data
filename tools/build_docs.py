@@ -23,7 +23,7 @@ ASSETS = os.path.join(ROOT, "android", "app", "src", "main", "assets")
 PAGES = os.path.join(ROOT, "tools", "pages")
 OUT = os.path.join(ROOT, "docs")
 
-APP_NAME = "부산 땅따먹기"
+APP_NAME = "부산 가봤나"
 DEVELOPER = "삠삠"
 CONTACT = "sihyeonb88@gmail.com"
 

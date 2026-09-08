@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kr.co.busanquest.data.repository.OccupationStat
 
 data class MissionUiState(
+    val categoryFilter: String? = null,
     val selectedTab: Int = 0,                              // 0 = 지역별, 1 = 종류별
     val allMissions: List<MissionWithState> = emptyList(),
     val districts: List<DistrictMissionProgress> = emptyList(),
@@ -29,6 +30,7 @@ class MissionViewModel : ViewModel() {
 
     private val _localState = MutableStateFlow(LocalState())
     private data class LocalState(
+        val categoryFilter: String? = null,
         val selectedTab: Int = 0,
         val expandedDistrict: String? = null,
         val selectedDistrict: String? = null,
@@ -81,6 +83,7 @@ class MissionViewModel : ViewModel() {
             _localState
         ) { missions, districts, pending, local ->
             MissionUiState(
+                categoryFilter = local.categoryFilter,
                 selectedTab = local.selectedTab,
                 allMissions = missions,
                 districts = districts,
@@ -119,7 +122,15 @@ class MissionViewModel : ViewModel() {
     // 종류별 탭 필터 (같은 칩 재탭 = 전체로 해제)
     fun selectTypeFilter(type: MissionType?) {
         _localState.value = _localState.value.copy(
-            typeFilter = if (_localState.value.typeFilter == type) null else type
+            typeFilter = if (_localState.value.typeFilter == type) null else type,
+            categoryFilter = null
+        )
+    }
+
+    fun selectCategoryFilter(category: String?) {
+        _localState.value = _localState.value.copy(
+            categoryFilter = if (_localState.value.categoryFilter == category) null else category,
+            typeFilter = null
         )
     }
 

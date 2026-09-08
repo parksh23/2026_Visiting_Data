@@ -629,6 +629,7 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         lat = latitude,
         lng = longitude,
         imageUrl = imageUrl,
+        category = missionCategory?.trim()?.takeIf { it.isNotEmpty() },
         serverType = missionType     // 인증 제출 때 그대로 돌려보내기 위해 원문 보관
     )
 }

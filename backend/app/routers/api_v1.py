@@ -192,6 +192,7 @@ class MissionDto(BaseModel):
     progress_total: int
     status: str
     mission_type: str
+    mission_category: Optional[str] = None
     image_url: Optional[str] = None
     photo_url: Optional[str] = None
     receipt_image_url: Optional[str] = None
@@ -436,6 +437,7 @@ def _mission_dict(
         "progress_total": 1,
         "status": mission_status,
         "mission_type": mission.mission_type,
+        "mission_category": mission.mission_category,
         "image_url": getattr(mission, "image_url", None),
         "photo_url": photo_url,
         "receipt_image_url": receipt_image_url,

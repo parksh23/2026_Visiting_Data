@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -26,7 +25,6 @@ import kr.co.busanquest.data.model.MissionState
 import kr.co.busanquest.data.model.MissionType
 import kr.co.busanquest.ui.components.InlineErrorBanner
 import kr.co.busanquest.ui.components.MissionCard
-import kr.co.busanquest.ui.components.ScreenHeader
 import kr.co.busanquest.ui.components.SegmentedToggle
 import kr.co.busanquest.ui.components.rememberMissionVerifier
 import kr.co.busanquest.ui.home.HomeViewModel
@@ -77,16 +75,7 @@ fun MissionScreen(
     Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
 
-        // 서버에서 미션을 못 불러온 경우 안내 배너 (로컬 데이터는 계속 표시)
-        // ⚠️ 기존에 이 블록이 두 번 렌더돼 배너가 겹쳐 보였다 → 한 번만 그린다
-        loadError?.let { msg ->
-            InlineErrorBanner(message = msg, onRetry = viewModel::refreshFromServer)
-            Spacer(modifier = Modifier.height(Dimens.cardGap))
-        }
-
-        SectionTitle(
-            if (uiState.selectedTab == 0) "전체 미션" else "지역별 미션"
-        )
+        SectionTitle("미션")
 
         Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
@@ -97,6 +86,12 @@ fun MissionScreen(
         )
 
         Spacer(modifier = Modifier.height(Dimens.gapBlock))
+
+        // 오류가 발생해도 제목과 탭의 위치는 유지한다.
+        loadError?.let { msg ->
+            InlineErrorBanner(message = msg, onRetry = viewModel::refreshFromServer)
+            Spacer(modifier = Modifier.height(Dimens.cardGap))
+        }
 
         if (uiState.selectedTab == 0) {
             // ───── 지역별: 부산 지도 실루엣 히트맵 (남은 화면 전체 사용) ─────
@@ -113,14 +108,32 @@ fun MissionScreen(
             )
         } else {
             // ───── 종류별: 인증 방식 필터 칩 + 미션 카드 리스트 ─────
-            TypeFilterChips(
-                selected = uiState.typeFilter,
-                onSelect = { viewModel.selectTypeFilter(it) }
+            val categories = remember(uiState.allMissions) {
+                (listOf("장소탐방", "먹거리", "산책·트레킹", "문화·체험", "경기·공연", "등산") +
+                    uiState.allMissions.mapNotNull { it.mission.category }).distinct()
+            }
+            FilterChips(
+                options = listOf(
+                    "전체" to null,
+                    "사진" to MissionFilter(type = MissionType.IMAGE_LOCATION),
+                    "위치" to MissionFilter(type = MissionType.CURRENT_LOCATION),
+                    "영수증" to MissionFilter(type = MissionType.RECEIPT)
+                ) + categories.map { it to MissionFilter(category = it) },
+                selected = when {
+                    uiState.typeFilter != null -> MissionFilter(type = uiState.typeFilter)
+                    uiState.categoryFilter != null -> MissionFilter(category = uiState.categoryFilter)
+                    else -> null
+                },
+                onSelect = { filter ->
+                    if (filter?.category != null) viewModel.selectCategoryFilter(filter.category)
+                    else viewModel.selectTypeFilter(filter?.type)
+                }
             )
             Spacer(modifier = Modifier.height(Dimens.gapBlock))
 
             val filtered = uiState.allMissions.filter {
-                uiState.typeFilter == null || it.mission.type == uiState.typeFilter
+                (uiState.typeFilter == null || it.mission.type == uiState.typeFilter) &&
+                    (uiState.categoryFilter == null || it.mission.category == uiState.categoryFilter)
             }
 
             LazyColumn(
@@ -181,35 +194,30 @@ fun MissionScreen(
     }
 }
 
-/** 섹션 제목 — 손글씨(둥근미소) + 코럴 형광펜 밑줄. */
+/** 랭킹·내 정보의 ScreenHeader와 같은 제목 크기 및 상단/좌측 여백. */
 @Composable
 private fun SectionTitle(text: String) {
-    val underlineWidth = (text.count { it != ' ' } * 22).dp
-    Box(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 2.dp, bottom = 3.dp)
-                .width(underlineWidth)
-                .height(9.dp)
-                .background(Coral.copy(alpha = 0.45f), RoundedCornerShape(2.dp))
-        )
-        Text(text, style = displayStyle(22.sp), color = TextMain)
-    }
+    Text(
+        text = text,
+        style = displayStyle(28.sp),
+        color = TextMain,
+        modifier = Modifier
+            .padding(horizontal = Dimens.screenPadding)
+            .padding(top = Dimens.gapBlock)
+    )
 }
 
-/** 종류별 탭의 인증 방식 필터 칩 (전체 / 사진 / 위치 / 영수증). */
+private data class MissionFilter(
+    val type: MissionType? = null,
+    val category: String? = null
+)
+
 @Composable
-private fun TypeFilterChips(
-    selected: MissionType?,
-    onSelect: (MissionType?) -> Unit
+private fun <T> FilterChips(
+    options: List<Pair<String, T?>>,
+    selected: T?,
+    onSelect: (T?) -> Unit
 ) {
-    val options: List<Pair<String, MissionType?>> = listOf(
-        "전체" to null,
-        "사진" to MissionType.IMAGE_LOCATION,
-        "위치" to MissionType.CURRENT_LOCATION,
-        "영수증" to MissionType.RECEIPT
-    )
 
     Row(
         modifier = Modifier

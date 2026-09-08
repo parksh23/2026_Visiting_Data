@@ -40,6 +40,9 @@ data class MissionDto(
     @SerializedName("mission_type")
     val missionType: String,
 
+    @SerializedName("mission_category")
+    val missionCategory: String? = null,
+
     @SerializedName("image_url")
     val imageUrl: String? = null,
 

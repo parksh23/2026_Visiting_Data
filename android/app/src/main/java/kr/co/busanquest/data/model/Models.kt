@@ -28,7 +28,8 @@ data class OngoingMission(
      * 요청은 항상 정규 값으로 나간다.
      * 비어 있으면(=로컬 샘플 데이터) 앱이 파싱한 type 을 쓴다.
      */
-    val serverType: String = ""
+    val serverType: String = "",
+    val category: String? = null
 )
 
 // 구·군별 진행 현황

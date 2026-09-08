@@ -176,6 +176,9 @@ def test_frontend_contract():
 
         missions = get_missions(subject, db)
         assert missions[0]["district"] == "중구"
+        assert api_v1_module.MissionDto(**missions[0]).mission_category == "장소탐방"
+        uncategorized = dict(missions[0], mission_category=None)
+        assert api_v1_module.MissionDto(**uncategorized).mission_category is None
         assert missions[0]["latitude"] == 35.1
         assert missions[0]["longitude"] == 129.03
         assert missions[0]["image_url"] == "https://example.com/images/junggu.jpg"

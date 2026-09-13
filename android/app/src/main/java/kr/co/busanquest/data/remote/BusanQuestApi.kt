@@ -100,6 +100,9 @@ interface BusanQuestApi {
     suspend fun getDistrictProgress(): List<DistrictStatusDto>
 
     // 미션 인증 제출
+    @POST("api/v1/missions/{mission_id}/location-challenge")
+    suspend fun createLocationChallenge(@Path("mission_id") missionId: Int): LocationChallengeDto
+
     @POST("api/v1/missions/verify")
     suspend fun verifyMission(
         @Body request: MissionVerifyRequestDto

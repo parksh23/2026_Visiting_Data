@@ -54,7 +54,7 @@ object RetrofitInstance {
     private val logger: HttpLoggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
             level = if (isDebugBuild) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.BASIC
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }

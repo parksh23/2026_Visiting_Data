@@ -11,9 +11,11 @@ import kr.co.busanquest.data.repository.MissionRepository
 import kr.co.busanquest.data.repository.MissionWithState
 import kr.co.busanquest.data.repository.UserRepository
 import kr.co.busanquest.util.Notifier
-import kr.co.busanquest.util.ACCURACY_LIMIT_M
-import kr.co.busanquest.util.getCurrentLocation
-import kr.co.busanquest.util.readImageLocation
+import kr.co.busanquest.util.LocationProof
+import kr.co.busanquest.data.remote.ErrorDetailDto
+import com.google.gson.Gson
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,16 +26,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import kr.co.busanquest.data.repository.OccupationStat
-import kotlin.math.roundToInt
-
-// 위치 정확도를 못 얻었을 때 안내 문구. 서버에 보내봐야 거절당하므로 보내기 전에 멈춘다.
-private const val LOCATION_RETRY_MESSAGE =
-    "위치 정확도를 확인하지 못했어요. 하늘이 보이는 곳에서 잠시 기다렸다가 다시 시도해주세요."
-
-// 정확도가 서버 허용치를 넘었을 때 안내 문구
-private fun accuracyTooLowMessage(accuracyM: Double): String =
-    "위치 정확도가 약 ${accuracyM.roundToInt()}m 로 낮아요. " +
-        "${ACCURACY_LIMIT_M.toInt()}m 이내에서만 인증할 수 있어요. 야외에서 다시 시도해주세요."
 
 // 추천 미션 배지 종류 (인기 / 신규 / 추천)
 enum class RecommendBadge { POPULAR, NEW, RECOMMEND }
@@ -158,77 +150,33 @@ class HomeViewModel : ViewModel() {
 
     // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
 
-    // PHOTO: 사진을 골랐을 때
-    //   1) 사진 EXIF 위치 확인 — 위치 기록 없이 찍은 사진을 먼저 걸러낸다 (기존 동작 유지)
-    //   2) 업로드 시점의 현재 위치·정확도 확보
-    //   3) 사진 업로드 후 image + 좌표 + accuracy_m 전송
-    //
-    // 서버는 latitude / longitude / accuracy_m 을 함께 보고 판정한다.
-    // accuracy_m 은 지금 이 기기의 측위 오차라서, 좌표도 EXIF 가 아닌 현재 위치를 보내야
-    // 둘이 같은 지점을 가리킨다.
-    fun onImagePicked(id: Int, context: Context, uri: Uri) {
-        if (readImageLocation(context, uri) == null) {
-            MissionRepository.setError(id, "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
-            return
-        }
+    private val locationPending = mutableSetOf<Int>()
+
+    fun onImagePicked(id: Int, context: Context, uri: Uri) = verifyLocalLocation(id, context, uri)
+
+    fun onLocationPermissionGranted(id: Int, context: Context) = verifyLocalLocation(id, context, null)
+
+    private fun verifyLocalLocation(id: Int, context: Context, photo: Uri?) {
+        if (!locationPending.add(id)) return
         viewModelScope.launch {
             MissionRepository.setVerifying(id)
-
-            val fix = getCurrentLocation(context)
-            if (fix == null) {
-                MissionRepository.setError(id, LOCATION_RETRY_MESSAGE)
-                return@launch
+            try {
+                submitVerification(id, LocationProof.create(context, id, photo))
+            } catch (_: TimeoutCancellationException) {
+                MissionRepository.setError(id, "인증 시간이 초과되었습니다. 다시 시도해주세요.")
+            } catch (e: CancellationException) {
+                MissionRepository.setError(id, "인증이 취소되었습니다. 다시 시도해주세요.")
+                throw e
+            } catch (e: retrofit2.HttpException) {
+                val message = runCatching {
+                    Gson().fromJson(e.response()?.errorBody()?.string(), ErrorDetailDto::class.java)?.detail
+                }.getOrNull()
+                MissionRepository.setError(id, message ?: "인증을 준비하지 못했습니다. 잠시 후 다시 시도해주세요.")
+            } catch (e: Exception) {
+                MissionRepository.setError(id, e.message ?: "기기 위치 인증에 실패했습니다.")
+            } finally {
+                locationPending.remove(id)
             }
-            if (fix.accuracyM > ACCURACY_LIMIT_M) {
-                MissionRepository.setError(id, accuracyTooLowMessage(fix.accuracyM))
-                return@launch
-            }
-
-            val imageUrl = MissionRepository.uploadImage(context, uri)
-                .getOrElse { error ->
-                    MissionRepository.setError(
-                        id,
-                        error.message ?: "사진 업로드에 실패했습니다."
-                    )
-                    return@launch
-                }
-            submitVerification(
-                id,
-                MissionVerifyRequestDto(
-                    missionId = id,
-                    missionType = canonicalTypeOf(id, MissionType.IMAGE_LOCATION),
-                    imageUrl = imageUrl,
-                    latitude = fix.latitude,
-                    longitude = fix.longitude,
-                    accuracyM = fix.accuracyM
-                )
-            )
-        }
-    }
-
-    // CURRENT_LOCATION: 위치 권한 허락 → 현재 위도/경도 + 정확도 전송
-    fun onLocationPermissionGranted(id: Int, context: Context) {
-        viewModelScope.launch {
-            MissionRepository.setVerifying(id)
-            val fix = getCurrentLocation(context)
-            if (fix == null) {
-                MissionRepository.setError(id, LOCATION_RETRY_MESSAGE)
-                return@launch
-            }
-            if (fix.accuracyM > ACCURACY_LIMIT_M) {
-                MissionRepository.setError(id, accuracyTooLowMessage(fix.accuracyM))
-                return@launch
-            }
-            submitVerification(
-                id,
-                MissionVerifyRequestDto(
-                    missionId = id,
-                    missionType = canonicalTypeOf(id, MissionType.CURRENT_LOCATION),
-                    latitude = fix.latitude,
-                    longitude = fix.longitude,
-                    accuracyM = fix.accuracyM
-                )
-            )
         }
     }
 

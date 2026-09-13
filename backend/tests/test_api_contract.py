@@ -117,7 +117,18 @@ def _seed_minimum():
         db.close()
 
 
-def test_frontend_contract():
+def test_frontend_contract(monkeypatch):
+    monkeypatch.setattr(api_v1_module, "integrity_config", lambda: (123456, 6, {"test"}))
+    monkeypatch.setattr(api_v1_module, "verify_integrity", lambda req, issued_at: None)
+
+    def proof(mission_id, subject, db):
+        api_v1_module.start_mission(mission_id, subject, db)
+        # Separate user actions, without sleeping in a contract test.
+        db.query(api_v1_module.LocationChallenge).delete()
+        db.commit()
+        challenge = api_v1_module.create_location_challenge(mission_id, subject, db)
+        return dict(challenge_id=challenge["challenge_id"], local_passed=True, integrity_token="test-token")
+
     _seed_minimum()
     try:
         get_current_user_email(
@@ -237,9 +248,7 @@ def test_frontend_contract():
             MissionVerifyRequestDto(
                 mission_id=1,
                 mission_type="CURRENT_LOCATION",
-                latitude=35.1,
-                longitude=129.03,
-                accuracy_m=10,
+                **proof(1, subject, db),
             ),
             subject,
             db,
@@ -256,8 +265,6 @@ def test_frontend_contract():
             MissionVerifyRequestDto(
                 mission_id=1,
                 mission_type="CURRENT_LOCATION",
-                latitude=35.1,
-                longitude=129.03,
             ),
             subject,
             db,
@@ -269,8 +276,6 @@ def test_frontend_contract():
                 mission_id=2,
                 mission_type="PHOTO",
                 photo_url="content://media/picker/photo/1",
-                latitude=35.1,
-                longitude=129.03,
             ),
             subject,
             db,
@@ -294,9 +299,7 @@ def test_frontend_contract():
                     mission_id=2,
                     mission_type="PHOTO",
                     photo_url=f"https://testserver/uploads/{subject}/{upload_name}",
-                    latitude=35.1,
-                    longitude=129.03,
-                    accuracy_m=10,
+                    **proof(2, subject, db),
                 ),
                 subject,
                 db,
@@ -927,15 +930,5 @@ def test_fcm_payload_and_invalid_token_cleanup():
 
 
 if __name__ == "__main__":
-    test_frontend_contract()
-    test_tourism_score_formula()
-    test_monthly_update_preserves_existing_user_total()
-    test_kakao_signup_without_email()
-    test_kakao_duplicate_nickname()
-    test_withdrawal_deletes_related_rows_and_uploaded_images()
-    test_signup_agreement_validation_and_timestamp_fallback()
-    test_nickname_update_contract()
-    test_settings_documents_and_push_token_contract()
-    test_new_mission_region_filter_and_ranking_rise_only()
-    test_fcm_payload_and_invalid_token_cleanup()
-    print("API contract test passed")
+    import pytest
+    raise SystemExit(pytest.main([__file__, "-q", "-p", "no:cacheprovider"]))

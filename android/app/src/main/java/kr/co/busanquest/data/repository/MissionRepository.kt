@@ -385,8 +385,8 @@ object MissionRepository {
      * 미션 인증을 서버로 제출한다. POST /api/v1/missions/verify
      *
      * 타입별로 채워야 하는 필드 (MissionVerifyRequestDto):
-     * - CURRENT_LOCATION → latitude, longitude
-     * - IMAGE            → image (+ 사진의 GPS 좌표도 함께 전송)
+     * - CURRENT_LOCATION → 일회용 challenge + 기기 판정 + integrity token
+     * - PHOTO            → photo_url + 일회용 challenge + 기기 판정 + integrity token
      * - RECEIPT          → receipt_image_url
      *
      * 성공/실패를 Result 로 돌려주고, 상태 변경(setCompleted/setError)은
@@ -579,37 +579,7 @@ object MissionRepository {
                 started = SharingStarted.WhileSubscribed(5000),
                 initialValue = OccupationStat()
             )
-        // 미션 인증 정보를 서버로 제출하는 함수
-    suspend fun submitMissionVerification(
-        missionId: Int,
-        missionType: String,
-        imageUrl: String? = null,
-        latitude: Double? = null,
-        longitude: Double? = null,
-        accuracyM: Double? = null,
-        receiptImageUrl: String? = null
-    ): Boolean {
-        // 앱에서 받은 값을 서버 요청 DTO로 변환
-        val request = MissionVerifyRequestDto(
-            missionId = missionId,
-            missionType = missionType,
-            imageUrl = imageUrl,
-            latitude = latitude,
-            longitude = longitude,
-            accuracyM = accuracyM,
-            receiptImageUrl = receiptImageUrl
-        )
 
-        // POST /api/v1/missions/verify 호출
-        val response = RetrofitInstance.api.verifyMission(request)
-
-        // 서버가 success=true를 주면 앱 상태를 확인 중으로 변경
-        if (response.success) {
-            setVerifying(missionId)
-        }
-
-        return response.success
-    }
 }
 
 

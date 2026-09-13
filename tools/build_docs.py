@@ -153,7 +153,7 @@ def page(current, title, meta_line, inner):
 <body>
 <div class="wrap">
   <header>
-    <div class="brand">부산 <span>땅</span>따먹기</div>
+    <div class="brand">부산 <span>가봤나</span></div>
     <div class="meta">개발자 {html.escape(DEVELOPER)} · 문의 <a href="mailto:{CONTACT}">{CONTACT}</a></div>
     {nav(current)}
   </header>

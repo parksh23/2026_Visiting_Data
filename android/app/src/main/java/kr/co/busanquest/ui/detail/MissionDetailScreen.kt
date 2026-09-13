@@ -296,7 +296,7 @@ fun missionTypeLabelDetail(type: MissionType): String = when (type) {
 
 fun missionGuide(type: MissionType): String = when (type) {
     MissionType.IMAGE_LOCATION   -> "이 미션은 사진과 현재 위치로 인증합니다. 미션 장소에 도착해서, 위치 기록을 켜고 촬영한 사진을 올려주세요."
-    MissionType.CURRENT_LOCATION -> "이 미션은 현재 위치로 인증합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요."
+    MissionType.CURRENT_LOCATION -> "기기에서 현재 위치를 확인합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요. 현재 위치 좌표는 서버로 전송하지 않습니다."
     MissionType.RECEIPT          -> "이 미션은 결제 영수증으로 인증합니다. 해당 장소에서 결제 후 영수증을 촬영해주세요."
 }
 

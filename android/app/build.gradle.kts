@@ -41,8 +41,8 @@ android {
         applicationId = "kr.co.busanquest"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -148,6 +148,7 @@ dependencies {
     // 사진 / 위치 (CurrentLocation, PhotoLocation 용)
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.play:integrity:1.6.0")
 
     implementation("com.kakao.maps.open:android:2.12.18")
 

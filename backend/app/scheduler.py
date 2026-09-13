@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timezone
+from models import LocationChallenge
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -63,6 +65,11 @@ def start_scheduler():
     if scheduler.running:
         return
     scheduler.add_job(
+        cleanup_location_challenges_job, "interval", minutes=10,
+        id="expired-location-challenges", replace_existing=True,
+        max_instances=1, coalesce=True,
+    )
+    scheduler.add_job(
         refresh_tourism_scores_job,
         CronTrigger(day=1, hour=3, minute=0, timezone="Asia/Seoul"),
         id="monthly-tourism-score-refresh",
@@ -101,3 +108,17 @@ def start_scheduler():
 def shutdown_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
+
+
+def cleanup_location_challenges_job():
+    db = SessionLocal()
+    try:
+        db.query(LocationChallenge).filter(
+            LocationChallenge.expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
+        ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.error("만료된 위치 인증 요청 정리에 실패했습니다.")
+    finally:
+        db.close()

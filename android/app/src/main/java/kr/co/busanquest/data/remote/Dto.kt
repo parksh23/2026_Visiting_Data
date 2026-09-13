@@ -148,49 +148,31 @@ data class SignupRequestDto(
 
     val agreements: List<AgreementDto> = emptyList()
 )
-// 미션 인증 제출 요청 DTO
-// 앱 → 백엔드로 보내는 데이터
+// Coordinates are deliberately absent from the submission contract.
 data class MissionVerifyRequestDto(
-    @SerializedName("mission_id")
-    val missionId: Int,
+    @SerializedName("mission_id") val missionId: Int,
+    @SerializedName("mission_type") val missionType: String,
+    @SerializedName("photo_url") val imageUrl: String? = null,
+    @SerializedName("receipt_image_url") val receiptImageUrl: String? = null,
+    @SerializedName("protocol_version") val protocolVersion: Int = 1,
+    @SerializedName("challenge_id") val challengeId: String? = null,
+    @SerializedName("local_passed") val localPassed: Boolean = false,
+    @SerializedName("integrity_token") val integrityToken: String? = null,
+)
 
-    @SerializedName("mission_type")
-    val missionType: String,
-
-    // 사진(IMAGE) 미션 인증 이미지 URL — 백엔드 변수명 "image" 로 통일
-    @SerializedName("image")
-    val imageUrl: String? = null,
-
-    val latitude: Double? = null,
-
-    val longitude: Double? = null,
-
-    /**
-     * 위치 정확도(미터). FusedLocationProviderClient 가 준 Location.accuracy 다.
-     * "이 좌표가 반경 몇 m 안에 있다"는 신뢰 반경이라 값이 클수록 부정확하다.
-     *
-     * 백엔드는 PHOTO · CURRENT_LOCATION 인증에서 이 값을 검사한다.
-     * 값이 없거나 기본 허용치(100m)를 넘으면 인증을 거절한다.
-     */
-    @SerializedName("accuracy_m")
-    val accuracyM: Double? = null,
-
-    @SerializedName("receipt_image_url")
-    val receiptImageUrl: String? = null
-) {
-    /**
-     * 호환용 — 같은 값을 예전 키(photo_url)로도 함께 보낸다.
-     *
-     * 배포된 서버는 아직 photo_url 을 기대하는데 앱은 image 로 보내고 있어서,
-     * 서버가 사진 URL 을 못 받아 사진 인증이 실패한다. 두 키를 같이 실어 보내면
-     * 백엔드 배포 순서와 상관없이 동작한다 (FastAPI 는 모르는 필드를 무시한다).
-     *
-     * ⚠️ 백엔드가 image 로 전환·배포되면 이 필드는 지울 것.
-     */
-    @SerializedName("photo_url")
-    private val photoUrlCompat: String? = imageUrl
-}
-
+// Public mission coordinates travel only from the server to this device.
+data class LocationChallengeDto(
+    @SerializedName("challenge_id") val challengeId: String,
+    @SerializedName("mission_id") val missionId: Int,
+    @SerializedName("mission_type") val missionType: String,
+    @SerializedName("protocol_version") val protocolVersion: Int,
+    val latitude: Double,
+    val longitude: Double,
+    @SerializedName("radius_m") val radiusM: Double,
+    @SerializedName("max_accuracy_m") val maxAccuracyM: Double,
+    @SerializedName("expires_in_seconds") val expiresInSeconds: Int,
+    @SerializedName("cloud_project_number") val cloudProjectNumber: Long,
+)
 
 // 미션 인증 제출 응답 DTO
 // 백엔드 → 앱으로 돌아오는 데이터

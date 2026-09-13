@@ -104,6 +104,19 @@ class UserMission(Base):
     receipt_image_url = Column("RECEIPT_IMAGE_URL", String(1000), nullable=True)
 
 
+class LocationChallenge(Base):
+    __tablename__ = "LOCATION_CHALLENGES"
+
+    # One replaceable challenge per account; no GPS or integrity token storage.
+    user_code = Column("USER_CODE", String(50), ForeignKey("APP_USERS.USER_CODE"), primary_key=True)
+    challenge_id = Column("CHALLENGE_ID", String(64), nullable=False)
+    mission_id = Column("MISSION_ID", Integer, ForeignKey("MISSIONS.MISSION_ID"), nullable=False)
+    policy_hash = Column("POLICY_HASH", String(64), nullable=False)
+    issued_at = Column("ISSUED_AT", DateTime, nullable=False)
+    expires_at = Column("EXPIRES_AT", DateTime, nullable=False)
+    consumed = Column("CONSUMED", Integer, nullable=False, default=0)
+
+
 class SavedMission(Base):
     __tablename__ = "SAVED_MISSIONS"
 

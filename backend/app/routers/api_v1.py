@@ -88,6 +88,26 @@ BUSAN_DISTRICTS = [
     "영도구",
 ]
 MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+
+
+def _canonical_mission_type(value: Optional[str]) -> Optional[str]:
+    """Normalize stored legacy labels; unknown types must never imply GPS approval."""
+    normalized = (value or "").strip().upper()
+    aliases = {
+        "CURRENT_LOCATION": "CURRENT_LOCATION",
+        "LOCATION": "CURRENT_LOCATION",
+        "GPS": "CURRENT_LOCATION",
+        "위치 인증": "CURRENT_LOCATION",
+        "현재 위치 인증": "CURRENT_LOCATION",
+        "PHOTO": "PHOTO",
+        "PHOTO_LOCATION": "PHOTO",
+        "IMAGE": "PHOTO",
+        "IMAGE_LOCATION": "PHOTO",
+        "RECEIPT": "RECEIPT",
+    }
+    return aliases.get(normalized)
+
+
 REQUIRED_AGREEMENT_DOCS = {"terms", "privacy", "location"}
 DOCUMENT_TITLES = {
     "terms": "이용약관",
@@ -447,7 +467,7 @@ def _mission_dict(
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": mission_status,
-        "mission_type": mission.mission_type,
+        "mission_type": _canonical_mission_type(mission.mission_type) or mission.mission_type,
         "mission_category": mission.mission_category,
         "image_url": getattr(mission, "image_url", None),
         "photo_url": photo_url,
@@ -1068,7 +1088,8 @@ def create_location_challenge(
     mission = db.query(Mission).filter_by(mission_id=mission_id).first()
     if mission is None:
         raise HTTPException(404, "미션을 찾을 수 없습니다.")
-    if mission.mission_type not in {"PHOTO", "CURRENT_LOCATION"}:
+    mission_type = _canonical_mission_type(mission.mission_type)
+    if mission_type not in {"PHOTO", "CURRENT_LOCATION"}:
         raise HTTPException(400, "위치 인증 대상 미션이 아닙니다.")
     ongoing = db.query(UserMission).filter_by(
         user_code=user.user_code, mission_id=mission_id, status="ongoing",
@@ -1096,7 +1117,7 @@ def create_location_challenge(
         db.rollback()
         raise HTTPException(429, "이미 인증을 준비하고 있습니다. 잠시 후 다시 시도해주세요.") from None
     return dict(
-        challenge_id=challenge_id, mission_id=mission_id, mission_type=mission.mission_type,
+        challenge_id=challenge_id, mission_id=mission_id, mission_type=mission_type,
         latitude=mission.latitude, longitude=mission.longitude, radius_m=radius,
         max_accuracy_m=MAX_LOCATION_ACCURACY_M, expires_in_seconds=CHALLENGE_TTL_SECONDS,
         cloud_project_number=project, protocol_version=1,
@@ -1141,7 +1162,7 @@ def verify_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     requested_type = req.mission_type.strip().upper()
-    db_mission_type = mission.mission_type.strip().upper() if mission.mission_type else ""
+    db_mission_type = _canonical_mission_type(mission.mission_type)
 
     if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}

@@ -79,6 +79,45 @@ def test_valid_proof_rewards_once_and_replay_is_rejected(db, monkeypatch):
     assert db.query(LocationChallenge).one().consumed == 1
 
 
+@pytest.mark.parametrize("stored_type", ["current_location", "CURRENT_LOCATION  ", " current_location ",
+    "LOCATION", "gps", "위치 인증", "현재 위치 인증"])
+def test_legacy_location_type_consistent_from_list_to_reward(db, monkeypatch, stored_type):
+    mission = db.query(Mission).filter_by(mission_id=1).one()
+    mission.title = "금정산성 북문 성곽길 걷기"
+    mission.mission_type = stored_type
+    db.commit()
+    listed = next(item for item in api.get_missions("test-a", db) if item["mission_id"] == 1)
+    assert listed["mission_type"] == "CURRENT_LOCATION"
+    challenge = api.create_location_challenge(1, "test-a", db)
+    assert challenge["mission_type"] == "CURRENT_LOCATION"
+    req = api.MissionVerifyRequestDto(mission_id=1, mission_type=challenge["mission_type"],
+        challenge_id=challenge["challenge_id"], local_passed=True, integrity_token="opaque-token")
+    monkeypatch.setattr(security, "decode_integrity_token", lambda token: verdict(req))
+    assert api.verify_mission(req, "test-a", db)["success"]
+    assert points(db) == 100
+
+
+@pytest.mark.parametrize("stored_type", [" photo ", "PHOTO_LOCATION", "IMAGE", "IMAGE_LOCATION"])
+def test_legacy_photo_type_keeps_photo_validation(db, stored_type):
+    db.query(Mission).filter_by(mission_id=1).one().mission_type = stored_type
+    db.commit()
+    assert api.create_location_challenge(1, "test-a", db)["mission_type"] == "PHOTO"
+    assert api.verify_mission(api.MissionVerifyRequestDto(mission_id=1, mission_type="PHOTO"), "test-a", db) == {
+        "success": False, "message": "서버에 업로드된 인증 사진을 확인할 수 없습니다.",
+    }
+    assert not api.verify_mission(api.MissionVerifyRequestDto(mission_id=1,
+        mission_type="CURRENT_LOCATION"), "test-a", db)["success"]
+
+
+@pytest.mark.parametrize("stored_type", ["RECEIPT", "unknown", ""])
+def test_non_location_types_still_reject_challenges(db, stored_type):
+    db.query(Mission).filter_by(mission_id=1).one().mission_type = stored_type
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        api.create_location_challenge(1, "test-a", db)
+    assert exc.value.status_code == 400
+
+
 @pytest.mark.parametrize("field,value", [
     ("latitude", 35.1), ("longitude", 129.03), ("accuracy_m", 10), ("distance_m", 0),
     ("local_passed", "true"), ("photo_url", "https://example.com/a\nb"),

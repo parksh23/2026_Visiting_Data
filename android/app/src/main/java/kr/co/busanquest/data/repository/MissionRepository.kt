@@ -109,8 +109,6 @@ object MissionRepository {
     private val _serverDistrictProgress =
         MutableStateFlow<List<DistrictMissionProgress>?>(null)
 
-    // 서버에서 미션 데이터를 한 번이라도 불러왔는지 확인하는 변수
-    private var loadedFromServer = false
 
 
     // ───────────────── 미션 찜 ─────────────────
@@ -253,22 +251,11 @@ object MissionRepository {
     }
 
 
-    // 미션 탭에서 "도전하기"를 눌렀을 때 진행 중으로 변경
-    fun startMission(id: Int) {
-        updateMission(id) {
-            if (it.state == MissionState.NOT_STARTED) {
-                it.copy(state = MissionState.IN_PROGRESS)
-            } else {
-                it
-            }
-        }
-    }
-
-
     // 인증 시작 → 확인 중 상태로 변경
     fun setVerifying(id: Int) {
         updateMission(id) {
-            it.copy(state = MissionState.VERIFYING, error = null)
+            if (it.state == MissionState.IN_PROGRESS) it.copy(state = MissionState.VERIFYING, error = null)
+            else it
         }
     }
 
@@ -284,7 +271,8 @@ object MissionRepository {
     // 인증 실패 → 진행 중으로 되돌리고 에러 메시지 저장
     fun setError(id: Int, message: String) {
         updateMission(id) {
-            it.copy(state = MissionState.IN_PROGRESS, error = message)
+            it.copy(state = if (it.state == MissionState.VERIFYING) MissionState.IN_PROGRESS else it.state,
+                error = message)
         }
     }
 
@@ -348,7 +336,7 @@ object MissionRepository {
         return scope.async {
             try {
                 val response = request()
-                if (response.success == false) {
+                if (response.success != true) {
                     // 200 이지만 서버가 거절 (예: 이미 완료한 미션 취소)
                     Result.failure(
                         Exception(
@@ -398,6 +386,7 @@ object MissionRepository {
             if (response.success) {
                 Result.success(response.message)
             } else {
+                refreshMissionsFromServer(force = true)
                 // 200 이지만 서버가 인증 거절 (예: 위치가 미션 장소와 다름)
                 Result.failure(Exception(response.message.ifBlank { "인증에 실패했습니다." }))
             }
@@ -499,8 +488,7 @@ object MissionRepository {
 
     // FastAPI 서버에서 미션 목록을 가져와 앱 내부 미션 목록으로 변환
     suspend fun refreshMissionsFromServer(force: Boolean = false) {
-        // 이미 서버에서 불러왔고 강제 새로고침이 아니면 다시 요청하지 않음
-        if (loadedFromServer && !force) return
+        // Refresh account-specific progress whenever the screen requests it.
 
         // GET /api/v1/missions 호출
         val serverMissions = RetrofitInstance.api.getMissions()
@@ -514,7 +502,6 @@ object MissionRepository {
             )
         }
 
-        loadedFromServer = true
     }
 
 
@@ -613,7 +600,7 @@ private fun String.toMissionType(): MissionType =
 
 // 서버에서 받은 status 문자열을 앱 내부 MissionState로 변환
 private fun String.toMissionState(): MissionState {
-    return when (this.lowercase()) {
+    return when (this.trim().lowercase()) {
         "completed" -> MissionState.COMPLETED
         "ongoing", "in_progress" -> MissionState.IN_PROGRESS
         "verifying" -> MissionState.VERIFYING

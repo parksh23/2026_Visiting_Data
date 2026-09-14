@@ -118,6 +118,34 @@ def test_non_location_types_still_reject_challenges(db, stored_type):
     assert exc.value.status_code == 400
 
 
+@pytest.mark.parametrize("stored_status", ["ongoing", "ONGOING", " ongoing ", "in_progress", "IN_PROGRESS"])
+def test_displayed_ongoing_status_can_start_and_verify(db, monkeypatch, stored_status):
+    db.query(UserMission).filter_by(user_code="test-a", mission_id=1).one().status = stored_status
+    db.commit()
+    listed = next(item for item in api.get_missions("test-a", db) if item["mission_id"] == 1)
+    assert listed["status"] == "ongoing"
+    assert api.start_mission(1, "test-a", db)["success"]
+    req = request(db)
+    monkeypatch.setattr(security, "decode_integrity_token", lambda token: verdict(req))
+    assert api.verify_mission(req, "test-a", db)["success"]
+    assert points(db) == 100
+    assert not api.verify_mission(req, "test-a", db)["success"]
+
+
+@pytest.mark.parametrize("stored_status", [None, "not_started", "COMPLETED", " completed ", "cancelled"])
+def test_no_started_record_never_implicitly_starts_or_verifies(db, stored_status):
+    row = db.query(UserMission).filter_by(user_code="test-a", mission_id=1).one()
+    if stored_status is None:
+        db.delete(row)
+    else:
+        row.status = stored_status
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        api.create_location_challenge(1, "test-a", db)
+    assert exc.value.status_code == 409
+    assert points(db) == 0
+
+
 @pytest.mark.parametrize("field,value", [
     ("latitude", 35.1), ("longitude", 129.03), ("accuracy_m", 10), ("distance_m", 0),
     ("local_passed", "true"), ("photo_url", "https://example.com/a\nb"),

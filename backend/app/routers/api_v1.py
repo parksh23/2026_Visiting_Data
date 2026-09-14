@@ -109,6 +109,15 @@ def _canonical_mission_type(value: Optional[str]) -> Optional[str]:
 
 
 REQUIRED_AGREEMENT_DOCS = {"terms", "privacy", "location"}
+
+
+def _canonical_mission_status(value):
+    normalized = str(value or "").strip().lower()
+    return "ongoing" if normalized == "in_progress" else normalized
+
+
+def _ongoing_mission_status_filter():
+    return func.lower(func.trim(UserMission.status)).in_(("ongoing", "in_progress"))
 DOCUMENT_TITLES = {
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
@@ -453,7 +462,7 @@ def _mission_dict(
         mission_status, photo_url, receipt_image_url = "not_started", None, None
     else:
         mission_status, photo_url, receipt_image_url = user_record
-    mission_status = str(mission_status).lower()
+    mission_status = _canonical_mission_status(mission_status)
     completed = (mission_status == "completed")
 
     return {
@@ -1018,9 +1027,9 @@ def start_mission(
     )
 
     if user_mission:
-        if user_mission.status.lower() == "completed":
+        if _canonical_mission_status(user_mission.status) == "completed":
             return {"success": False, "message": "이미 완료한 미션입니다."}
-        elif user_mission.status.lower() == "ongoing":
+        elif _canonical_mission_status(user_mission.status) == "ongoing":
             return {"success": True, "message": "이미 진행 중인 미션입니다."}
 
     new_user_mission = UserMission(
@@ -1054,7 +1063,7 @@ def cancel_mission(
     if not user_mission:
         return {"success": False, "message": "진행 중인 미션이 아닙니다."}
 
-    if user_mission.status.lower() == "completed":
+    if _canonical_mission_status(user_mission.status) == "completed":
         return {"success": False, "message": "이미 완료된 미션은 취소할 수 없습니다."}
 
     db.delete(user_mission)
@@ -1092,8 +1101,8 @@ def create_location_challenge(
     if mission_type not in {"PHOTO", "CURRENT_LOCATION"}:
         raise HTTPException(400, "위치 인증 대상 미션이 아닙니다.")
     ongoing = db.query(UserMission).filter_by(
-        user_code=user.user_code, mission_id=mission_id, status="ongoing",
-    ).first()
+        user_code=user.user_code, mission_id=mission_id,
+    ).filter(_ongoing_mission_status_filter()).first()
     if ongoing is None:
         raise HTTPException(409, "진행 중인 미션만 인증할 수 있습니다.")
     radius, policy_hash = _location_policy(mission)
@@ -1175,7 +1184,7 @@ def verify_mission(
         )
         .first()
     )
-    if user_mission and user_mission.status.lower() == "completed":
+    if user_mission and _canonical_mission_status(user_mission.status) == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
 
     user_mission_id = user_mission.id if user_mission is not None else None
@@ -1190,7 +1199,7 @@ def verify_mission(
         return finish(False, "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.")
 
     if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
-        if user_mission is None or user_mission.status != "ongoing":
+        if user_mission is None or _canonical_mission_status(user_mission.status) != "ongoing":
             return finish(False, "진행 중인 미션만 인증할 수 있습니다.")
         _consume_location_proof(req, user.user_code, mission, db)
 
@@ -1250,7 +1259,7 @@ def verify_mission(
     if user_mission_id is not None:
         completed = db.query(UserMission).filter(
             UserMission.id == user_mission_id,
-            UserMission.status == "ongoing",
+            _ongoing_mission_status_filter(),
         ).update({
             "status": "completed", "verified_at": datetime.now(timezone.utc).replace(tzinfo=None),
             "photo_url": req.photo_url if requested_type == "PHOTO" else None,

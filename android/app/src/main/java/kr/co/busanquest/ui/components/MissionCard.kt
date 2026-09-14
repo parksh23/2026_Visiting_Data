@@ -164,6 +164,7 @@ fun MissionCard(
                 Button(onClick = onChallenge, modifier = Modifier.fillMaxWidth()) {
                     Text("도전하기")
                 }
+                item.error?.let { Text(it, color = PointRed, fontSize = 12.sp) }
             }
             MissionState.IN_PROGRESS -> {
                 Button(onClick = onVerify, modifier = Modifier.fillMaxWidth()) {

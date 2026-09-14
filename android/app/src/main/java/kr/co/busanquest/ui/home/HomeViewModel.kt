@@ -159,8 +159,13 @@ class HomeViewModel : ViewModel() {
     private fun verifyLocalLocation(id: Int, context: Context, photo: Uri?) {
         if (!locationPending.add(id)) return
         viewModelScope.launch {
-            MissionRepository.setVerifying(id)
             try {
+                MissionRepository.refreshMissionsFromServer(force = true)
+                if (MissionRepository.missions.value.firstOrNull { it.mission.id == id }?.state != MissionState.IN_PROGRESS) {
+                    MissionRepository.setError(id, "미션 상태를 갱신했습니다. 먼저 도전하기를 눌러주세요.")
+                    return@launch
+                }
+                MissionRepository.setVerifying(id)
                 submitVerification(id, LocationProof.create(context, id, photo))
             } catch (_: TimeoutCancellationException) {
                 MissionRepository.setError(id, "인증 시간이 초과되었습니다. 다시 시도해주세요.")
@@ -171,6 +176,11 @@ class HomeViewModel : ViewModel() {
                 val message = runCatching {
                     Gson().fromJson(e.response()?.errorBody()?.string(), ErrorDetailDto::class.java)?.detail
                 }.getOrNull()
+                if (e.code() == 409) {
+                    try { MissionRepository.refreshMissionsFromServer(force = true) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* Keep the previous state if offline. */ }
+                }
                 MissionRepository.setError(id, message ?: "인증을 준비하지 못했습니다. 잠시 후 다시 시도해주세요.")
             } catch (e: Exception) {
                 MissionRepository.setError(id, e.message ?: "기기 위치 인증에 실패했습니다.")

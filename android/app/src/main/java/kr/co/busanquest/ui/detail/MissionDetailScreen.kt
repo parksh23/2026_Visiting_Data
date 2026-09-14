@@ -208,6 +208,7 @@ fun MissionDetailScreen(
                     ) {
                         Text(if (isStatePending) "시작하는 중..." else "도전하기")
                     }
+                    item.error?.let { Text(it, color = PointRed, fontSize = 12.sp) }
                 }
                 MissionState.IN_PROGRESS -> {
                     Button(

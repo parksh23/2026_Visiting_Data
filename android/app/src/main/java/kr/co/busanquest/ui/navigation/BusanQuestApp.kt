@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -62,6 +63,21 @@ import kr.co.busanquest.ui.ranking.DistrictRankingScreen
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.slideDirection(
+    isPop: Boolean = false
+): AnimatedContentTransitionScope.SlideDirection {
+    val tabs = listOf("home", "mission", "map", "ranking", "profile")
+    val from = tabs.indexOf(initialState.destination.route?.substringBefore('/'))
+    val to = tabs.indexOf(targetState.destination.route?.substringBefore('/'))
+    return when {
+        from >= 0 && to >= 0 && from != to ->
+            if (to > from) AnimatedContentTransitionScope.SlideDirection.Left
+            else AnimatedContentTransitionScope.SlideDirection.Right
+        isPop -> AnimatedContentTransitionScope.SlideDirection.Right
+        else -> AnimatedContentTransitionScope.SlideDirection.Left
+    }
+}
 
 @Composable
 fun BusanQuestApp() {
@@ -179,25 +195,25 @@ fun BusanQuestApp() {
                             .padding(top = padding.calculateTopPadding()),
                     enterTransition = {
                         slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            slideDirection(),
                             animationSpec = tween(300)
                         ) + fadeIn(animationSpec = tween(300))
                     },
                     exitTransition = {
                         slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            slideDirection(),
                             animationSpec = tween(300)
                         ) + fadeOut(animationSpec = tween(300))
                     },
                     popEnterTransition = {
                         slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            slideDirection(isPop = true),
                             animationSpec = tween(300)
                         ) + fadeIn(animationSpec = tween(300))
                     },
                     popExitTransition = {
                         slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            slideDirection(isPop = true),
                             animationSpec = tween(300)
                         ) + fadeOut(animationSpec = tween(300))
                     }

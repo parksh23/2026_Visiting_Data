@@ -21,11 +21,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -115,6 +120,8 @@ fun BusanQuestApp() {
         }
         else -> {
             val navController = rememberNavController()
+            val density = LocalDensity.current
+            var bottomBarHeight by remember { mutableStateOf(0.dp) }
             val currentRoute = navController
                 .currentBackStackEntryAsState().value?.destination?.route
 
@@ -221,7 +228,7 @@ fun BusanQuestApp() {
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
                         val focusSearch = it.arguments?.getBoolean("focus") ?: false
-                        MapScreen(region, navController, focusSearch)
+                        MapScreen(region, navController, focusSearch, bottomBarHeight)
                     }
 
                     composable("ranking") { RankingScreen(navController) }
@@ -304,6 +311,9 @@ fun BusanQuestApp() {
                         BottomNavigationBar(
                             navController = navController,
                             modifier = Modifier.align(Alignment.BottomCenter)
+                                .onSizeChanged { size ->
+                                    bottomBarHeight = with(density) { size.height.toDp() }
+                                }
                         )
                     }
                 }

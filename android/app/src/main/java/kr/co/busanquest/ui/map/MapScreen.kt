@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakao.vectormap.KakaoMap
@@ -51,7 +52,6 @@ import com.kakao.vectormap.label.LabelStyle
 import com.kakao.vectormap.label.LabelStyles
 import androidx.compose.ui.platform.LocalContext
 import kr.co.busanquest.ui.components.KakaoMapView
-import kr.co.busanquest.ui.theme.bottomBarSpacing
 
 /**
  * 지도 깃발의 기준점 — 이미지에서 "깃대 밑동"이 있는 위치 비율.
@@ -68,7 +68,8 @@ private const val FLAG_ANCHOR_Y = 1.0f
 fun MapScreen(
     region: String,
     navController: androidx.navigation.NavHostController,
-    focusSearch: Boolean = false
+    focusSearch: Boolean = false,
+    bottomBarHeight: Dp = 0.dp
 ) {
     // 검색 결과 선택 시 카메라 이동에 쓰기 위해 지도 인스턴스를 보관
     var kakaoMap by remember { mutableStateOf<KakaoMap?>(null) }
@@ -290,8 +291,8 @@ fun MapScreen(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .navigationBarsPadding()
-                        .padding(bottom = bottomBarSpacing(), top = 16.dp)
+                        // The measured bar includes 10dp of space above its visible surface.
+                        .padding(bottom = bottomBarHeight + 12.dp - 10.dp, top = 16.dp)
                         .pressable { navController.navigate("missionDetail/${mission.id}") },
                     colors = CardDefaults.cardColors(containerColor = CardWhite)
                 ) {

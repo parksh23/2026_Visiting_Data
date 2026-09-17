@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -158,6 +159,21 @@ fun MissionDetailScreen(
             } else {
                 Icon(Icons.Filled.Image, contentDescription = null, tint = SeaBlue.copy(0.7f), modifier = Modifier.size(56.dp))
             }
+        }
+
+        // 사진 출처 표기.
+        // 공공누리 제1유형은 "출처 표시"가 이용 조건이라 화면에 반드시 드러나야 한다.
+        // 실제 사진이 있을 때만 붙인다 — 자리표시자 아이콘에는 출처가 없다.
+        if (mission.imageUrl != null) {
+            Text(
+                text = "출처 : 부산 관광 아카이브 공공누리 제1유형",
+                color = TextSub.copy(alpha = 0.75f),
+                fontSize = 10.sp,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.screenPadding, vertical = 6.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))

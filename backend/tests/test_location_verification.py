@@ -25,6 +25,7 @@ import location_verification as security
 import routers.api_v1 as api
 
 CERT = base64.urlsafe_b64encode(bytes(range(32))).decode().rstrip("=")
+ONESTORE_CERT = "Abh5TOe2Mgaxocg8ZwvZ1HwTjy5Taz-dKXU0d91bMi4"
 
 
 @pytest.fixture
@@ -32,6 +33,8 @@ def db(monkeypatch):
     monkeypatch.setenv("PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "123456789")
     monkeypatch.setenv("PLAY_INTEGRITY_CERTIFICATE_DIGESTS", CERT)
     monkeypatch.setenv("PLAY_INTEGRITY_MIN_VERSION_CODE", "6")
+    monkeypatch.setenv("ONESTORE_CERTIFICATE_DIGESTS", ONESTORE_CERT)
+    monkeypatch.setenv("ONESTORE_MIN_VERSION_CODE", "10")
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
@@ -65,6 +68,30 @@ def verdict(req):
     }
 
 
+def onestore_request(db):
+    challenge = api.create_location_challenge(
+        1, "test-a", db, protocol_version=2, distribution_channel="ONESTORE",
+    )
+    assert challenge["protocol_version"] == 2
+    assert challenge["distribution_channel"] == "ONESTORE"
+    return api.MissionVerifyRequestDto(
+        mission_id=1, mission_type="CURRENT_LOCATION", protocol_version=2,
+        distribution_channel="ONESTORE", challenge_id=challenge["challenge_id"],
+        local_passed=True, integrity_token="opaque-token",
+    )
+
+
+def onestore_verdict(req):
+    payload = verdict(req)
+    payload["appIntegrity"].update({
+        "appRecognitionVerdict": "UNRECOGNIZED_VERSION",
+        "versionCode": "10",
+        "certificateSha256Digest": [ONESTORE_CERT],
+    })
+    payload["accountDetails"]["appLicensingVerdict"] = "UNLICENSED"
+    return payload
+
+
 def points(db):
     db.expire_all()
     return db.query(AppUser).filter_by(user_code="test-a").one().total_points
@@ -77,6 +104,30 @@ def test_valid_proof_rewards_once_and_replay_is_rejected(db, monkeypatch):
     assert not api.verify_mission(req, "test-a", db)["success"]
     assert points(db) == 100
     assert db.query(LocationChallenge).one().consumed == 1
+
+
+def test_valid_free_onestore_proof_uses_signing_cert_without_play_license(db, monkeypatch):
+    req = onestore_request(db)
+    monkeypatch.setattr(security, "decode_integrity_token", lambda token: onestore_verdict(req))
+    assert api.verify_mission(req, "test-a", db)["success"]
+    assert points(db) == 100
+
+
+@pytest.mark.parametrize("section,key,value", [
+    ("appIntegrity", "appRecognitionVerdict", "PLAY_RECOGNIZED"),
+    ("appIntegrity", "certificateSha256Digest", [CERT]),
+    ("appIntegrity", "versionCode", "9"),
+    ("deviceIntegrity", "deviceRecognitionVerdict", ["MEETS_BASIC_INTEGRITY"]),
+])
+def test_onestore_proof_fails_closed(section, key, value, db, monkeypatch):
+    req = onestore_request(db)
+    payload = onestore_verdict(req)
+    payload[section][key] = value
+    monkeypatch.setattr(security, "decode_integrity_token", lambda token: payload)
+    with pytest.raises(HTTPException) as exc:
+        api.verify_mission(req, "test-a", db)
+    assert exc.value.status_code == 403
+    assert points(db) == 0
 
 
 @pytest.mark.parametrize("stored_type", ["current_location", "CURRENT_LOCATION  ", " current_location ",
@@ -283,6 +334,16 @@ def test_hash_is_shared_with_android():
     req = api.MissionVerifyRequestDto(mission_id=1, mission_type="CURRENT_LOCATION",
         challenge_id="a" * 64, local_passed=True)
     assert security.verification_request_hash(req) == "V-qTQ3l1j5_H9WQceYbK3OvHYmoXLemB_cyhomqIW5E"
+
+
+def test_v2_hash_binds_distribution_channel():
+    req = api.MissionVerifyRequestDto(
+        mission_id=1, mission_type="CURRENT_LOCATION", protocol_version=2,
+        distribution_channel="ONESTORE", challenge_id="a" * 64, local_passed=True,
+    )
+    assert security.verification_request_hash(req) == "0lqd1YYKlpMB5Q33bIL4KUXAzSZkqb4uMqnM5bDWQtQ"
+    req.distribution_channel = "PLAY"
+    assert security.verification_request_hash(req) != "0lqd1YYKlpMB5Q33bIL4KUXAzSZkqb4uMqnM5bDWQtQ"
 
 
 def test_upload_strips_exif_and_preserves_image_pixels():

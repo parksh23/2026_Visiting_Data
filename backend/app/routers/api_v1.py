@@ -60,7 +60,7 @@ from models import (
 from tourism_scoring import refresh_tourism_scores
 from location_verification import (
     CHALLENGE_TTL_SECONDS, CHALLENGE_COOLDOWN_SECONDS,
-    integrity_config, verify_integrity,
+    integrity_config, onestore_integrity_config, verify_integrity,
 )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
@@ -255,6 +255,7 @@ class MissionVerifyRequestDto(BaseModel):
     photo_url: Optional[str] = Field(default=None, max_length=1000, pattern=r"^[^\r\n]*$")
     receipt_image_url: Optional[str] = Field(default=None, max_length=1000, pattern=r"^[^\r\n]*$")
     protocol_version: int = 1
+    distribution_channel: Optional[str] = Field(default=None, pattern=r"^(PLAY|ONESTORE)$")
     challenge_id: Optional[str] = Field(default=None, max_length=64, pattern=r"^[a-f0-9]{64}$")
     local_passed: StrictBool = False
     integrity_token: Optional[str] = Field(default=None, max_length=20000)
@@ -265,6 +266,7 @@ class LocationChallengeResponse(BaseModel):
     mission_id: int
     mission_type: str
     protocol_version: int = 1
+    distribution_channel: Optional[str] = None
     latitude: float
     longitude: float
     radius_m: float
@@ -1091,9 +1093,18 @@ def create_location_challenge(
     mission_id: int,
     subject: str = Depends(get_current_user_email),
     db: Session = Depends(get_db),
+    protocol_version: int = 1,
+    distribution_channel: Optional[str] = None,
 ):
     user = _get_user(db, subject)
-    project, _, _ = integrity_config()
+    if protocol_version == 1 and distribution_channel is None:
+        distribution_channel = "PLAY"
+    if protocol_version in {1, 2} and distribution_channel == "PLAY":
+        project, _, _ = integrity_config()
+    elif protocol_version == 2 and distribution_channel == "ONESTORE":
+        project, _, _ = onestore_integrity_config()
+    else:
+        raise HTTPException(400, "Unsupported location verification protocol or distribution channel.")
     mission = db.query(Mission).filter_by(mission_id=mission_id).first()
     if mission is None:
         raise HTTPException(404, "미션을 찾을 수 없습니다.")
@@ -1129,12 +1140,17 @@ def create_location_challenge(
         challenge_id=challenge_id, mission_id=mission_id, mission_type=mission_type,
         latitude=mission.latitude, longitude=mission.longitude, radius_m=radius,
         max_accuracy_m=MAX_LOCATION_ACCURACY_M, expires_in_seconds=CHALLENGE_TTL_SECONDS,
-        cloud_project_number=project, protocol_version=1,
+        cloud_project_number=project, protocol_version=protocol_version,
+        distribution_channel=distribution_channel,
     )
 
 
 def _consume_location_proof(req, user_code, mission, db):
-    if req.protocol_version != 1 or req.local_passed is not True or not req.challenge_id or not req.integrity_token:
+    supported_protocol = (
+        (req.protocol_version == 1 and req.distribution_channel is None)
+        or (req.protocol_version == 2 and req.distribution_channel in {"PLAY", "ONESTORE"})
+    )
+    if not supported_protocol or req.local_passed is not True or not req.challenge_id or not req.integrity_token:
         raise HTTPException(400, "기기 위치 인증과 앱 보안 확인이 필요합니다. 앱을 업데이트해주세요.")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     challenge = db.query(LocationChallenge).filter_by(

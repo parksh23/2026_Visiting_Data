@@ -50,4 +50,12 @@ class LocalLocationPolicyTest {
         assertFalse(json.contains("\"image\""))
         assertFalse(VerificationRequestHash.bytes(req).contentEquals(VerificationRequestHash.bytes(req.copy(imageUrl = "https://example.com/other.jpg"))))
     }
+    @Test fun versionTwoHashBindsDistributionChannelAndMatchesServer() {
+        val req = MissionVerifyRequestDto(1, "CURRENT_LOCATION", protocolVersion = 2,
+            distributionChannel = "ONESTORE", challengeId = "a".repeat(64), localPassed = true)
+        assertEquals("0lqd1YYKlpMB5Q33bIL4KUXAzSZkqb4uMqnM5bDWQtQ",
+            Base64.getUrlEncoder().withoutPadding().encodeToString(VerificationRequestHash.bytes(req)))
+        assertFalse(VerificationRequestHash.bytes(req).contentEquals(
+            VerificationRequestHash.bytes(req.copy(distributionChannel = "PLAY"))))
+    }
 }

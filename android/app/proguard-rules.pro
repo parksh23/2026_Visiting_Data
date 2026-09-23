@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# ONE store SDK publishes consumer rules, but keep its public bridge classes as well so the
+# install-source check remains callable if release minification is enabled later.
+-keep class com.gaa.sdk.base.** { *; }
+-keep class com.onestore.extern.licensing.** { *; }

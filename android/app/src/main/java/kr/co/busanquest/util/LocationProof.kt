@@ -20,6 +20,7 @@ import kr.co.busanquest.data.remote.RetrofitInstance
 import kr.co.busanquest.data.repository.MissionRepository
 
 object LocationProof {
+    private const val PROTOCOL_VERSION = 2
     private val providerMutex = Mutex()
     private var provider: StandardIntegrityManager.StandardIntegrityTokenProvider? = null
     private var providerProject = 0L
@@ -38,8 +39,13 @@ object LocationProof {
     }
 
     suspend fun create(context: Context, missionId: Int, photo: Uri?): MissionVerifyRequestDto = withTimeout(240_000) {
-        val challenge = RetrofitInstance.api.createLocationChallenge(missionId)
-        require(challenge.protocolVersion == 1 && challenge.missionId == missionId &&
+        DistributionGuard.requireTrustedInstall(context)
+        val challenge = RetrofitInstance.api.createLocationChallenge(
+            missionId, PROTOCOL_VERSION, DistributionGuard.channel,
+        )
+        require(challenge.protocolVersion == PROTOCOL_VERSION &&
+            challenge.distributionChannel == DistributionGuard.channel &&
+            challenge.missionId == missionId &&
             challenge.missionType == (if (photo == null) "CURRENT_LOCATION" else "PHOTO")) {
             "미션 인증 방식이 변경되었습니다. 미션을 새로 불러와주세요."
         }
@@ -47,7 +53,7 @@ object LocationProof {
         val integrityProvider = try {
             withTimeout(60_000) { tokenProvider(context, challenge.cloudProjectNumber) }
         } catch (e: CancellationException) { throw e
-        } catch (_: Exception) { error("앱 보안 확인에 실패했습니다. Play 스토어 설치본으로 다시 시도해주세요.") }
+        } catch (_: Exception) { error("앱·기기 보안 확인에 실패했습니다. 스토어 설치본으로 다시 시도해주세요.") }
         var previousNanos = 0L
         repeat(2) { index ->
             if (index > 0) delay(2_000)
@@ -67,8 +73,15 @@ object LocationProof {
             // Fresh JPEG from pixels; original GPS/EXIF is not uploaded.
             MissionRepository.uploadImage(context, it).getOrThrow()
         }
-        val request = MissionVerifyRequestDto(missionId = missionId, missionType = challenge.missionType,
-            imageUrl = photoUrl, challengeId = challenge.challengeId, localPassed = true)
+        val request = MissionVerifyRequestDto(
+            missionId = missionId,
+            missionType = challenge.missionType,
+            imageUrl = photoUrl,
+            protocolVersion = PROTOCOL_VERSION,
+            distributionChannel = DistributionGuard.channel,
+            challengeId = challenge.challengeId,
+            localPassed = true,
+        )
         val hash = Base64.encodeToString(VerificationRequestHash.bytes(request), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
         try {
             val token = withTimeout(60_000) { integrityProvider.request(
@@ -79,7 +92,7 @@ object LocationProof {
             throw e
         } catch (_: Exception) {
             providerMutex.withLock { provider = null }
-            error("앱 보안 확인에 실패했습니다. Play 스토어 설치본으로 다시 시도해주세요.")
+            error("앱·기기 보안 확인에 실패했습니다. 스토어 설치본으로 다시 시도해주세요.")
         }
     }
 }

@@ -218,10 +218,6 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    fun onCameraPermissionDenied(id: Int) {
-        MissionRepository.setError(id, "카메라 권한이 있어야 영수증을 촬영할 수 있어요.")
-    }
-
     /**
      * 서버에 보낼 mission_type.
      *

@@ -41,8 +41,8 @@ android {
         applicationId = "kr.co.busanquest"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 11
+        versionName = "1.0.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -55,6 +55,16 @@ android {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
+        }
+    }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") {
+            dimension = "store"
+        }
+        create("onestore") {
+            dimension = "store"
         }
     }
 
@@ -77,6 +87,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         jniLibs {
@@ -149,6 +160,10 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.android.play:integrity:1.6.0")
+
+    // 무료 원스토어 앱은 ALC 구매 라이선스 대상이 아니다. SDK의 StoreEnvironment만
+    // 원스토어 flavor에 포함해 실제 설치 출처를 확인한다.
+    "onestoreImplementation"("com.onestorecorp.sdk:sdk-licensing:2.2.1")
 
     implementation("com.kakao.maps.open:android:2.12.18")
 

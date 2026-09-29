@@ -28,6 +28,65 @@ CERT = base64.urlsafe_b64encode(bytes(range(32))).decode().rstrip("=")
 ONESTORE_CERT = "Abh5TOe2Mgaxocg8ZwvZ1HwTjy5Taz-dKXU0d91bMi4"
 
 
+@pytest.mark.parametrize("status,expected", [(400, 403), (401, 403), (403, 403), (429, 503), (500, 503)])
+def test_google_failure_logs_status_without_secrets(monkeypatch, caplog, status, expected):
+    class Response:
+        status_code = status
+
+        def raise_for_status(self):
+            raise RuntimeError("SECRET_RESPONSE")
+
+    class Session:
+        def __init__(self, credentials):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def post(self, *args, **kwargs):
+            return Response()
+
+    monkeypatch.setattr(security.google.auth, "default", lambda **kwargs: (object(), "project"))
+    monkeypatch.setattr(security, "AuthorizedSession", Session)
+    with pytest.raises(HTTPException) as exc:
+        security.decode_integrity_token("SECRET_TOKEN")
+    assert exc.value.status_code == expected
+    assert f"stage=google_response status={status}" in caplog.text
+    assert "SECRET" not in caplog.text
+
+
+def test_credentials_failure_logs_stage_without_exception_message(monkeypatch, caplog):
+    def fail(**kwargs):
+        raise RuntimeError("SECRET_KEY")
+    monkeypatch.setattr(security.google.auth, "default", fail)
+    with pytest.raises(HTTPException) as exc:
+        security.decode_integrity_token("SECRET_TOKEN")
+    assert exc.value.status_code == 503
+    assert "stage=credentials error_type=RuntimeError" in caplog.text
+    assert "SECRET" not in caplog.text
+
+
+def test_verdict_logs_independent_checks_without_payload(db, monkeypatch, caplog):
+    req = onestore_request(db)
+    payload = onestore_verdict(req)
+    payload["appIntegrity"]["appRecognitionVerdict"] = "SECRET_VERDICT"
+    del payload["appIntegrity"]["certificateSha256Digest"]
+    payload["deviceIntegrity"]["deviceRecognitionVerdict"] = []
+    monkeypatch.setattr(security, "decode_integrity_token", lambda token: payload)
+    with pytest.raises(HTTPException) as exc:
+        api.verify_mission(req, "test-a", db)
+    assert exc.value.status_code == 403
+    assert "stage=verdict channel=ONESTORE" in caplog.text
+    assert "certificate:missing_or_invalid" in caplog.text
+    assert "device_integrity" in caplog.text
+    assert "app_recognition" in caplog.text
+    assert "SECRET" not in caplog.text
+    assert points(db) == 0
+
+
 @pytest.fixture
 def db(monkeypatch):
     monkeypatch.setenv("PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "123456789")

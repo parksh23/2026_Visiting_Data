@@ -60,6 +60,24 @@ PHOTO는 `photo_url`을 추가한다. 영수증은 `receipt_image_url`을 쓴다
 
 ## 검증과 한계
 
+### 운영 실패 진단
+
+인증 실패 시 서버 로그에서 `location_integrity`를 검색한다. 토큰, 사용자 좌표,
+개인 키, Google 응답 원문 및 예외 메시지는 기록하지 않는다. 인증 정책은 그대로 유지한다.
+
+- `stage=credentials`: 서버 기본 자격증명 로딩 실패. `error_type`은 예외 종류만 표시한다.
+- `stage=google_request`: 자격증명 갱신 또는 Google 요청 중 예외.
+- `stage=google_response status=403`: Google 토큰 해석 API 자체의 거절. 400/401도 앱에는 403으로 반환한다.
+- `stage=google_payload`: Google 응답 JSON 또는 필수 최상위 필드 해석 실패.
+- `stage=verdict channel=ONESTORE failed_checks=...`: Google 토큰 해석 후 서버 검사 실패.
+  `certificate`는 서명, `app_version`은 최소 버전, `device_integrity`는 기기 판정,
+  `app_recognition`은 채널별 앱 판정, `request_hash`는 요청 해시 검사다.
+  `request_package`/`app_package`는 패키지, `timestamp_window`/`timestamp_age`는 시각,
+  `play_license`는 Play 전용 라이선스 검사다.
+  `:missing_or_invalid` 접미사는 해당 필드 누락 또는 형식 오류를 뜻한다.
+
+진단 코드 배포 후 앱에서 새 인증을 시도하고, 같은 시각의 접근 로그와 위 로그를 함께 확인한다.
+
 - 자동 테스트: Play·원스토어 정상 인증, 모의 위치, 오래된/미래 위치, 정확도 및 반경 경계, protocol v1/v2 Android/Python 해시 일치, 좌표 필드 거절, 다른 계정·미션·요청 해시, 만료·재사용·과도한 발급, 채널별 인증서/앱 버전/기기/라이선스 오류, Google 장애, 취소 경합, 중복 보상, EXIF 제거.
 - 실제 연결 확인: Play 내부 테스트 설치본과 원스토어 배포 설치본의 정상 GPS, 모의 위치 앱, 권한 철회, 네트워크 단절, Google 설정 오류, 인증 도중 화면 종료, 사진 GPS 유무, API 트래픽에 좌표가 없는지 확인한다. 실제 기기·Google 및 원스토어 운영 계정 검증은 별도로 필요하다.
 - Play Integrity는 앱·기기의 신뢰 신호이며 GPS가 사실이라는 암호학적 증명이 아니다. 고급 루팅/후킹 우회, 외부 GNSS 신호 조작, 현장 기기 중계, 조작한 사진 EXIF를 완전히 막지는 못한다. 좌표 없는 방식으로 이동 속도/동선의 서버 교차 검증도 할 수 없다.

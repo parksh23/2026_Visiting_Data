@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import time
 
@@ -13,6 +14,7 @@ from fastapi import HTTPException
 PROTOCOL_VERSION = 2
 CHALLENGE_TTL_SECONDS = 300
 CHALLENGE_COOLDOWN_SECONDS = 15
+logger = logging.getLogger(__name__)
 
 
 def _integrity_config(certificate_env, minimum_version_env, default_minimum_version, lowest_version):
@@ -63,21 +65,28 @@ def verification_request_hash(req):
 
 def decode_integrity_token(token):
     # No token, coordinates, or Google response body is logged or persisted.
+    stage = "credentials"
     try:
         credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/playintegrity"])
+        stage = "google_request"
         with AuthorizedSession(credentials) as session:
             response = session.post(
                 "https://playintegrity.googleapis.com/v1/kr.co.busanquest:decodeIntegrityToken",
                 json={"integrity_token": token}, timeout=20,
             )
+            if response.status_code >= 400:
+                logger.warning("location_integrity stage=google_response status=%s", response.status_code)
             if response.status_code in (400, 401, 403):
                 # Credential/permission issues must also fail closed.
                 raise HTTPException(403, "앱 보안 확인에 실패했습니다. 공식 스토어 설치본으로 업데이트해주세요.")
             response.raise_for_status()
+            stage = "google_payload"
             return response.json()["tokenPayloadExternal"]
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
+        # Exception messages and tracebacks may contain credentials or response data.
+        logger.warning("location_integrity stage=%s error_type=%s", stage, type(exc).__name__)
         raise HTTPException(503, "앱 보안 확인 서비스에 연결하지 못했습니다. 다시 시도해주세요.") from None
 
 
@@ -90,33 +99,29 @@ def verify_integrity(req, issued_at):
     else:
         raise HTTPException(403, "Unsupported app distribution channel.")
     payload = decode_integrity_token(req.integrity_token)
-    try:
-        details = payload["requestDetails"]
-        app = payload["appIntegrity"]
-        timestamp = int(details["timestampMillis"]) / 1000
-        now = time.time()
-        valid_common = (
-            details["requestPackageName"] == "kr.co.busanquest"
-            and hmac.compare_digest(details["requestHash"], verification_request_hash(req))
-            and issued_at.timestamp() - 5 <= timestamp <= now + 5
-            and now - timestamp <= 120
-            and app["packageName"] == "kr.co.busanquest"
-            and int(app["versionCode"]) >= minimum_version
-            and bool(certificates.intersection(value.rstrip("=") for value in app["certificateSha256Digest"]))
-            and "MEETS_DEVICE_INTEGRITY" in payload["deviceIntegrity"]["deviceRecognitionVerdict"]
-        )
-        if channel == "PLAY":
-            valid_channel = (
-                app["appRecognitionVerdict"] == "PLAY_RECOGNIZED"
-                and payload["accountDetails"]["appLicensingVerdict"] == "LICENSED"
-            )
-        else:
-            # A genuine ONE Store install is not licensed/recognized by Google Play. The Android
-            # client checks ONE Store's StoreEnvironment; the token still binds the request to the
-            # known ONE Store signing certificate and a device-integrity verdict.
-            valid_channel = app["appRecognitionVerdict"] == "UNRECOGNIZED_VERSION"
-        valid = valid_common and valid_channel
-    except (KeyError, TypeError, ValueError, AttributeError):
-        valid = False
-    if not valid:
+    now = time.time()
+    # Evaluate independently so one missing field does not hide other failures.
+    # Only static check names are logged, never values from the payload/request.
+    checks = {
+        "request_package": lambda: payload["requestDetails"]["requestPackageName"] == "kr.co.busanquest",
+        "request_hash": lambda: hmac.compare_digest(payload["requestDetails"]["requestHash"], verification_request_hash(req)),
+        "timestamp_window": lambda: issued_at.timestamp() - 5 <= int(payload["requestDetails"]["timestampMillis"]) / 1000 <= now + 5,
+        "timestamp_age": lambda: now - int(payload["requestDetails"]["timestampMillis"]) / 1000 <= 120,
+        "app_package": lambda: payload["appIntegrity"]["packageName"] == "kr.co.busanquest",
+        "app_version": lambda: int(payload["appIntegrity"]["versionCode"]) >= minimum_version,
+        "certificate": lambda: bool(certificates.intersection(value.rstrip("=") for value in payload["appIntegrity"]["certificateSha256Digest"])),
+        "device_integrity": lambda: "MEETS_DEVICE_INTEGRITY" in payload["deviceIntegrity"]["deviceRecognitionVerdict"],
+        "app_recognition": lambda: payload["appIntegrity"]["appRecognitionVerdict"] == ("PLAY_RECOGNIZED" if channel == "PLAY" else "UNRECOGNIZED_VERSION"),
+    }
+    if channel == "PLAY":
+        checks["play_license"] = lambda: payload["accountDetails"]["appLicensingVerdict"] == "LICENSED"
+    failures = []
+    for name, check in checks.items():
+        try:
+            if not check():
+                failures.append(name)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            failures.append(name + ":missing_or_invalid")
+    if failures:
+        logger.warning("location_integrity stage=verdict channel=%s failed_checks=%s", channel, ",".join(failures))
         raise HTTPException(403, "인증 요청 또는 앱·기기 보안 확인에 실패했습니다. 공식 스토어 설치본으로 다시 시도해주세요.")

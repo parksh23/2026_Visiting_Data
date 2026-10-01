@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -33,6 +35,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +81,11 @@ fun RankingScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
+    var showScoreGuide by rememberSaveable { mutableStateOf(false) }
+
+    if (showScoreGuide) {
+        ScoreGuideDialog(onDismiss = { showScoreGuide = false })
+    }
 
     when (val s = state) {
         is RankingUiState.Loading -> {
@@ -95,6 +105,16 @@ fun RankingScreen(
                         title = "랭킹",
                         subtitle = "다른 유저들과 함께 순위를 확인해 보세요!"
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.screenPadding),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showScoreGuide = true }) {
+                            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("점수 산정 기준")
+                        }
+                    }
 
                     MyRankCard(
                         rankText = s.myRank,

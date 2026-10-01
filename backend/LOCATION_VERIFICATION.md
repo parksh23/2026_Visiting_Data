@@ -68,6 +68,10 @@ PHOTO는 `photo_url`을 추가한다. 영수증은 `receipt_image_url`을 쓴다
 - `stage=credentials`: 서버 기본 자격증명 로딩 실패. `error_type`은 예외 종류만 표시한다.
 - `stage=google_request`: 자격증명 갱신 또는 Google 요청 중 예외.
 - `stage=google_response status=403`: Google 토큰 해석 API 자체의 거절. 400/401도 앱에는 403으로 반환한다.
+  `google_status`와 `reasons`에는 허용 목록에 있는 Google 오류 코드만 기록한다.
+  예: `SERVICE_DISABLED`(API 사용 중지), `ACCESS_TOKEN_SCOPE_INSUFFICIENT`(인증 범위 부족).
+  알려지지 않은 값은 `UNKNOWN`/`OTHER`, 사유가 없는 응답은 `NOT_PROVIDED`,
+  해석할 수 없는 응답은 `UNREADABLE`로 표시한다. 자유 형식 메시지와 metadata는 기록하지 않는다.
 - `stage=google_payload`: Google 응답 JSON 또는 필수 최상위 필드 해석 실패.
 - `stage=verdict channel=ONESTORE failed_checks=...`: Google 토큰 해석 후 서버 검사 실패.
   `certificate`는 서명, `app_version`은 최소 버전, `device_integrity`는 기기 판정,

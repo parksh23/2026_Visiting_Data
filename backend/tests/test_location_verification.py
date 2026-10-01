@@ -33,6 +33,10 @@ def test_google_failure_logs_status_without_secrets(monkeypatch, caplog, status,
     class Response:
         status_code = status
 
+        def json(self):
+            return {"error": {"status": "PERMISSION_DENIED", "message": "SECRET_RESPONSE",
+                "details": [{"reason": "SERVICE_DISABLED", "metadata": {"token": "SECRET_TOKEN"}}]}}
+
         def raise_for_status(self):
             raise RuntimeError("SECRET_RESPONSE")
 
@@ -55,7 +59,29 @@ def test_google_failure_logs_status_without_secrets(monkeypatch, caplog, status,
         security.decode_integrity_token("SECRET_TOKEN")
     assert exc.value.status_code == expected
     assert f"stage=google_response status={status}" in caplog.text
+    assert "google_status=PERMISSION_DENIED reasons=SERVICE_DISABLED" in caplog.text
     assert "SECRET" not in caplog.text
+
+
+@pytest.mark.parametrize("body,expected", [
+    ({"error": {"status": "SECRET", "errors": [{"reason": "SECRET"}]}}, ("UNKNOWN", "OTHER")),
+    ({"error": {"status": "PERMISSION_DENIED", "errors": [{"reason": "forbidden"}]}}, ("PERMISSION_DENIED", "forbidden")),
+    ({"error": {"status": "PERMISSION_DENIED"}}, ("PERMISSION_DENIED", "NOT_PROVIDED")),
+    ({"error": None}, ("UNREADABLE", "NOT_PROVIDED")),
+    ([], ("UNREADABLE", "NOT_PROVIDED")),
+])
+def test_google_error_codes_are_allowlisted(body, expected):
+    class Response:
+        def json(self):
+            return body
+    assert security._google_error_codes(Response()) == expected
+
+
+def test_google_error_codes_non_json():
+    class Response:
+        def json(self):
+            raise ValueError("SECRET_RESPONSE")
+    assert security._google_error_codes(Response()) == ("UNREADABLE", "NOT_PROVIDED")
 
 
 def test_credentials_failure_logs_stage_without_exception_message(monkeypatch, caplog):

@@ -63,6 +63,35 @@ def verification_request_hash(req):
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
+def _google_error_codes(response):
+    """Return only allowlisted codes; never log free text, metadata or tokens."""
+    statuses = {"PERMISSION_DENIED", "UNAUTHENTICATED", "INVALID_ARGUMENT",
+                "RESOURCE_EXHAUSTED", "NOT_FOUND", "INTERNAL", "UNAVAILABLE"}
+    reasons = {"SERVICE_DISABLED", "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+               "IAM_PERMISSION_DENIED", "CONSUMER_INVALID", "CONSUMER_SUSPENDED",
+               "BILLING_DISABLED", "SECURITY_POLICY_VIOLATED", "RATE_LIMIT_EXCEEDED",
+               "API_KEY_INVALID", "ACCESS_TOKEN_EXPIRED", "ACCESS_TOKEN_TYPE_UNSUPPORTED",
+               "accessNotConfigured", "forbidden", "insufficientPermissions",
+               "permissionDenied", "authError", "quotaExceeded", "rateLimitExceeded"}
+    try:
+        error = response.json().get("error", {})
+        raw_status = error.get("status")
+        status = raw_status if isinstance(raw_status, str) and raw_status in statuses else "UNKNOWN"
+        found = set()
+        for field in ("details", "errors"):
+            entries = error.get(field, [])
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                reason = entry.get("reason") if isinstance(entry, dict) else None
+                if isinstance(reason, str):
+                    found.add(reason if reason in reasons else "OTHER")
+        return status, ",".join(sorted(found)) or "NOT_PROVIDED"
+    except Exception:
+        # Diagnostics must not change how an upstream error is handled.
+        return "UNREADABLE", "NOT_PROVIDED"
+
+
 def decode_integrity_token(token):
     # No token, coordinates, or Google response body is logged or persisted.
     stage = "credentials"
@@ -75,7 +104,11 @@ def decode_integrity_token(token):
                 json={"integrity_token": token}, timeout=20,
             )
             if response.status_code >= 400:
-                logger.warning("location_integrity stage=google_response status=%s", response.status_code)
+                error_status, reasons = _google_error_codes(response)
+                logger.warning(
+                    "location_integrity stage=google_response status=%s google_status=%s reasons=%s",
+                    response.status_code, error_status, reasons,
+                )
             if response.status_code in (400, 401, 403):
                 # Credential/permission issues must also fail closed.
                 raise HTTPException(403, "앱 보안 확인에 실패했습니다. 공식 스토어 설치본으로 업데이트해주세요.")

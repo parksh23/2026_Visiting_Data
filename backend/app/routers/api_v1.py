@@ -1317,7 +1317,7 @@ def verify_mission(
 
 @router.post("/admin/tourism-scores/refresh")
 def refresh_tourism_scores_endpoint(
-    req: TourismRefreshRequest,
+    req: Optional[TourismRefreshRequest] = None,
     x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
 ):
@@ -1330,7 +1330,7 @@ def refresh_tourism_scores_endpoint(
     if not x_admin_key or not hmac.compare_digest(x_admin_key, configured_key):
         raise HTTPException(status_code=403, detail="관리자 인증에 실패했습니다.")
     try:
-        return refresh_tourism_scores(db, req.base_ym)
+        return refresh_tourism_scores(db, req.base_ym if req else None)
     except (RuntimeError, ValueError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc

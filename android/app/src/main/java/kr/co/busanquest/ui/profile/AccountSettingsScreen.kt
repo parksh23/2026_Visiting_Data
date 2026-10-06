@@ -91,7 +91,7 @@ fun AccountSettingsScreen(
     if (logoutVisible) {
         AlertDialog(
             onDismissRequest = { if (!logoutLoading) viewModel.dismissLogoutDialog() },
-            title = { Text("로그아웃 하시겠습니까?", color = TextMain, fontWeight = FontWeight.Bold) },
+            title = { Text("로그아웃하시겠습니까?", color = TextMain, fontWeight = FontWeight.Bold) },
             text = { Text("다시 로그인하면 기록은 그대로 남아 있어요.", color = TextSub, fontSize = 14.sp) },
             confirmButton = {
                 TextButton(

@@ -35,6 +35,8 @@ import kr.co.busanquest.data.local.NotificationKey
 import kr.co.busanquest.data.local.SettingsStore
 import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.ui.theme.*
+import kr.co.busanquest.ui.components.NotificationPermissionDisclosureDialog
+import kr.co.busanquest.ui.components.PermissionSettingsDialog
 import kr.co.busanquest.util.Notifier
 import kotlinx.coroutines.launch
 
@@ -70,6 +72,8 @@ fun NotificationSettingsScreen(navController: NavHostController) {
     var systemEnabled by remember {
         mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
     }
+    var showPermissionDisclosure by remember { mutableStateOf(false) }
+    var showPermissionSettings by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -85,12 +89,31 @@ fun NotificationSettingsScreen(navController: NavHostController) {
     // Android 13+ 는 알림 권한을 별도로 받아야 한다
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { systemEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled() }
+    ) {
+        systemEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        if (!systemEnabled) showPermissionSettings = true
+    }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !systemEnabled) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+    if (showPermissionDisclosure) {
+        NotificationPermissionDisclosureDialog(
+            onAllow = {
+                showPermissionDisclosure = false
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onCancel = { showPermissionDisclosure = false },
+        )
+    }
+
+    if (showPermissionSettings) {
+        PermissionSettingsDialog(
+            title = "알림 권한이 꺼져 있어요",
+            message = "알림을 받으려면 기기 설정에서 부산 가봤나의 알림 권한을 허용해주세요. 허용하지 않아도 다른 앱 기능은 이용할 수 있습니다.",
+            onOpenSettings = {
+                showPermissionSettings = false
+                context.openAppNotificationSettings()
+            },
+            onCancel = { showPermissionSettings = false },
+        )
     }
 
     Column(
@@ -112,7 +135,13 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                     .clip(RoundedCornerShape(Dimens.radiusCard))
                     .background(CoralTint)
                     .border(1.5.dp, InkBorder, RoundedCornerShape(Dimens.radiusCard))
-                    .clickable { context.openAppNotificationSettings() }
+                    .clickable {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            showPermissionDisclosure = true
+                        } else {
+                            context.openAppNotificationSettings()
+                        }
+                    }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -132,7 +161,7 @@ fun NotificationSettingsScreen(navController: NavHostController) {
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "아래 설정을 켜도 알림이 오지 않아요. 눌러서 기기 설정을 열어주세요.",
+                        "아래 설정을 켜도 알림이 오지 않아요. 눌러서 알림 권한 안내를 확인해주세요.",
                         fontSize = 12.sp,
                         color = TextSub
                     )

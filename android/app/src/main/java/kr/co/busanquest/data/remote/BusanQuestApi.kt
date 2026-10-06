@@ -9,6 +9,7 @@ import retrofit2.http.Part
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 import okhttp3.MultipartBody
 
 interface BusanQuestApi {
@@ -100,6 +101,13 @@ interface BusanQuestApi {
     suspend fun getDistrictProgress(): List<DistrictStatusDto>
 
     // 미션 인증 제출
+    @POST("api/v1/missions/{mission_id}/location-challenge")
+    suspend fun createLocationChallenge(
+        @Path("mission_id") missionId: Int,
+        @Query("protocol_version") protocolVersion: Int,
+        @Query("distribution_channel") distributionChannel: String,
+    ): LocationChallengeDto
+
     @POST("api/v1/missions/verify")
     suspend fun verifyMission(
         @Body request: MissionVerifyRequestDto

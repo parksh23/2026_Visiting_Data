@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for ONE store SDK service discovery on Android 11+. -->
+    <queries>
+        <intent>
+            <action android:name="com.onestore.extern.licensing.LicensingService.ACTION" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="onestore" />
+        </intent>
+    </queries>
+</manifest>

@@ -4,14 +4,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kr.co.busanquest.data.model.MissionState
 import kr.co.busanquest.data.model.MissionType
+import kr.co.busanquest.data.model.toMissionTypeOrNull
 import kr.co.busanquest.data.model.toServerType
 import kr.co.busanquest.data.remote.MissionVerifyRequestDto
 import kr.co.busanquest.data.repository.MissionRepository
 import kr.co.busanquest.data.repository.MissionWithState
 import kr.co.busanquest.data.repository.UserRepository
 import kr.co.busanquest.util.Notifier
-import kr.co.busanquest.util.getCurrentLocation
-import kr.co.busanquest.util.readImageLocation
+import kr.co.busanquest.util.LocationProof
+import kr.co.busanquest.data.remote.ErrorDetailDto
+import com.google.gson.Gson
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -146,54 +150,43 @@ class HomeViewModel : ViewModel() {
 
     // ── 미션 인증: 타입별로 서버에 제출 (POST /api/v1/missions/verify) ──
 
-    // IMAGE: 사진을 골랐을 때 → 사진 GPS 확인 후 image + 좌표 전송
-    fun onImagePicked(id: Int, context: Context, uri: Uri) {
-        val location = readImageLocation(context, uri)
-        if (location == null) {
-            MissionRepository.setError(id, "이 사진에는 위치정보가 없어요. 위치 기록을 켜고 찍은 사진을 올려주세요.")
-            return
-        }
+    private val locationPending = mutableSetOf<Int>()
+
+    fun onImagePicked(id: Int, context: Context, uri: Uri) = verifyLocalLocation(id, context, uri)
+
+    fun onLocationPermissionGranted(id: Int, context: Context) = verifyLocalLocation(id, context, null)
+
+    private fun verifyLocalLocation(id: Int, context: Context, photo: Uri?) {
+        if (!locationPending.add(id)) return
         viewModelScope.launch {
-            MissionRepository.setVerifying(id)
-            val imageUrl = MissionRepository.uploadImage(context, uri)
-                .getOrElse { error ->
-                    MissionRepository.setError(
-                        id,
-                        error.message ?: "사진 업로드에 실패했습니다."
-                    )
+            try {
+                MissionRepository.refreshMissionsFromServer(force = true)
+                if (MissionRepository.missions.value.firstOrNull { it.mission.id == id }?.state != MissionState.IN_PROGRESS) {
+                    MissionRepository.setError(id, "미션 상태를 갱신했습니다. 먼저 도전하기를 눌러주세요.")
                     return@launch
                 }
-            submitVerification(
-                id,
-                MissionVerifyRequestDto(
-                    missionId = id,
-                    missionType = serverTypeOf(id, MissionType.IMAGE_LOCATION),
-                    imageUrl = imageUrl,
-                    latitude = location.latitude,
-                    longitude = location.longitude
-                )
-            )
-        }
-    }
-
-    // CURRENT_LOCATION: 위치 권한 허락 → 현재 위도/경도 전송
-    fun onLocationPermissionGranted(id: Int, context: Context) {
-        viewModelScope.launch {
-            MissionRepository.setVerifying(id)
-            val location = getCurrentLocation(context)
-            if (location == null) {
-                MissionRepository.setError(id, "위치를 가져오지 못했어요. 야외에서 다시 시도해주세요.")
-                return@launch
+                MissionRepository.setVerifying(id)
+                submitVerification(id, LocationProof.create(context, id, photo))
+            } catch (_: TimeoutCancellationException) {
+                MissionRepository.setError(id, "인증 시간이 초과되었습니다. 다시 시도해주세요.")
+            } catch (e: CancellationException) {
+                MissionRepository.setError(id, "인증이 취소되었습니다. 다시 시도해주세요.")
+                throw e
+            } catch (e: retrofit2.HttpException) {
+                val message = runCatching {
+                    Gson().fromJson(e.response()?.errorBody()?.string(), ErrorDetailDto::class.java)?.detail
+                }.getOrNull()
+                if (e.code() == 409) {
+                    try { MissionRepository.refreshMissionsFromServer(force = true) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { /* Keep the previous state if offline. */ }
+                }
+                MissionRepository.setError(id, message ?: "인증을 준비하지 못했습니다. 잠시 후 다시 시도해주세요.")
+            } catch (e: Exception) {
+                MissionRepository.setError(id, e.message ?: "기기 위치 인증에 실패했습니다.")
+            } finally {
+                locationPending.remove(id)
             }
-            submitVerification(
-                id,
-                MissionVerifyRequestDto(
-                    missionId = id,
-                    missionType = serverTypeOf(id, MissionType.CURRENT_LOCATION),
-                    latitude = location.latitude,
-                    longitude = location.longitude
-                )
-            )
         }
     }
 
@@ -218,31 +211,30 @@ class HomeViewModel : ViewModel() {
                 id,
                 MissionVerifyRequestDto(
                     missionId = id,
-                    missionType = serverTypeOf(id, MissionType.RECEIPT),
+                    missionType = canonicalTypeOf(id, MissionType.RECEIPT),
                     receiptImageUrl = receiptImageUrl
                 )
             )
         }
     }
 
-    fun onCameraPermissionDenied(id: Int) {
-        MissionRepository.setError(id, "카메라 권한이 있어야 영수증을 촬영할 수 있어요.")
-    }
-
     /**
      * 서버에 보낼 mission_type.
      *
-     * 서버는 요청한 타입이 DB 값과 정확히 같은지 검사한다. 앱이 자체 문자열을 만들어 보내면
-     * 서버 표기가 바뀔 때마다("PHOTO" ↔ "IMAGE") 인증이 거절되므로,
-     * 서버가 내려준 원문(serverType)을 그대로 되돌려 보낸다.
-     * 로컬 샘플 데이터라 원문이 없으면 앱 기본값으로 폴백한다.
+     * 백엔드 계약상 PHOTO · CURRENT_LOCATION · RECEIPT 세 값만 허용된다.
+     * 예전에는 서버가 내려준 원문을 그대로 되돌려 보냈는데, 그러면 DB 에 남아 있는
+     * 옛 값("IMAGE")이 그대로 나가 버린다. 그래서 원문을 앱 타입으로 한 번 읽은 뒤
+     * 정규 표기로 바꿔 보낸다 — 읽기는 옛 표기까지 받아주고, 쓰기는 항상 정규 값이다.
+     * 원문이 없거나(로컬 샘플 데이터) 모르는 값이면 앱이 파싱한 타입, 그것도 없으면 기본값.
      */
-    private fun serverTypeOf(missionId: Int, fallback: MissionType): String =
-        MissionRepository.missions.value
-            .firstOrNull { it.mission.id == missionId }
-            ?.mission?.serverType
-            ?.takeIf { it.isNotBlank() }
-            ?: fallback.toServerType()
+    private fun canonicalTypeOf(missionId: Int, fallback: MissionType): String {
+        val mission = MissionRepository.missions.value
+            .firstOrNull { it.mission.id == missionId }?.mission
+        val type = mission?.serverType?.takeIf { it.isNotBlank() }?.toMissionTypeOrNull()
+            ?: mission?.type
+            ?: fallback
+        return type.toServerType()
+    }
 
     // 공통: 서버 제출 → 성공이면 완료 처리, 실패면 에러 표시 후 진행 중으로 복귀
     private suspend fun submitVerification(id: Int, request: MissionVerifyRequestDto) {

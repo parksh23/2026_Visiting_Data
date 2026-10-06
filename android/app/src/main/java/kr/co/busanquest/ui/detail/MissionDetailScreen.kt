@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -160,6 +161,21 @@ fun MissionDetailScreen(
             }
         }
 
+        // 사진 출처 표기.
+        // 공공누리 제1유형은 "출처 표시"가 이용 조건이라 화면에 반드시 드러나야 한다.
+        // 실제 사진이 있을 때만 붙인다 — 자리표시자 아이콘에는 출처가 없다.
+        if (mission.imageUrl != null) {
+            Text(
+                text = "출처 : 부산 관광 아카이브 공공누리 제1유형",
+                color = TextSub.copy(alpha = 0.75f),
+                fontSize = 10.sp,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.screenPadding, vertical = 6.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
@@ -208,6 +224,7 @@ fun MissionDetailScreen(
                     ) {
                         Text(if (isStatePending) "시작하는 중..." else "도전하기")
                     }
+                    item.error?.let { Text(it, color = PointRed, fontSize = 12.sp) }
                 }
                 MissionState.IN_PROGRESS -> {
                     Button(
@@ -295,8 +312,8 @@ fun missionTypeLabelDetail(type: MissionType): String = when (type) {
 }
 
 fun missionGuide(type: MissionType): String = when (type) {
-    MissionType.IMAGE_LOCATION   -> "이 미션은 사진의 위치정보로 인증합니다. 미션 장소에서 위치 기록을 켜고 촬영한 사진을 올려주세요."
-    MissionType.CURRENT_LOCATION -> "이 미션은 현재 위치로 인증합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요."
+    MissionType.IMAGE_LOCATION   -> "이 미션은 사진과 현재 위치로 인증합니다. 미션 장소에 도착해서, 위치 기록을 켜고 촬영한 사진을 올려주세요."
+    MissionType.CURRENT_LOCATION -> "기기에서 현재 위치를 확인합니다. 미션 장소에 도착해서 '인증하기'를 눌러주세요. 현재 위치 좌표는 서버로 전송하지 않습니다."
     MissionType.RECEIPT          -> "이 미션은 결제 영수증으로 인증합니다. 해당 장소에서 결제 후 영수증을 촬영해주세요."
 }
 

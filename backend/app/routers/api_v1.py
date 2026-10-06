@@ -1,5 +1,8 @@
 import json
+import io
 import hmac
+import hashlib
+import secrets
 import math
 import os
 import re
@@ -7,7 +10,7 @@ import uuid
 import random
 import shutil
 import string
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -24,9 +27,9 @@ from fastapi import (
     UploadFile,
     status,
 )
-from PIL import Image
+from PIL import Image, ImageOps
 import google.generativeai as genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, StrictBool
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -44,6 +47,7 @@ from models import (
     District,
     Friendship,
     Mission,
+    LocationChallenge,
     PendingPush,
     PushDeliveryLog,
     PushToken,
@@ -54,6 +58,10 @@ from models import (
     UserSettings,
 )
 from tourism_scoring import refresh_tourism_scores
+from location_verification import (
+    CHALLENGE_TTL_SECONDS, CHALLENGE_COOLDOWN_SECONDS,
+    integrity_config, onestore_integrity_config, verify_integrity,
+)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "여기에_발급받은_API_KEY_임시입력")
 genai.configure(api_key=GEMINI_API_KEY)
@@ -80,7 +88,36 @@ BUSAN_DISTRICTS = [
     "영도구",
 ]
 MISSION_TYPES = {"PHOTO", "CURRENT_LOCATION", "RECEIPT"}
+
+
+def _canonical_mission_type(value: Optional[str]) -> Optional[str]:
+    """Normalize stored legacy labels; unknown types must never imply GPS approval."""
+    normalized = (value or "").strip().upper()
+    aliases = {
+        "CURRENT_LOCATION": "CURRENT_LOCATION",
+        "LOCATION": "CURRENT_LOCATION",
+        "GPS": "CURRENT_LOCATION",
+        "위치 인증": "CURRENT_LOCATION",
+        "현재 위치 인증": "CURRENT_LOCATION",
+        "PHOTO": "PHOTO",
+        "PHOTO_LOCATION": "PHOTO",
+        "IMAGE": "PHOTO",
+        "IMAGE_LOCATION": "PHOTO",
+        "RECEIPT": "RECEIPT",
+    }
+    return aliases.get(normalized)
+
+
 REQUIRED_AGREEMENT_DOCS = {"terms", "privacy", "location"}
+
+
+def _canonical_mission_status(value):
+    normalized = str(value or "").strip().lower()
+    return "ongoing" if normalized == "in_progress" else normalized
+
+
+def _ongoing_mission_status_filter():
+    return func.lower(func.trim(UserMission.status)).in_(("ongoing", "in_progress"))
 DOCUMENT_TITLES = {
     "terms": "이용약관",
     "privacy": "개인정보처리방침",
@@ -192,6 +229,7 @@ class MissionDto(BaseModel):
     progress_total: int
     status: str
     mission_type: str
+    mission_category: Optional[str] = None
     image_url: Optional[str] = None
     photo_url: Optional[str] = None
     receipt_image_url: Optional[str] = None
@@ -211,13 +249,30 @@ class MissionCancelResponse(BaseModel):
     message: str
 
 class MissionVerifyRequestDto(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     mission_id: int
     mission_type: str
-    photo_url: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    accuracy_m: Optional[float] = None
-    receipt_image_url: Optional[str] = None
+    photo_url: Optional[str] = Field(default=None, max_length=1000, pattern=r"^[^\r\n]*$")
+    receipt_image_url: Optional[str] = Field(default=None, max_length=1000, pattern=r"^[^\r\n]*$")
+    protocol_version: int = 1
+    distribution_channel: Optional[str] = Field(default=None, pattern=r"^(PLAY|ONESTORE)$")
+    challenge_id: Optional[str] = Field(default=None, max_length=64, pattern=r"^[a-f0-9]{64}$")
+    local_passed: StrictBool = False
+    integrity_token: Optional[str] = Field(default=None, max_length=20000)
+
+
+class LocationChallengeResponse(BaseModel):
+    challenge_id: str
+    mission_id: int
+    mission_type: str
+    protocol_version: int = 1
+    distribution_channel: Optional[str] = None
+    latitude: float
+    longitude: float
+    radius_m: float
+    max_accuracy_m: float
+    expires_in_seconds: int
+    cloud_project_number: int
 
 class MissionVerifyResponse(BaseModel):
     success: bool
@@ -401,18 +456,6 @@ def _parse_document(text_file: TextFile, slug: str) -> dict:
     }
 
 
-def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    radius = 6_371_000
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    d_phi = math.radians(lat2 - lat1)
-    d_lambda = math.radians(lon2 - lon1)
-    a = (
-        math.sin(d_phi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
-    )
-    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-
 def _mission_dict(
     mission: Mission, user_statuses: dict, saved_ids: Optional[set[int]] = None
 ) -> dict:
@@ -421,7 +464,7 @@ def _mission_dict(
         mission_status, photo_url, receipt_image_url = "not_started", None, None
     else:
         mission_status, photo_url, receipt_image_url = user_record
-    mission_status = str(mission_status).lower()
+    mission_status = _canonical_mission_status(mission_status)
     completed = (mission_status == "completed")
 
     return {
@@ -435,7 +478,8 @@ def _mission_dict(
         "progress_current": 1 if completed else 0,
         "progress_total": 1,
         "status": mission_status,
-        "mission_type": mission.mission_type,
+        "mission_type": _canonical_mission_type(mission.mission_type) or mission.mission_type,
+        "mission_category": mission.mission_category,
         "image_url": getattr(mission, "image_url", None),
         "photo_url": photo_url,
         "receipt_image_url": receipt_image_url,
@@ -813,6 +857,7 @@ def withdraw_account(
         upload_dir.rename(staged_upload_dir)
 
     try:
+        db.query(LocationChallenge).filter_by(user_code=user_code).delete()
         db.query(PushDeliveryLog).filter(PushDeliveryLog.user_code == user_code).delete()
         db.query(PendingPush).filter(PendingPush.user_code == user_code).delete()
         db.query(PushToken).filter(PushToken.user_code == user_code).delete()
@@ -984,9 +1029,9 @@ def start_mission(
     )
 
     if user_mission:
-        if user_mission.status.lower() == "completed":
+        if _canonical_mission_status(user_mission.status) == "completed":
             return {"success": False, "message": "이미 완료한 미션입니다."}
-        elif user_mission.status.lower() == "ongoing":
+        elif _canonical_mission_status(user_mission.status) == "ongoing":
             return {"success": True, "message": "이미 진행 중인 미션입니다."}
 
     new_user_mission = UserMission(
@@ -1020,13 +1065,110 @@ def cancel_mission(
     if not user_mission:
         return {"success": False, "message": "진행 중인 미션이 아닙니다."}
 
-    if user_mission.status.lower() == "completed":
+    if _canonical_mission_status(user_mission.status) == "completed":
         return {"success": False, "message": "이미 완료된 미션은 취소할 수 없습니다."}
 
     db.delete(user_mission)
     db.commit()
 
     return {"success": True, "message": "미션이 취소되었습니다."}
+
+
+def _location_policy(mission):
+    radius = float(getattr(mission, "radius_m", 300))
+    values = [mission.latitude, mission.longitude, radius, MAX_LOCATION_ACCURACY_M]
+    if (
+        any(value is None or not math.isfinite(value) for value in values)
+        or not -90 <= mission.latitude <= 90
+        or not -180 <= mission.longitude <= 180
+        or radius <= 0 or MAX_LOCATION_ACCURACY_M <= 0
+    ):
+        raise HTTPException(503, "미션 장소의 인증 조건이 준비되지 않았습니다.")
+    policy_hash = hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return radius, policy_hash
+
+
+@router.post("/missions/{mission_id}/location-challenge", response_model=LocationChallengeResponse)
+def create_location_challenge(
+    mission_id: int,
+    subject: str = Depends(get_current_user_email),
+    db: Session = Depends(get_db),
+    protocol_version: int = 1,
+    distribution_channel: Optional[str] = None,
+):
+    user = _get_user(db, subject)
+    if protocol_version == 1 and distribution_channel is None:
+        distribution_channel = "PLAY"
+    if protocol_version in {1, 2} and distribution_channel == "PLAY":
+        project, _, _ = integrity_config()
+    elif protocol_version == 2 and distribution_channel == "ONESTORE":
+        project, _, _ = onestore_integrity_config()
+    else:
+        raise HTTPException(400, "Unsupported location verification protocol or distribution channel.")
+    mission = db.query(Mission).filter_by(mission_id=mission_id).first()
+    if mission is None:
+        raise HTTPException(404, "미션을 찾을 수 없습니다.")
+    mission_type = _canonical_mission_type(mission.mission_type)
+    if mission_type not in {"PHOTO", "CURRENT_LOCATION"}:
+        raise HTTPException(400, "위치 인증 대상 미션이 아닙니다.")
+    ongoing = db.query(UserMission).filter_by(
+        user_code=user.user_code, mission_id=mission_id,
+    ).filter(_ongoing_mission_status_filter()).first()
+    if ongoing is None:
+        raise HTTPException(409, "진행 중인 미션만 인증할 수 있습니다.")
+    radius, policy_hash = _location_policy(mission)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    challenge_id = secrets.token_hex(32)
+    values = dict(challenge_id=challenge_id, mission_id=mission_id, policy_hash=policy_hash,
+                  issued_at=now, expires_at=now + timedelta(seconds=CHALLENGE_TTL_SECONDS), consumed=0)
+    existing = db.query(LocationChallenge).filter_by(user_code=user.user_code)
+    if existing.first() is None:
+        db.add(LocationChallenge(user_code=user.user_code, **values))
+    else:
+        updated = existing.filter(
+            LocationChallenge.issued_at <= now - timedelta(seconds=CHALLENGE_COOLDOWN_SECONDS),
+        ).update(values, synchronize_session=False)
+        if not updated:
+            db.rollback()
+            raise HTTPException(429, "인증 요청이 잦습니다. 15초 후 다시 시도해주세요.")
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(429, "이미 인증을 준비하고 있습니다. 잠시 후 다시 시도해주세요.") from None
+    return dict(
+        challenge_id=challenge_id, mission_id=mission_id, mission_type=mission_type,
+        latitude=mission.latitude, longitude=mission.longitude, radius_m=radius,
+        max_accuracy_m=MAX_LOCATION_ACCURACY_M, expires_in_seconds=CHALLENGE_TTL_SECONDS,
+        cloud_project_number=project, protocol_version=protocol_version,
+        distribution_channel=distribution_channel,
+    )
+
+
+def _consume_location_proof(req, user_code, mission, db):
+    supported_protocol = (
+        (req.protocol_version == 1 and req.distribution_channel is None)
+        or (req.protocol_version == 2 and req.distribution_channel in {"PLAY", "ONESTORE"})
+    )
+    if not supported_protocol or req.local_passed is not True or not req.challenge_id or not req.integrity_token:
+        raise HTTPException(400, "기기 위치 인증과 앱 보안 확인이 필요합니다. 앱을 업데이트해주세요.")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    challenge = db.query(LocationChallenge).filter_by(
+        user_code=user_code, challenge_id=req.challenge_id, mission_id=mission.mission_id, consumed=0,
+    ).first()
+    if challenge is None or challenge.expires_at <= now:
+        raise HTTPException(409, "만료되었거나 이미 사용한 인증 요청입니다. 다시 인증해주세요.")
+    if challenge.policy_hash != _location_policy(mission)[1]:
+        raise HTTPException(409, "미션 인증 조건이 변경되었습니다. 다시 인증해주세요.")
+    issued_at = challenge.issued_at.replace(tzinfo=timezone.utc)
+    # Claim before external verification, so a failing token cannot be tried repeatedly.
+    claimed = db.query(LocationChallenge).filter_by(
+        user_code=user_code, challenge_id=req.challenge_id, consumed=0,
+    ).filter(LocationChallenge.expires_at > now).update({"consumed": 1}, synchronize_session=False)
+    db.commit()
+    if claimed != 1:
+        raise HTTPException(409, "이미 사용한 인증 요청입니다. 다시 인증해주세요.")
+    verify_integrity(req, issued_at)
 
 
 @router.post("/missions/verify", response_model=MissionVerifyResponse)
@@ -1045,7 +1187,7 @@ def verify_mission(
         raise HTTPException(status_code=404, detail="미션을 찾을 수 없습니다.")
 
     requested_type = req.mission_type.strip().upper()
-    db_mission_type = mission.mission_type.strip().upper() if mission.mission_type else ""
+    db_mission_type = _canonical_mission_type(mission.mission_type)
 
     if requested_type not in MISSION_TYPES or requested_type != db_mission_type:
         return {"success": False, "message": "미션 인증 방식이 올바르지 않습니다."}
@@ -1058,8 +1200,10 @@ def verify_mission(
         )
         .first()
     )
-    if user_mission and user_mission.status.lower() == "completed":
+    if user_mission and _canonical_mission_status(user_mission.status) == "completed":
         return {"success": False, "message": "이미 완료한 미션입니다."}
+
+    user_mission_id = user_mission.id if user_mission is not None else None
 
     if requested_type == "PHOTO" and not _uploaded_image_exists(
         req.photo_url, user.user_code
@@ -1071,28 +1215,9 @@ def verify_mission(
         return finish(False, "서버에 업로드된 영수증 이미지를 확인할 수 없습니다.")
 
     if requested_type in {"PHOTO", "CURRENT_LOCATION"}:
-        if req.latitude is None or req.longitude is None:
-            return finish(False, "현재 위치 정보가 필요합니다.")
-        if req.accuracy_m is None or not math.isfinite(req.accuracy_m):
-            return finish(False, "위치 정확도 정보가 필요합니다.")
-        if req.accuracy_m < 0 or req.accuracy_m > MAX_LOCATION_ACCURACY_M:
-            return finish(
-                False,
-                f"위치 정확도가 낮습니다. {MAX_LOCATION_ACCURACY_M:g}m 이내에서 다시 시도해주세요.",
-            )
-        if mission.latitude is None or mission.longitude is None:
-            return finish(False, "미션 장소 좌표가 등록되지 않았습니다.")
-        distance = _haversine_m(
-            req.latitude, req.longitude, mission.latitude, mission.longitude
-        )
-
-        mission_radius = getattr(mission, "radius_m", 300)
-
-        if distance > mission_radius:
-            return finish(
-                False,
-                f"미션 장소에서 허용 반경 {mission_radius}m 이상 떨어져 있어요.",
-            )
+        if user_mission is None or _canonical_mission_status(user_mission.status) != "ongoing":
+            return finish(False, "진행 중인 미션만 인증할 수 있습니다.")
+        _consume_location_proof(req, user.user_code, mission, db)
 
     ai_extracted_text = ""
     if requested_type in {"PHOTO", "RECEIPT"}:
@@ -1147,12 +1272,18 @@ def verify_mission(
 
     reward = getattr(mission, "reward_points", 0)
 
-    if user_mission:
-        user_mission.status = "completed"
-        user_mission.photo_url = req.photo_url if requested_type == "PHOTO" else None
-        user_mission.receipt_image_url = (
-            req.receipt_image_url if requested_type == "RECEIPT" else None
-        )
+    if user_mission_id is not None:
+        completed = db.query(UserMission).filter(
+            UserMission.id == user_mission_id,
+            _ongoing_mission_status_filter(),
+        ).update({
+            "status": "completed", "verified_at": datetime.now(timezone.utc).replace(tzinfo=None),
+            "photo_url": req.photo_url if requested_type == "PHOTO" else None,
+            "receipt_image_url": req.receipt_image_url if requested_type == "RECEIPT" else None,
+        }, synchronize_session=False)
+        if completed != 1:
+            db.rollback()
+            return finish(False, "이미 완료되었거나 취소된 미션입니다.")
     else:
         db.add(
             UserMission(
@@ -1166,9 +1297,18 @@ def verify_mission(
             )
         )
 
-    user.total_points += reward
-    user.completed_missions += 1
-    db.commit()
+    credited = db.query(AppUser).filter_by(user_code=user.user_code, account_status="ACTIVE").update({
+        AppUser.total_points: AppUser.total_points + reward,
+        AppUser.completed_missions: AppUser.completed_missions + 1,
+    }, synchronize_session=False)
+    if credited != 1:
+        db.rollback()
+        return finish(False, "이용할 수 없는 계정입니다.")
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return finish(False, "이미 처리된 미션입니다.")
     return {
         "success": True,
         "message": f"미션 인증이 완료되어 {reward}P가 적립됐습니다.",
@@ -1177,7 +1317,7 @@ def verify_mission(
 
 @router.post("/admin/tourism-scores/refresh")
 def refresh_tourism_scores_endpoint(
-    req: TourismRefreshRequest,
+    req: Optional[TourismRefreshRequest] = None,
     x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
 ):
@@ -1190,7 +1330,7 @@ def refresh_tourism_scores_endpoint(
     if not x_admin_key or not hmac.compare_digest(x_admin_key, configured_key):
         raise HTTPException(status_code=403, detail="관리자 인증에 실패했습니다.")
     try:
-        return refresh_tourism_scores(db, req.base_ym)
+        return refresh_tourism_scores(db, req.base_ym if req else None)
     except (RuntimeError, ValueError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1350,6 +1490,24 @@ def get_rankings(
     }
 
 
+def _sanitize_uploaded_jpeg(content: bytes) -> bytes:
+    try:
+        with Image.open(io.BytesIO(content)) as original:
+            if original.format != "JPEG" or original.width * original.height > 16_000_000:
+                raise ValueError()
+            pixels = ImageOps.exif_transpose(original).convert("RGB")
+            clean = Image.new("RGB", pixels.size)
+            clean.paste(pixels)
+            output = io.BytesIO()
+            clean.save(output, format="JPEG", quality=90)
+            encoded = output.getvalue()
+            if len(encoded) > MAX_UPLOAD_BYTES:
+                raise ValueError()
+            return encoded
+    except Exception:
+        raise HTTPException(400, "처리할 수 없는 JPG 이미지입니다. 사진 크기를 줄여 다시 시도해주세요.") from None
+
+
 @router.post("/uploads", response_model=UploadResponse, status_code=201)
 async def upload_image(
     request: Request,
@@ -1364,6 +1522,8 @@ async def upload_image(
     content = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="이미지 크기는 5MB 이하여야 합니다.")
+    # Defense in depth for legacy/non-app uploaders. The new app strips EXIF before sending.
+    content = _sanitize_uploaded_jpeg(content)
 
     user_upload_dir = _user_upload_dir(user.user_code)
     user_upload_dir.mkdir(parents=True, exist_ok=True)

@@ -23,9 +23,9 @@ ASSETS = os.path.join(ROOT, "android", "app", "src", "main", "assets")
 PAGES = os.path.join(ROOT, "tools", "pages")
 OUT = os.path.join(ROOT, "docs")
 
-APP_NAME = "부산 땅따먹기"
+APP_NAME = "부산 가봤나"
 DEVELOPER = "삠삠"
-CONTACT = "sihyunb88@gmail.com"
+CONTACT = "sihyeonb88@gmail.com"
 
 # (출력파일, 원본경로, 내비게이션 라벨)
 DOCS = [
@@ -153,7 +153,7 @@ def page(current, title, meta_line, inner):
 <body>
 <div class="wrap">
   <header>
-    <div class="brand">부산 <span>땅</span>따먹기</div>
+    <div class="brand">부산 <span>가봤나</span></div>
     <div class="meta">개발자 {html.escape(DEVELOPER)} · 문의 <a href="mailto:{CONTACT}">{CONTACT}</a></div>
     {nav(current)}
   </header>

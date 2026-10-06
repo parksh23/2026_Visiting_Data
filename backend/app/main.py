@@ -71,6 +71,13 @@ Base.metadata.create_all(bind=engine)
 app.include_router(text_files.router)
 app.include_router(api_v1.router)
 app.include_router(internal_jobs.router)
+# 외부 크론에 /api/v1 없이 등록된 기존 관광지수 갱신 URL 호환용
+app.add_api_route(
+    "/admin/tourism-scores/refresh",
+    api_v1.refresh_tourism_scores_endpoint,
+    methods=["POST"],
+    include_in_schema=False,
+)
 
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)

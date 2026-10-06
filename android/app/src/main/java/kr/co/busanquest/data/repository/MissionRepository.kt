@@ -7,6 +7,7 @@ import android.net.Uri
 import kr.co.busanquest.data.model.MissionState
 import kr.co.busanquest.data.model.MissionType
 import kr.co.busanquest.data.model.OngoingMission
+import kr.co.busanquest.data.model.toMissionTypeOrNull
 import kr.co.busanquest.data.remote.DistrictStatusDto
 import kr.co.busanquest.data.remote.MissionDto
 import kr.co.busanquest.data.remote.RetrofitInstance
@@ -108,8 +109,6 @@ object MissionRepository {
     private val _serverDistrictProgress =
         MutableStateFlow<List<DistrictMissionProgress>?>(null)
 
-    // 서버에서 미션 데이터를 한 번이라도 불러왔는지 확인하는 변수
-    private var loadedFromServer = false
 
 
     // ───────────────── 미션 찜 ─────────────────
@@ -252,22 +251,11 @@ object MissionRepository {
     }
 
 
-    // 미션 탭에서 "도전하기"를 눌렀을 때 진행 중으로 변경
-    fun startMission(id: Int) {
-        updateMission(id) {
-            if (it.state == MissionState.NOT_STARTED) {
-                it.copy(state = MissionState.IN_PROGRESS)
-            } else {
-                it
-            }
-        }
-    }
-
-
     // 인증 시작 → 확인 중 상태로 변경
     fun setVerifying(id: Int) {
         updateMission(id) {
-            it.copy(state = MissionState.VERIFYING, error = null)
+            if (it.state == MissionState.IN_PROGRESS) it.copy(state = MissionState.VERIFYING, error = null)
+            else it
         }
     }
 
@@ -283,7 +271,8 @@ object MissionRepository {
     // 인증 실패 → 진행 중으로 되돌리고 에러 메시지 저장
     fun setError(id: Int, message: String) {
         updateMission(id) {
-            it.copy(state = MissionState.IN_PROGRESS, error = message)
+            it.copy(state = if (it.state == MissionState.VERIFYING) MissionState.IN_PROGRESS else it.state,
+                error = message)
         }
     }
 
@@ -347,7 +336,7 @@ object MissionRepository {
         return scope.async {
             try {
                 val response = request()
-                if (response.success == false) {
+                if (response.success != true) {
                     // 200 이지만 서버가 거절 (예: 이미 완료한 미션 취소)
                     Result.failure(
                         Exception(
@@ -384,8 +373,8 @@ object MissionRepository {
      * 미션 인증을 서버로 제출한다. POST /api/v1/missions/verify
      *
      * 타입별로 채워야 하는 필드 (MissionVerifyRequestDto):
-     * - CURRENT_LOCATION → latitude, longitude
-     * - IMAGE            → image (+ 사진의 GPS 좌표도 함께 전송)
+     * - CURRENT_LOCATION → 일회용 challenge + 기기 판정 + integrity token
+     * - PHOTO            → photo_url + 일회용 challenge + 기기 판정 + integrity token
      * - RECEIPT          → receipt_image_url
      *
      * 성공/실패를 Result 로 돌려주고, 상태 변경(setCompleted/setError)은
@@ -397,6 +386,7 @@ object MissionRepository {
             if (response.success) {
                 Result.success(response.message)
             } else {
+                refreshMissionsFromServer(force = true)
                 // 200 이지만 서버가 인증 거절 (예: 위치가 미션 장소와 다름)
                 Result.failure(Exception(response.message.ifBlank { "인증에 실패했습니다." }))
             }
@@ -498,8 +488,7 @@ object MissionRepository {
 
     // FastAPI 서버에서 미션 목록을 가져와 앱 내부 미션 목록으로 변환
     suspend fun refreshMissionsFromServer(force: Boolean = false) {
-        // 이미 서버에서 불러왔고 강제 새로고침이 아니면 다시 요청하지 않음
-        if (loadedFromServer && !force) return
+        // Refresh account-specific progress whenever the screen requests it.
 
         // GET /api/v1/missions 호출
         val serverMissions = RetrofitInstance.api.getMissions()
@@ -513,7 +502,6 @@ object MissionRepository {
             )
         }
 
-        loadedFromServer = true
     }
 
 
@@ -578,35 +566,7 @@ object MissionRepository {
                 started = SharingStarted.WhileSubscribed(5000),
                 initialValue = OccupationStat()
             )
-        // 미션 인증 정보를 서버로 제출하는 함수
-    suspend fun submitMissionVerification(
-        missionId: Int,
-        missionType: String,
-        imageUrl: String? = null,
-        latitude: Double? = null,
-        longitude: Double? = null,
-        receiptImageUrl: String? = null
-    ): Boolean {
-        // 앱에서 받은 값을 서버 요청 DTO로 변환
-        val request = MissionVerifyRequestDto(
-            missionId = missionId,
-            missionType = missionType,
-            imageUrl = imageUrl,
-            latitude = latitude,
-            longitude = longitude,
-            receiptImageUrl = receiptImageUrl
-        )
 
-        // POST /api/v1/missions/verify 호출
-        val response = RetrofitInstance.api.verifyMission(request)
-
-        // 서버가 success=true를 주면 앱 상태를 확인 중으로 변경
-        if (response.success) {
-            setVerifying(missionId)
-        }
-
-        return response.success
-    }
 }
 
 
@@ -626,26 +586,21 @@ private fun MissionDto.toOngoingMission(): OngoingMission {
         lat = latitude,
         lng = longitude,
         imageUrl = imageUrl,
+        category = missionCategory?.trim()?.takeIf { it.isNotEmpty() },
         serverType = missionType     // 인증 제출 때 그대로 돌려보내기 위해 원문 보관
     )
 }
 
 
 // 서버에서 받은 mission_type 문자열을 앱 내부 MissionType으로 변환
-private fun String.toMissionType(): MissionType {
-    return when (this.uppercase()) {
-        "CURRENT_LOCATION" -> MissionType.CURRENT_LOCATION
-        // 서버가 예전 값("PHOTO")을 내려줘도 깨지지 않게 함께 받아준다
-        "IMAGE", "IMAGE_LOCATION", "PHOTO", "PHOTO_LOCATION" -> MissionType.IMAGE_LOCATION
-        "RECEIPT" -> MissionType.RECEIPT
-        else -> MissionType.CURRENT_LOCATION
-    }
-}
+// 과거 표기("IMAGE" 등) 호환은 MissionType.kt 의 toMissionTypeOrNull 이 맡는다.
+private fun String.toMissionType(): MissionType =
+    toMissionTypeOrNull() ?: MissionType.CURRENT_LOCATION
 
 
 // 서버에서 받은 status 문자열을 앱 내부 MissionState로 변환
 private fun String.toMissionState(): MissionState {
-    return when (this.lowercase()) {
+    return when (this.trim().lowercase()) {
         "completed" -> MissionState.COMPLETED
         "ongoing", "in_progress" -> MissionState.IN_PROGRESS
         "verifying" -> MissionState.VERIFYING

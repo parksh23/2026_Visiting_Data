@@ -1,6 +1,8 @@
 package kr.co.busanquest.util
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -71,10 +73,31 @@ object PushRegistrar {
         runCatching {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (!continuation.isActive) return@addOnCompleteListener
-                continuation.resume(if (task.isSuccessful) task.result else null)
+                val token = if (task.isSuccessful) task.result else null
+
+                // 디버그 빌드에서만 토큰을 찍는다.
+                // Firebase 콘솔 > Messaging > "테스트 메시지 전송" 에 붙여넣어
+                // 서버 없이도 푸시 수신을 확인할 수 있다.
+                // Logcat 필터: FCM_TOKEN
+                if (isDebugBuild()) {
+                    if (token != null) {
+                        Log.d("FCM_TOKEN", token)
+                    } else {
+                        Log.w("FCM_TOKEN", "토큰 발급 실패", task.exception)
+                    }
+                }
+
+                continuation.resume(token)
             }
         }.onFailure {
+            if (isDebugBuild()) Log.w("FCM_TOKEN", "FirebaseApp 초기화 실패 — 푸시 비활성", it)
             if (continuation.isActive) continuation.resume(null)
         }
+    }
+
+    /** google-services.json 유무와 무관하게, 디버그 빌드인지만 본다. */
+    private fun isDebugBuild(): Boolean {
+        val flags = appContext?.applicationInfo?.flags ?: return false
+        return (flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     }
 }

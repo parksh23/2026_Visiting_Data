@@ -96,6 +96,19 @@ class SettingsStore(private val context: Context) {
         context.settingsDataStore.edit { prefs -> prefs[lastRankKey] = rank }
     }
 
+    // 접근권한 안내는 앱 업데이트 후 기존 회원에게도 한 번 표시한다.
+    private val accessPermissionNoticeAcknowledgedKey =
+        booleanPreferencesKey("access_permission_notice_v1_acknowledged")
+
+    suspend fun accessPermissionNoticeAcknowledged(): Boolean =
+        context.settingsDataStore.data.first()[accessPermissionNoticeAcknowledgedKey] ?: false
+
+    suspend fun acknowledgeAccessPermissionNotice() {
+        context.settingsDataStore.edit { prefs ->
+            prefs[accessPermissionNoticeAcknowledgedKey] = true
+        }
+    }
+
     companion object {
         const val QUIET_START_HOUR = 21
         const val QUIET_END_HOUR = 8

@@ -1,5 +1,6 @@
 package kr.co.busanquest.ui.navigation
 
+import kr.co.busanquest.data.local.SettingsStore
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -10,15 +11,22 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -39,22 +47,42 @@ import kr.co.busanquest.ui.profile.MissionHistoryScreen
 import kr.co.busanquest.ui.profile.SavedMissionScreen
 import kr.co.busanquest.data.repository.NotificationSettingsRepository
 import kr.co.busanquest.data.repository.UserRepository
+import kr.co.busanquest.util.PushNavigation
 import kr.co.busanquest.util.PushRegistrar
 import kr.co.busanquest.ui.profile.AccountSettingsScreen
 import kr.co.busanquest.ui.profile.DocumentScreen
 import kr.co.busanquest.ui.profile.NotificationSettingsScreen
 import kr.co.busanquest.ui.profile.SupportScreen
+import kr.co.busanquest.ui.profile.AppPermissionsScreen
 import kr.co.busanquest.ui.ranking.DistrictRankingScreen
+import kr.co.busanquest.ui.components.AccessPermissionOverviewDialog
 
 // 앱 시작 시 로그인 여부
 private enum class AuthStatus { Loading, LoggedIn, LoggedOut }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.slideDirection(
+    isPop: Boolean = false
+): AnimatedContentTransitionScope.SlideDirection {
+    val tabs = listOf("home", "mission", "map", "ranking", "profile")
+    val from = tabs.indexOf(initialState.destination.route?.substringBefore('/'))
+    val to = tabs.indexOf(targetState.destination.route?.substringBefore('/'))
+    return when {
+        from >= 0 && to >= 0 && from != to ->
+            if (to > from) AnimatedContentTransitionScope.SlideDirection.Left
+            else AnimatedContentTransitionScope.SlideDirection.Right
+        isPop -> AnimatedContentTransitionScope.SlideDirection.Right
+        else -> AnimatedContentTransitionScope.SlideDirection.Left
+    }
+}
 
 @Composable
 fun BusanQuestApp() {
 
     val context = LocalContext.current
     val tokenStore = remember { TokenStore(context) }
+    val settingsStore = remember { SettingsStore(context) }
     val scope = rememberCoroutineScope()
+    var showAccessPermissionNotice by remember { mutableStateOf(false) }
 
     // DataStore 에서 토큰을 읽어 로그인 여부 판단 (자동 로그인)
     val status by produceState(initialValue = AuthStatus.Loading, tokenStore) {
@@ -69,11 +97,25 @@ fun BusanQuestApp() {
     //   3) 알림 설정 내려받기 — 서버가 원본이라 다른 기기에서 바꾼 설정도 여기 반영된다
     // 전부 실패해도 앱 흐름을 막지 않는다.
     LaunchedEffect(status) {
+        if (status != AuthStatus.Loading) {
+            // 신규 설치와 업데이트 후 로그인 전에도 먼저 고지한다.
+            showAccessPermissionNotice = !settingsStore.accessPermissionNoticeAcknowledged()
+        }
         if (status == AuthStatus.LoggedIn) {
             UserRepository.refreshUserCode(context)
             PushRegistrar.register()
             NotificationSettingsRepository.refresh(context)
         }
+    }
+
+    if (showAccessPermissionNotice) {
+        AccessPermissionOverviewDialog(
+            onConfirm = {
+                showAccessPermissionNotice = false
+                scope.launch { settingsStore.acknowledgeAccessPermissionNotice() }
+            },
+            onLater = { showAccessPermissionNotice = false },
+        )
     }
 
     when (status) {
@@ -85,8 +127,32 @@ fun BusanQuestApp() {
         }
         else -> {
             val navController = rememberNavController()
+            val density = LocalDensity.current
+            var bottomBarHeight by remember { mutableStateOf(0.dp) }
             val currentRoute = navController
                 .currentBackStackEntryAsState().value?.destination?.route
+
+            // ── 알림을 눌러서 들어온 경우 해당 화면으로 이동 ──
+            // MainActivity 가 Intent 에서 꺼내 둔 목적지를 여기서 소비한다.
+            //   · currentRoute 가 null 이면 NavHost 가 아직 그래프를 세우기 전이라 이동할 수 없다.
+            //     값이 생기면 이 블록이 다시 돌면서 이동한다.
+            //   · 로그아웃 상태면 목적지를 남겨 둔 채 기다린다. 로그인이 끝나 status 가 바뀌면
+            //     역시 다시 돌면서 그때 이동한다.
+            val pendingRoute by PushNavigation.pendingRoute.collectAsState()
+            LaunchedEffect(pendingRoute, status, currentRoute) {
+                val route = pendingRoute ?: return@LaunchedEffect
+                if (currentRoute == null) return@LaunchedEffect
+                if (status != AuthStatus.LoggedIn) return@LaunchedEffect
+
+                if (currentRoute != route) {
+                    navController.navigate(route) {
+                        // 하단 탭 이동과 같은 규칙 (BottomNavigationBar.navigateTab)
+                        popUpTo("home") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+                PushNavigation.consume()
+            }
 
             // 로그인 화면에서는 하단 탭바를 숨긴다
             // 로그인 화면과 "로그인 전 약관 열람" 상태에서는 탭바를 숨긴다.
@@ -120,25 +186,25 @@ fun BusanQuestApp() {
                             .padding(top = padding.calculateTopPadding()),
                     enterTransition = {
                         slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            slideDirection(),
                             animationSpec = tween(300)
                         ) + fadeIn(animationSpec = tween(300))
                     },
                     exitTransition = {
                         slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Left,
+                            slideDirection(),
                             animationSpec = tween(300)
                         ) + fadeOut(animationSpec = tween(300))
                     },
                     popEnterTransition = {
                         slideIntoContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            slideDirection(isPop = true),
                             animationSpec = tween(300)
                         ) + fadeIn(animationSpec = tween(300))
                     },
                     popExitTransition = {
                         slideOutOfContainer(
-                            AnimatedContentTransitionScope.SlideDirection.Right,
+                            slideDirection(isPop = true),
                             animationSpec = tween(300)
                         ) + fadeOut(animationSpec = tween(300))
                     }
@@ -169,7 +235,7 @@ fun BusanQuestApp() {
                     ) {
                         val region = it.arguments?.getString("region") ?: ""
                         val focusSearch = it.arguments?.getBoolean("focus") ?: false
-                        MapScreen(region, navController, focusSearch)
+                        MapScreen(region, navController, focusSearch, bottomBarHeight)
                     }
 
                     composable("ranking") { RankingScreen(navController) }
@@ -208,6 +274,9 @@ fun BusanQuestApp() {
                     // ── 내 정보 > 설정 ──
                     composable("settings/notification") {
                         NotificationSettingsScreen(navController = navController)
+                    }
+                    composable("settings/permissions") {
+                        AppPermissionsScreen(navController = navController)
                     }
                     composable("settings/account") {
                         AccountSettingsScreen(
@@ -252,6 +321,9 @@ fun BusanQuestApp() {
                         BottomNavigationBar(
                             navController = navController,
                             modifier = Modifier.align(Alignment.BottomCenter)
+                                .onSizeChanged { size ->
+                                    bottomBarHeight = with(density) { size.height.toDp() }
+                                }
                         )
                     }
                 }

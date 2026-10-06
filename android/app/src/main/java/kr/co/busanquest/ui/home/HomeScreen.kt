@@ -85,7 +85,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(Dimens.sectionGap))
 
-        // 진행중인 미션 요약
+        // 진행 중인 미션 요약
         OngoingSummaryCard(
             occupation = occupation,
             missions = missions.map { it.mission },
@@ -122,11 +122,11 @@ private fun HomeHeader(points: Int, userName: String) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 로고 락업 (조각난 땅 + 깃발 심볼 + "부산 땅따먹기")
+            // 로고 락업 (조각난 땅 + 깃발 심볼 + "부산 가봤나")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_logo_symbol),
-                    contentDescription = "부산 땅따먹기",
+                    contentDescription = "부산 가봤나",
                     modifier = Modifier
                         .width(58.dp)
                         .height(44.dp)
@@ -135,8 +135,8 @@ private fun HomeHeader(points: Int, userName: String) {
                 // 워드마크 — 디스플레이 헤딩(콘덴스드), 강조 글자만 브랜드 액센트색
                 Row {
                     Text("부산 ", style = displayStyle(26.sp), color = TextMain)
-                    Text("땅", style = displayStyle(26.sp), color = Coral)
-                    Text("따먹기", style = displayStyle(26.sp), color = TextMain)
+                    Text("가", style = displayStyle(26.sp), color = Coral)
+                    Text("봤나", style = displayStyle(26.sp), color = TextMain)
                 }
             }
             // 포인트 — 앱 공통 표시 (모든 탭이 이 모양을 따른다)
@@ -259,7 +259,7 @@ private fun OngoingSummaryCard(
             .padding(20.dp)
     ) {
         // 크림색(CoralTint) 배경 위 전경색은 Color.kt 의 OnCoralTint* 토큰을 쓴다
-        Text("진행중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OnCoralTint)
+        Text("진행 중인 미션", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OnCoralTint)
         Spacer(Modifier.height(4.dp))
         Text(
             "미션을 선택하면\n자세한 정보를 확인할 수 있어요.",
@@ -273,7 +273,7 @@ private fun OngoingSummaryCard(
         if (missions.isEmpty()) {
             OngoingRow(
                 title = "도전 중인 미션이 없어요",
-                subtitle = "미션 탭에서 새 미션에 도전해보세요",
+                subtitle = "미션 탭에서 새 미션에 도전해 보세요",
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onEmptyClick
             )
@@ -331,7 +331,7 @@ private fun OngoingSummaryCard(
     }
 }
 
-/** 진행중 미션 행 — 비었을 때/있을 때 마크업이 똑같아 한 곳으로 합쳤다. */
+/** 진행 중인 미션 행 — 비었을 때/있을 때 마크업이 똑같아 한 곳으로 합쳤다. */
 @Composable
 private fun OngoingRow(
     title: String,
@@ -382,7 +382,7 @@ private fun SectionHeaderRow(title: String, onSeeAll: () -> Unit) {
             // 텍스트 링크는 터치 타깃이 작으므로 눌림도 작게 (0.94 는 과함)
             modifier = Modifier.pressable(scaleDown = 0.96f, onClick = onSeeAll)
         ) {
-            Text("전체보기", color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text("전체 보기", color = TextSub, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSub, modifier = Modifier.size(18.dp))
         }
     }

@@ -31,7 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import kr.co.busanquest.ui.theme.*
 
-private const val SUPPORT_EMAIL = "sihyunb88@gmail.com"
+private const val SUPPORT_EMAIL = "sihyeonb88@gmail.com"
 
 private data class Faq(val q: String, val a: String)
 
@@ -46,7 +46,7 @@ private val faqs = listOf(
     Faq(
         "'이 사진에는 위치정보가 없어요'라고 나와요",
         "위와 같은 이유입니다. 미션 장소에서 직접 촬영한 원본 사진을 올려주세요.\n" +
-            "이미 찍은 사진이라면 갤러리에서 사진 상세정보에 위치가 표시되는지 확인해보세요."
+            "이미 찍은 사진이라면 갤러리에서 사진 상세 정보에 위치가 표시되는지 확인해 보세요."
     ),
     Faq(
         "현재 위치 인증이 안 돼요",
@@ -201,7 +201,7 @@ private fun Context.sendSupportMail(nickname: String) {
     val intent = Intent(Intent.ACTION_SENDTO).apply {
         data = Uri.parse("mailto:")
         putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-        putExtra(Intent.EXTRA_SUBJECT, "[부산 땅따먹기] 문의")
+        putExtra(Intent.EXTRA_SUBJECT, "[부산 가봤나] 문의")
         putExtra(Intent.EXTRA_TEXT, body)
     }
     runCatching { startActivity(Intent.createChooser(intent, "문의 메일 보내기")) }

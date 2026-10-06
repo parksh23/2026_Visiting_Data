@@ -3,6 +3,7 @@ package kr.co.busanquest.ui.profile
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 enum class SettingAction(val route: String) {
     NOTIFICATION("settings/notification"),
+    PERMISSIONS("settings/permissions"),
     ACCOUNT("settings/account"),
     SUPPORT("support"),
     TERMS("doc/terms"),
@@ -33,6 +35,7 @@ data class SettingItem(
 /** 한 카드에 이어지는 단일 목록 */
 val settingItems: List<SettingItem> = listOf(
     SettingItem("알림 설정", Icons.Outlined.Notifications, SettingAction.NOTIFICATION),
+    SettingItem("앱 접근권한 안내", Icons.Outlined.Lock, SettingAction.PERMISSIONS),
     SettingItem("계정 설정", Icons.Outlined.Person, SettingAction.ACCOUNT),
     SettingItem("문의하기", Icons.Outlined.MailOutline, SettingAction.SUPPORT),
     SettingItem("이용약관", Icons.Outlined.Description, SettingAction.TERMS),

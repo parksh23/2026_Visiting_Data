@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -33,6 +35,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +81,11 @@ fun RankingScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
+    var showScoreGuide by rememberSaveable { mutableStateOf(false) }
+
+    if (showScoreGuide) {
+        ScoreGuideDialog(onDismiss = { showScoreGuide = false })
+    }
 
     when (val s = state) {
         is RankingUiState.Loading -> {
@@ -93,8 +103,18 @@ fun RankingScreen(
                 item {
                     ScreenHeader(
                         title = "랭킹",
-                        subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
+                        subtitle = "다른 유저들과 함께 순위를 확인해 보세요!"
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.screenPadding),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showScoreGuide = true }) {
+                            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("점수 산정 기준")
+                        }
+                    }
 
                     MyRankCard(
                         rankText = s.myRank,
@@ -138,7 +158,7 @@ private fun RankingSkeleton() {
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "랭킹",
-            subtitle = "다른 유저들과 함께 순위를 확인해보세요!"
+            subtitle = "다른 유저들과 함께 순위를 확인해 보세요!"
         )
 
         Column(modifier = Modifier.padding(horizontal = Dimens.screenPadding)) {
@@ -451,7 +471,12 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
         2 -> MedalSilver
         else -> MedalBronze
     }
-    val avatarSize = if (place == 1) 60.dp else 48.dp
+    // 1·2·3위 원을 8dp 간격으로 줄여 시상대의 높이 차이가 규칙적으로 보이게 한다.
+    val avatarSize = when (place) {
+        1 -> 64.dp
+        2 -> 56.dp
+        else -> 48.dp
+    }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -486,9 +511,9 @@ private fun PodiumColumn(entry: RankEntry, place: Int, modifier: Modifier = Modi
 
 // 부산 16개 구·군 (랭킹 지역 목록용)
 val busanDistricts = listOf(
-    "중구", "서구", "동구", "영도구", "부산진구", "동래구",
-    "남구", "북구", "해운대구", "사하구", "금정구", "강서구",
-    "연제구", "수영구", "사상구", "기장군"
+    "강서구", "금정구", "기장군", "남구", "동구", "동래구",
+    "부산진구", "북구", "사상구", "사하구", "서구", "수영구",
+    "연제구", "영도구", "중구", "해운대구"
 )
 
 @Composable

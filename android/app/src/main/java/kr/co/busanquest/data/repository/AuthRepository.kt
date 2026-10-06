@@ -40,6 +40,18 @@ private fun HttpException.serverDetail(fallback: String): String {
  * 500 = 메일 발송 실패 등 서버 문제
  * 그 외에는 서버가 준 detail 을 그대로 쓴다.
  */
+/**
+ * 네트워크 예외를 사용자 문구로. "네트워크 연결을 확인해주세요" 하나로 뭉치면
+ * (a) 기기가 오프라인, (b) 서버가 잠들어 응답이 늦음, (c) 주소를 못 찾음 을 구분할 수 없다.
+ */
+private fun IOException.networkMessage(): String = when (this) {
+    is java.net.SocketTimeoutException ->
+        "서버 응답이 늦습니다. 잠시 후 다시 시도해주세요."
+    is java.net.UnknownHostException ->
+        "서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요."
+    else -> "네트워크 연결을 확인해주세요."
+}
+
 private fun HttpException.accountLookupMessage(): String = when (code()) {
     404 -> serverDetail("계정을 찾을 수 없습니다.")
     500 -> "잠시 후 다시 시도해주세요."
@@ -146,17 +158,12 @@ class RetrofitAuthRepository(
     private val api: AuthApi
 ) : AuthRepository {
         /**
-        * 이메일/비밀번호 로그인.
-        * 아직 백엔드에 이메일 로그인 엔드포인트가 없으므로 기존 동작(가짜 검증)을 유지한다.
-        * 서버에 /api/v1/auth/login 이 준비되면 아래 주석 처리된 실제 호출로 교체하면 된다.
-        */
-        /**
     * 이메일/비밀번호 로그인.
     * 앱에서 입력한 email, password를 FastAPI 백엔드로 전송하고,
     * 성공하면 백엔드가 내려준 JWT token 문자열을 반환한다.
     *
     * 호출되는 백엔드 API:
-    * POST http://10.0.2.2:8000/api/v1/auth/login
+    * POST {BASE_URL}api/v1/auth/login
     *
     * 요청 JSON:
     * {
@@ -189,7 +196,7 @@ class RetrofitAuthRepository(
 
         } catch (e: IOException) {
             // 서버가 꺼져 있거나, 네트워크 연결이 안 되는 경우
-            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+            Result.failure(Exception(e.networkMessage()))
 
         } catch (e: Exception) {
             // 그 외 JSON 파싱 오류 등 예상하지 못한 오류
@@ -228,7 +235,7 @@ class RetrofitAuthRepository(
                 Result.failure(Exception(e.serverDetail("카카오 로그인에 실패했습니다. 다시 시도해주세요.")))
             }
         } catch (e: IOException) {
-            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+            Result.failure(Exception(e.networkMessage()))
         } catch (e: Exception) {
             Result.failure(Exception("카카오 로그인 중 오류가 발생했습니다."))
         }
@@ -239,7 +246,7 @@ class RetrofitAuthRepository(
     * 앱에서는 이 token을 저장해서 자동 로그인처럼 처리할 수 있다.
     *
     * 호출되는 백엔드 API:
-    * POST http://10.0.2.2:8000/api/v1/auth/signup
+    * POST {BASE_URL}api/v1/auth/signup
     *
     * 요청 JSON:
     * {
@@ -272,7 +279,7 @@ class RetrofitAuthRepository(
         } catch (e: HttpException) {
             Result.failure(Exception(e.serverDetail("이미 가입된 이메일이거나 입력이 올바르지 않습니다.")))
         } catch (e: IOException) {
-            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+            Result.failure(Exception(e.networkMessage()))
         } catch (e: Exception) {
             Result.failure(Exception("회원가입 중 오류가 발생했습니다."))
         }
@@ -291,7 +298,7 @@ class RetrofitAuthRepository(
         } catch (e: HttpException) {
             Result.failure(Exception(e.accountLookupMessage()))
         } catch (e: IOException) {
-            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+            Result.failure(Exception(e.networkMessage()))
         } catch (e: Exception) {
             Result.failure(Exception("아이디 찾기 중 오류가 발생했습니다."))
         }
@@ -317,7 +324,7 @@ class RetrofitAuthRepository(
         } catch (e: HttpException) {
             Result.failure(Exception(e.accountLookupMessage()))
         } catch (e: IOException) {
-            Result.failure(Exception("네트워크 연결을 확인해주세요."))
+            Result.failure(Exception(e.networkMessage()))
         } catch (e: Exception) {
             Result.failure(Exception("비밀번호 찾기 중 오류가 발생했습니다."))
         }

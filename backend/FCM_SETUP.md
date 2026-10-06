@@ -71,7 +71,21 @@ POST /internal/jobs/ranking-notifications
 POST /internal/jobs/pending-pushes
 ```
 
-권장 실행 간격: 1분. 외부 크론 서비스가 1분 간격을 지원하지 않으면 가능한 가장 짧은 간격을 사용한다.
+실행 시각: 매일 `08:05 Asia/Seoul` (하루 1회)
+
+> ⚠️ 1분 간격으로 호출하지 않는다. Render 무료 인스턴스를 계속 깨워 두면 Render가
+> `429 Too Many Requests`로 차단해 다른 크론 작업까지 모두 실패한다.
+> 야간(21:00~08:00) 보류 푸시는 08:00 이후 발송되므로 하루 1회면 충분하고,
+> 새 미션·랭킹 작업도 끝날 때 보류 푸시를 함께 처리한다.
+
+### 월별 관광지수 갱신
+
+```http
+POST /internal/jobs/tourism-scores
+```
+
+실행 시각: 매월 1일 `03:00 Asia/Seoul`. 본문 없이 `X-Job-Key`만 보낸다.
+특정 월을 지정하려면 `?base_ym=YYYYMM`을 붙인다.
 
 내부 `BackgroundScheduler`에도 같은 작업이 등록되어 있다. 두 실행이 겹쳐도 멱등 키와 DB 선점 로그로 같은 논리 알림의 중복 발송을 방지한다.
 
